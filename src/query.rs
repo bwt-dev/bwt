@@ -1,24 +1,27 @@
-use bitcoincore_rpc::Client as RpcClient;
+use std::sync::Arc;
+
+use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::Result;
-use crate::addrmaan::AddrManager;
+use crate::addrman::AddrManager;
 
 pub struct Query {
-    addrman: Arc<AddrManager>,
     rpc: Arc<RpcClient>,
+    addrman: Arc<AddrManager>,
 }
 
 impl Query {
-    fn new(addrman: Arc<AddrManager>, rpc: Arc<RpcClient>) -> Self {
-        Query { addrman, rpc }
+    pub fn new(rpc: Arc<RpcClient>, addrman: Arc<AddrManager>) -> Self {
+        Query { rpc, addrman }
     }
 
     pub fn get_header(&self, height: u32) -> Result<String> {
-        let blockhash = self.rpc.get_block_hash(height)?;
-        let blockhex = self.call("getblockheader", &[json!(blockhash)?, false.into()])?;
+        let blockhash = self.rpc.get_block_hash(height as u64)?;
+        let blockhex = self.rpc.call("getblockheader", &[json!(blockhash), false.into()])?;
         Ok(blockhex)
     }
 
+    /*
     pub fn get_headers(&self, heights: &[u32]) -> Result<Vec<String>> {
         Ok(heights.iter().map(self.get_header).collect::<Result<Vec<String>>()?)
     }
@@ -48,12 +51,12 @@ impl Query {
     pub fn get_transaction_decoded(&self, txid: &sha256d::Hash) -> Result<GetRawTransactionResult> {
     }
 
-    pub fn get_transaction_merkle(&self, txid: &sha256d::Hash) -> Result<MerkleProof> {
+    pub fn get_transaction_merkle_proof(&self, txid: &sha256d::Hash) -> Result<MerkleProof> {
     }
 
     pub fn get_transaction_from_pos(&self, height: u32, position: u32) -> Result<sha256d::Hash> {
     }
 
     pub fn get_fee_histogram(&self) -> Result<Vec<(f32, u32)>> {
-    }
+    }*/
 }
