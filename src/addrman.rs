@@ -1,12 +1,10 @@
 use std::collections::{BTreeSet, HashMap};
 use std::str::FromStr;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use bitcoin::Address;
-use bitcoin_hashes::{hex::FromHex, sha256, sha256d};
-use bitcoincore_rpc::{Client as RpcClient, Error as RpcError, RpcApi};
-use serde::Deserialize;
-use serde_json::Value;
+use bitcoin_hashes::{sha256, sha256d};
+use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::Result;
 use crate::json::{GetTransactionResult, ListTransactionsResult, TxCategory};
@@ -15,7 +13,7 @@ use crate::util::address_to_scripthash;
 // pub type FullHash = [u8; 32];
 
 pub struct AddrManager {
-    rpc: RpcClient,
+    rpc: Arc<RpcClient>,
     index: RwLock<Index>,
 }
 
@@ -27,9 +25,9 @@ struct Index {
 }
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
-struct TxHist {
-    height: u32,
-    txid: sha256d::Hash,
+pub struct TxHist {
+    pub height: u32,
+    pub txid: sha256d::Hash,
 }
 
 #[derive(Debug)]
@@ -39,7 +37,7 @@ struct TxEntry {
 }
 
 impl AddrManager {
-    pub fn new(rpc: RpcClient) -> Self {
+    pub fn new(rpc: Arc<RpcClient>) -> Self {
         AddrManager {
             rpc,
             index: RwLock::new(Index::new()),
@@ -87,6 +85,14 @@ impl AddrManager {
 
         Ok(())
     }
+
+    pub fn query(&self, scripthash: &sha256::Hash) -> BTreeSet<TxHist> {
+        let index = self.index.read().unwrap();
+        index
+            .query(scripthash)
+            .cloned()
+            .unwrap_or_else(|| BTreeSet::new())
+    }
 }
 
 impl Index {
@@ -105,7 +111,7 @@ impl Index {
             return;
         }
 
-        let status = TxStatus::from_ltx(&ltx, tip_height);
+        let status = TxStatus::from_confirmations(ltx.confirmations, &ltx.blockhash, tip_height);
 
         if status == TxStatus::Conflicted {
             return self.purge_tx(&ltx.txid);
@@ -128,7 +134,7 @@ impl Index {
 
     /// Process a transaction entry retrieved from "gettransaction"
     pub fn process_gtx(&mut self, gtx: GetTransactionResult, tip_height: u32) {
-        let status = TxStatus::from_gtx(&gtx, tip_height);
+        let status = TxStatus::from_confirmations(gtx.confirmations, &gtx.blockhash, tip_height);
 
         if status == TxStatus::Conflicted {
             return self.purge_tx(&gtx.txid);
@@ -170,7 +176,7 @@ impl Index {
         match self.transactions.insert(*txid, txentry) {
             Some(old_entry) => {
                 let old_height = old_entry.status.sorting_height();
-                self.transition_tx_height(txid, old_height, new_height)
+                self.update_tx_height(txid, old_height, new_height)
             }
             None => (),
         }
@@ -197,14 +203,14 @@ impl Index {
         if txentry.status != new_status {
             let old_status = txentry.status.clone();
             txentry.status = new_status.clone();
-            self.transition_tx_height(txid, &old_status, &new_status);
+            self.update_tx_height(txid, &old_status, &new_status);
         }
         Ok(())
     }
     */
 
     /// Update the scripthash history index to reflect the new tx status
-    fn transition_tx_height(&mut self, txid: &sha256d::Hash, old_height: u32, new_height: u32) {
+    fn update_tx_height(&mut self, txid: &sha256d::Hash, old_height: u32, new_height: u32) {
         if old_height == new_height {
             return;
         }
@@ -227,6 +233,7 @@ impl Index {
     }
 
     fn purge_tx(&mut self, txid: &sha256d::Hash) {
+        debug!("purge_tx {:?}", txid);
         if let Some(old_entry) = self.transactions.remove(txid) {
             let old_txhist = TxHist {
                 height: old_entry.status.sorting_height(),
@@ -252,31 +259,20 @@ enum TxStatus {
 }
 
 impl TxStatus {
-    fn from_ltx(ltx: &ListTransactionsResult, tip_height: u32) -> Self {
-        if ltx.confirmations > 0 {
+    fn from_confirmations(
+        confirmations: i32,
+        blockhash: &Option<sha256d::Hash>,
+        tip_height: u32,
+    ) -> Self {
+        if confirmations > 0 {
             TxStatus::Confirmed(
-                tip_height - (ltx.confirmations as u32) + 1,
-                ltx.blockhash.expect("missing blockhash for confirmed tx"),
+                tip_height - (confirmations as u32) + 1,
+                blockhash.expect("missing blockhash for confirmed tx"),
             )
-        } else if ltx.confirmations == 0 {
+        } else if confirmations == 0 {
             TxStatus::Unconfirmed
         } else {
-            // negative confirmations indicate the tx conflicts with the best chain
-            TxStatus::Conflicted
-        }
-    }
-
-    // XXX avoid duplication with from_ltx
-    fn from_gtx(gtx: &GetTransactionResult, tip_height: u32) -> Self {
-        if gtx.confirmations > 0 {
-            TxStatus::Confirmed(
-                tip_height - (gtx.confirmations as u32) + 1,
-                gtx.blockhash.expect("missing blockhash for confirmed tx"),
-            )
-        } else if gtx.confirmations == 0 {
-            TxStatus::Unconfirmed
-        } else {
-            // negative confirmations indicate the tx conflicts with the best chain
+            // negative confirmations indicate the tx conflicts with the best chain (aka was double-spent)
             TxStatus::Conflicted
         }
     }

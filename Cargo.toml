@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Nadav Ivgi <nadav@shesek.info>"]
 edition = "2018"
 
+[features]
+default = [ "electrum" ]
+electrum = [ "jsonrpc-tcp-server" ]
+
 [dependencies]
 bitcoin = "0.18"
 bitcoincore-rpc = { version = "0.6" }
@@ -15,3 +19,5 @@ lazy_static = "1.3"
 failure = "0.1"
 log = "0.4"
 stderrlog = "0.4"
+
+jsonrpc-tcp-server = { optional = true, version = "11.0.0" }
