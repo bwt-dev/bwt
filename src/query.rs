@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use bitcoin_hashes::sha256;
-use bitcoincore_rpc::{Client as RpcClient, RpcApi};
+use bitcoincore_rpc::{json::EstimateSmartFeeResult, Client as RpcClient, RpcApi};
 
 use crate::addrman::{AddrManager, TxHist};
 use crate::error::Result;
@@ -25,11 +25,25 @@ impl Query {
         Ok(blockhex)
     }
 
-    /*
-        pub fn get_headers(&self, heights: &[u32]) -> Result<Vec<String>> {
-            Ok(heights.iter().map(self.get_header).collect::<Result<Vec<String>>()?)
-        }
+    pub fn get_headers(&self, heights: &[u32]) -> Result<Vec<String>> {
+        Ok(heights
+            .iter()
+            .map(|h| self.get_header(*h))
+            .collect::<Result<Vec<String>>>()?)
+    }
 
+    pub fn estimate_fee(&self, target: u16) -> Result<Option<f32>> {
+        let feerate = self
+            .rpc
+            .call::<EstimateSmartFeeResult>("estimatesmartfee", &[target.into()])?
+            .feerate
+            .and_then(|rate| rate.as_f64())
+            // from BTC/kB to sat/b
+            .map(|rate| (rate * 100_000f64) as f32);
+        Ok(feerate)
+    }
+
+    /*
         // XXX sat/byte or btc/kb?
         pub fn estimate_fee(&self, target: u32) -> Result<f64> {
         }
@@ -41,8 +55,7 @@ impl Query {
         }
     */
 
-    // XXX confirmed, unconfirmed, or both
-    pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<BTreeSet<TxHist>> {
+    pub fn query(&self, scripthash: &sha256::Hash) -> Result<BTreeSet<TxHist>> {
         Ok(self.addrman.query(scripthash))
     }
 
