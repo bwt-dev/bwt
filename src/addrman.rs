@@ -240,9 +240,12 @@ impl Index {
                 height: old_entry.status.sorting_height(),
                 txid: *txid,
             };
-            for (_scripthash, txs) in &mut self.scripthashes {
+
+            // TODO optimize
+            self.scripthashes.retain(|_scripthash, txs| {
                 txs.remove(&old_txhist);
-            }
+                txs.len() > 0
+            })
         }
     }
 
@@ -251,7 +254,6 @@ impl Index {
     }
 }
 
-// TODO verify ordering
 #[derive(Clone, PartialEq, Debug)]
 enum TxStatus {
     Conflicted, // aka double spent
