@@ -60,13 +60,14 @@ impl AddrManager {
 
     fn update_listtransactions(&self) -> Result<()> {
         let tip_height = self.rpc.get_block_count()? as u32;
+        let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
         let ltxs: Vec<ListTransactionsResult> = self.rpc.call(
             "listtransactions",
             &["*".into(), 100_000_000.into(), 0.into(), true.into()],
         )?;
 
-        if tip_height != self.rpc.get_block_count()? as u32 {
+        if tip_hash != self.rpc.get_best_block_hash()? {
             warn!("tip changed while fetching transactions, retrying...");
             return self.update();
         }
