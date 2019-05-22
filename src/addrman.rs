@@ -403,7 +403,6 @@ impl TxStatus {
             TxStatus::Confirmed(_) | TxStatus::Conflicted => false,
         }
     }
-
 }
 
 // convert from a negative float to a positive satoshi amount

@@ -1,12 +1,12 @@
 use std::cmp;
 use std::sync::Arc;
 
-use bitcoin_hashes::{hex::FromHex, sha256};
+use bitcoin_hashes::{sha256, sha256d};
 use jsonrpc_tcp_server::jsonrpc_core::{
     Error as RpcServerError, IoHandler, Params, Result as RpcResult,
 };
 use jsonrpc_tcp_server::ServerBuilder;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::addrman::TxVal;
@@ -27,6 +27,11 @@ impl ElectrumServer {
     pub fn start(self) -> Result<()> {
         let server = Arc::new(self);
         let mut io = IoHandler::default();
+
+        io.add_method("server.banner", {
+            let server = Arc::clone(&server);
+            move |_params| wrap(server.banner())
+        });
 
         io.add_method("blockchain.block.header", {
             let server = Arc::clone(&server);
@@ -75,6 +80,10 @@ impl ElectrumServer {
         server.wait();
 
         Ok(())
+    }
+
+    fn server_banner(&self) -> Result<String> {
+        Ok("Rust Personal Server".into())
     }
 
     fn blockchain_block_header(&self, p: Params) -> Result<String> {
@@ -132,7 +141,6 @@ impl ElectrumServer {
             .map(|TxVal(txid, entry)| json!({ "height": entry.status.elc_height(), "tx_hash": txid, "fee": entry.fee }))
             .collect())
     }
-
 
     fn blockchain_scripthash_listunspent(&self, p: Params) -> Result<Vec<Value>> {
         let (scripthash,): (sha256::Hash,) = p.parse()?;
