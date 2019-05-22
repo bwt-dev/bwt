@@ -58,6 +58,11 @@ impl ElectrumServer {
             move |params| wrap(server.blockchain_scripthash_listunspent(params))
         });
 
+        io.add_method("blockchain.scripthash.get_balance", {
+            let server = Arc::clone(&server);
+            move |params| wrap(server.blockchain_scripthash_get_balance(params))
+        });
+
         let server = ServerBuilder::new(io)
             .start(&"127.0.0.1:9009".parse().unwrap())
             .expect("failed starting server");
@@ -104,7 +109,6 @@ impl ElectrumServer {
 
     fn blockchain_scripthash_get_history(&self, p: Params) -> Result<Vec<Value>> {
         let (scripthash,): (sha256::Hash,) = p.parse()?;
-
         Ok(self
             .query
             .get_history(&scripthash)?
@@ -115,13 +119,18 @@ impl ElectrumServer {
 
     fn blockchain_scripthash_listunspent(&self, p: Params) -> Result<Vec<Value>> {
         let (scripthash,): (sha256::Hash,) = p.parse()?;
-
         Ok(self
             .query
             .list_unspent(&scripthash, 0)?
             .iter()
             .map(|utxo| json!({ "height": utxo.status.elc_height(), "tx_hash": utxo.txid, "tx_pos": utxo.vout, "value": utxo.value }))
             .collect())
+    }
+
+    fn blockchain_scripthash_get_balance(&self, p: Params) -> Result<Value> {
+        let (scripthash,): (sha256::Hash,) = p.parse()?;
+        let (confirmed, unconfirmed) = self.query.get_balance(&scripthash)?;
+        Ok(json!({ "confirmed": confirmed, "unconfirmed": unconfirmed }))
     }
 }
 

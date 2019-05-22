@@ -62,6 +62,10 @@ impl Query {
         Ok(self.addrman.list_unspent(scripthash, min_conf)?)
     }
 
+    pub fn get_balance(&self, scripthash: &sha256::Hash) -> Result<(u64, u64)> {
+        Ok(self.addrman.get_balance(scripthash)?)
+    }
+
     /*
     pub fn list_unspent(&self, scripthash: &sha256::Hash) -> Result<Vec<Utxo>> {
     }

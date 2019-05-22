@@ -162,6 +162,7 @@ impl AddrManager {
         let (confirmed, unconfirmed): (Vec<Utxo>, Vec<Utxo>) = utxos
             .into_iter()
             .partition(|utxo| utxo.status.is_confirmed());
+
         Ok((
             confirmed.iter().map(|u| u.value).sum(),
             unconfirmed.iter().map(|u| u.value).sum(),
