@@ -30,7 +30,7 @@ impl ElectrumServer {
 
         io.add_method("server.banner", {
             let server = Arc::clone(&server);
-            move |_params| wrap(server.banner())
+            move |_params| wrap(server.server_banner())
         });
 
         io.add_method("blockchain.block.header", {
