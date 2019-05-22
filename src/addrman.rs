@@ -375,7 +375,7 @@ impl TxStatus {
     }
 
     // height suitable for the electrum protocol
-    pub fn elc_height(&self) -> u32 {
+    pub fn electrum_height(&self) -> u32 {
         match self {
             TxStatus::Confirmed(height) => *height,
             TxStatus::Unconfirmed => 0,

@@ -141,7 +141,7 @@ impl ElectrumServer {
             .query
             .get_history(&scripthash)?
             .into_iter()
-            .map(|TxVal(txid, entry)| json!({ "height": entry.status.elc_height(), "tx_hash": txid, "fee": entry.fee }))
+            .map(|TxVal(txid, entry)| json!({ "height": entry.status.electrum_height(), "tx_hash": txid, "fee": entry.fee }))
             .collect())
     }
 
@@ -152,7 +152,7 @@ impl ElectrumServer {
             .get_history(&scripthash)?
             .into_iter()
             .filter(|TxVal(_, ref entry)| entry.status.is_unconfirmed())
-            .map(|TxVal(txid, entry)| json!({ "height": entry.status.elc_height(), "tx_hash": txid, "fee": entry.fee }))
+            .map(|TxVal(txid, entry)| json!({ "height": entry.status.electrum_height(), "tx_hash": txid, "fee": entry.fee }))
             .collect())
     }
 
@@ -162,7 +162,7 @@ impl ElectrumServer {
             .query
             .list_unspent(&scripthash, 0)?
             .iter()
-            .map(|utxo| json!({ "height": utxo.status.elc_height(), "tx_hash": utxo.txid, "tx_pos": utxo.vout, "value": utxo.value }))
+            .map(|utxo| json!({ "height": utxo.status.electrum_height(), "tx_hash": utxo.txid, "tx_pos": utxo.vout, "value": utxo.value }))
             .collect())
     }
 
