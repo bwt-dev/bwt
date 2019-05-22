@@ -33,6 +33,11 @@ impl ElectrumServer {
             move |_params| wrap(server.server_banner())
         });
 
+        io.add_method("server.ping", {
+            let server = Arc::clone(&server);
+            move |_params| wrap(server.server_ping())
+        });
+
         io.add_method("blockchain.block.header", {
             let server = Arc::clone(&server);
             move |params| wrap(server.blockchain_block_header(params))
@@ -89,6 +94,10 @@ impl ElectrumServer {
 
     fn server_banner(&self) -> Result<String> {
         Ok("Rust Personal Server".into())
+    }
+
+    fn server_ping(&self) -> Result<Value> {
+        Ok(Value::Null)
     }
 
     fn blockchain_block_header(&self, p: Params) -> Result<String> {
