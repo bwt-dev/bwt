@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use bitcoin_hashes::sha256;
-use bitcoincore_rpc::{json::EstimateSmartFeeResult, Client as RpcClient, RpcApi};
+use bitcoin_hashes::{sha256, sha256d};
+use bitcoincore_rpc::json::{EstimateSmartFeeResult, GetRawTransactionResult};
+use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::addrman::{AddrManager, TxVal, Utxo};
 use crate::error::Result;
@@ -66,17 +67,16 @@ impl Query {
         Ok(self.addrman.get_balance(scripthash)?)
     }
 
-    /*
-    pub fn list_unspent(&self, scripthash: &sha256::Hash) -> Result<Vec<Utxo>> {
-    }
-
-    // XXX broadcast here?
-
-    pub fn get_transaction&self, (txid: &sha256d::Hash) -> Result<String> {
+    pub fn get_transaction_hex(&self, txid: &sha256d::Hash) -> Result<String> {
+        Ok(self.rpc.get_raw_transaction_hex(txid, None)?)
     }
 
     pub fn get_transaction_decoded(&self, txid: &sha256d::Hash) -> Result<GetRawTransactionResult> {
+        Ok(self.rpc.get_raw_transaction_verbose(txid, None)?)
     }
+
+    /*
+    // XXX broadcast here?
 
     pub fn get_transaction_merkle_proof(&self, txid: &sha256d::Hash) -> Result<MerkleProof> {
     }

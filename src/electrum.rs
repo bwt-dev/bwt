@@ -73,6 +73,11 @@ impl ElectrumServer {
             move |params| wrap(server.blockchain_scripthash_get_balance(params))
         });
 
+        io.add_method("blockchain.transaction.get", {
+            let server = Arc::clone(&server);
+            move |params| wrap(server.blockchain_transaction_get(params))
+        });
+
         let server = ServerBuilder::new(io)
             .start(&"127.0.0.1:9009".parse().unwrap())
             .expect("failed starting server");
@@ -156,6 +161,21 @@ impl ElectrumServer {
         let (scripthash,): (sha256::Hash,) = p.parse()?;
         let (confirmed, unconfirmed) = self.query.get_balance(&scripthash)?;
         Ok(json!({ "confirmed": confirmed, "unconfirmed": unconfirmed }))
+    }
+
+    fn blockchain_transaction_get(&self, p: Params) -> Result<Value> {
+        let (txid, verbose, want_merkle): (sha256d::Hash, Option<bool>, Option<bool>) =
+            pad_params(p, 3).parse()?;
+        let verbose = verbose.unwrap_or(false);
+        let want_merkle = want_merkle.unwrap_or(false);
+
+        Ok(if !verbose && !want_merkle {
+            json!(self.query.get_transaction_hex(&txid)?)
+        } else if verbose {
+            json!(self.query.get_transaction_decoded(&txid)?)
+        } else {
+            bail!("unimplemented")
+        })
     }
 }
 
