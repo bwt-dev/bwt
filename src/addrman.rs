@@ -17,12 +17,18 @@ pub struct AddrManager {
 
 #[derive(Debug)]
 struct Index {
-    scripthashes: HashMap<sha256::Hash, (String, BTreeSet<HistEntry>)>,
+    scripthashes: HashMap<sha256::Hash, ScriptEntry>,
     transactions: HashMap<sha256d::Hash, TxEntry>,
 }
 
+#[derive(Debug)]
+struct ScriptEntry {
+    address: String,
+    history: BTreeSet<ScriptHist>,
+}
+
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
-struct HistEntry {
+struct ScriptHist {
     height: u32,
     txid: sha256d::Hash,
 }
@@ -193,7 +199,7 @@ impl Index {
         };
         self.index_tx_entry(&ltx.txid, txentry);
 
-        let txhist = HistEntry {
+        let txhist = ScriptHist {
             height,
             txid: ltx.txid,
         };
@@ -216,7 +222,7 @@ impl Index {
         };
         self.index_tx_entry(&gtx.txid, txentry);
 
-        let txhist = HistEntry {
+        let txhist = ScriptHist {
             height,
             txid: gtx.txid,
         };
@@ -251,7 +257,7 @@ impl Index {
     }
 
     /// Index address history entry
-    fn index_address_history(&mut self, address: &Address, txhist: HistEntry) {
+    fn index_address_history(&mut self, address: &Address, txhist: ScriptHist) {
         let scripthash = address_to_scripthash(address);
 
         debug!(
@@ -261,8 +267,11 @@ impl Index {
 
         self.scripthashes
             .entry(scripthash)
-            .or_insert_with(|| (address.to_string(), BTreeSet::new()))
-            .1
+            .or_insert_with(|| ScriptEntry {
+                address: address.to_string(),
+                history: BTreeSet::new(),
+            })
+            .history
             .insert(txhist);
     }
 
@@ -284,19 +293,19 @@ impl Index {
             return;
         }
 
-        let old_txhist = HistEntry {
+        let old_txhist = ScriptHist {
             height: old_height,
             txid: *txid,
         };
-        let new_txhist = HistEntry {
+        let new_txhist = ScriptHist {
             height: new_height,
             txid: *txid,
         };
 
         // TODO optimize, keep txid->scripthashes map
-        for (_scripthash, (_, txs)) in &mut self.scripthashes {
-            if txs.remove(&old_txhist) {
-                txs.insert(new_txhist.clone());
+        for (_scripthash, ScriptEntry { history, .. }) in &mut self.scripthashes {
+            if history.remove(&old_txhist) {
+                history.insert(new_txhist.clone());
             }
         }
     }
@@ -304,26 +313,29 @@ impl Index {
     fn purge_tx(&mut self, txid: &sha256d::Hash) {
         debug!("purge_tx {:?}", txid);
         if let Some(old_entry) = self.transactions.remove(txid) {
-            let old_txhist = HistEntry {
+            let old_txhist = ScriptHist {
                 height: old_entry.status.sorting_height(),
                 txid: *txid,
             };
 
             // TODO optimize
-            self.scripthashes.retain(|_scripthash, (_, txs)| {
-                txs.remove(&old_txhist);
-                txs.len() > 0
-            })
+            self.scripthashes
+                .retain(|_scripthash, ScriptEntry { history, .. }| {
+                    history.remove(&old_txhist);
+                    history.len() > 0
+                })
         }
     }
 
-    pub fn get_history(&self, scripthash: &sha256::Hash) -> Option<&BTreeSet<HistEntry>> {
-        self.scripthashes.get(scripthash).map(|x| &x.1)
+    pub fn get_history(&self, scripthash: &sha256::Hash) -> Option<&BTreeSet<ScriptHist>> {
+        self.scripthashes.get(scripthash).map(|x| &x.history)
     }
 
     // get the address of a scripthash
     pub fn get_address(&self, scripthash: &sha256::Hash) -> Option<&str> {
-        self.scripthashes.get(scripthash).map(|x| x.0.as_str())
+        self.scripthashes
+            .get(scripthash)
+            .map(|x| x.address.as_str())
     }
 
     pub fn get_tx(&self, txid: &sha256d::Hash) -> Option<&TxEntry> {

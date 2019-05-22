@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use bitcoin_hashes::sha256;
-use bitcoincore_rpc::{
-    json::EstimateSmartFeeResult, json::ListUnspentResult, Client as RpcClient, RpcApi,
-};
+use bitcoincore_rpc::{json::EstimateSmartFeeResult, Client as RpcClient, RpcApi};
 
 use crate::addrman::{AddrManager, TxVal, Utxo};
 use crate::error::Result;
