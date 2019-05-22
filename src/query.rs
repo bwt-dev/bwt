@@ -1,10 +1,11 @@
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use bitcoin_hashes::sha256;
-use bitcoincore_rpc::{json::EstimateSmartFeeResult, Client as RpcClient, RpcApi};
+use bitcoincore_rpc::{
+    json::EstimateSmartFeeResult, json::ListUnspentResult, Client as RpcClient, RpcApi,
+};
 
-use crate::addrman::{AddrManager, TxHist};
+use crate::addrman::{AddrManager, TxVal, Utxo};
 use crate::error::Result;
 
 pub struct Query {
@@ -55,8 +56,12 @@ impl Query {
         }
     */
 
-    pub fn query(&self, scripthash: &sha256::Hash) -> Result<BTreeSet<TxHist>> {
-        Ok(self.addrman.query(scripthash))
+    pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<TxVal>> {
+        Ok(self.addrman.get_history(scripthash))
+    }
+
+    pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: u32) -> Result<Vec<Utxo>> {
+        Ok(self.addrman.list_unspent(scripthash, min_conf)?)
     }
 
     /*

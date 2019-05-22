@@ -9,6 +9,7 @@ use jsonrpc_tcp_server::ServerBuilder;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 
+use crate::addrman::TxVal;
 use crate::error::{Error, Result};
 use crate::query::Query;
 
@@ -50,6 +51,11 @@ impl ElectrumServer {
         io.add_method("blockchain.scripthash.get_history", {
             let server = Arc::clone(&server);
             move |params| wrap(server.blockchain_scripthash_get_history(params))
+        });
+
+        io.add_method("blockchain.scripthash.listunspent", {
+            let server = Arc::clone(&server);
+            move |params| wrap(server.blockchain_scripthash_listunspent(params))
         });
 
         let server = ServerBuilder::new(io)
@@ -102,8 +108,19 @@ impl ElectrumServer {
         Ok(self
             .query
             .get_history(&scripthash)?
+            .into_iter()
+            .map(|TxVal(txid, entry)| json!({ "height": entry.status.elc_height(), "tx_hash": txid, "fee": entry.fee }))
+            .collect())
+    }
+
+    fn blockchain_scripthash_listunspent(&self, p: Params) -> Result<Vec<Value>> {
+        let (scripthash,): (sha256::Hash,) = p.parse()?;
+
+        Ok(self
+            .query
+            .list_unspent(&scripthash, 0)?
             .iter()
-            .map(|tx| json!({ "height": tx.height, "tx_hash": tx.txid }))
+            .map(|utxo| json!({ "height": utxo.status.elc_height(), "tx_hash": utxo.txid, "tx_pos": utxo.vout, "value": utxo.value }))
             .collect())
     }
 }
