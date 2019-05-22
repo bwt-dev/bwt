@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use bitcoin_hashes::{sha256, sha256d};
-use bitcoincore_rpc::json::{EstimateSmartFeeResult, GetRawTransactionResult};
+use bitcoin_hashes::{hex::ToHex, sha256, sha256d};
+use bitcoincore_rpc::json::EstimateSmartFeeResult;
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
+use serde_json::Value;
 
 use crate::addrman::{AddrManager, TxVal, Utxo};
 use crate::error::Result;
@@ -68,11 +69,15 @@ impl Query {
     }
 
     pub fn get_transaction_hex(&self, txid: &sha256d::Hash) -> Result<String> {
-        Ok(self.rpc.get_raw_transaction_hex(txid, None)?)
+        Ok(self
+            .rpc
+            .call("getrawtransaction", &[txid.to_hex().into(), false.into()])?)
     }
 
-    pub fn get_transaction_decoded(&self, txid: &sha256d::Hash) -> Result<GetRawTransactionResult> {
-        Ok(self.rpc.get_raw_transaction_verbose(txid, None)?)
+    pub fn get_transaction_decoded(&self, txid: &sha256d::Hash) -> Result<Value> {
+        Ok(self
+            .rpc
+            .call("getrawtransaction", &[txid.to_hex().into(), true.into()])?)
     }
 
     /*
