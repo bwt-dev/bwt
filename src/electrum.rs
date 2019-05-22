@@ -53,6 +53,11 @@ impl ElectrumServer {
             move |params| wrap(server.blockchain_scripthash_get_history(params))
         });
 
+        io.add_method("blockchain.scripthash.get_mempool", {
+            let server = Arc::clone(&server);
+            move |params| wrap(server.blockchain_scripthash_get_mempool(params))
+        });
+
         io.add_method("blockchain.scripthash.listunspent", {
             let server = Arc::clone(&server);
             move |params| wrap(server.blockchain_scripthash_listunspent(params))
@@ -116,6 +121,18 @@ impl ElectrumServer {
             .map(|TxVal(txid, entry)| json!({ "height": entry.status.elc_height(), "tx_hash": txid, "fee": entry.fee }))
             .collect())
     }
+
+    fn blockchain_scripthash_get_mempool(&self, p: Params) -> Result<Vec<Value>> {
+        let (scripthash,): (sha256::Hash,) = p.parse()?;
+        Ok(self
+            .query
+            .get_history(&scripthash)?
+            .into_iter()
+            .filter(|TxVal(_, ref entry)| entry.status.is_unconfirmed())
+            .map(|TxVal(txid, entry)| json!({ "height": entry.status.elc_height(), "tx_hash": txid, "fee": entry.fee }))
+            .collect())
+    }
+
 
     fn blockchain_scripthash_listunspent(&self, p: Params) -> Result<Vec<Value>> {
         let (scripthash,): (sha256::Hash,) = p.parse()?;

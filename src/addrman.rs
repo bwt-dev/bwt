@@ -396,6 +396,14 @@ impl TxStatus {
             TxStatus::Unconfirmed | TxStatus::Conflicted => false,
         }
     }
+
+    pub fn is_unconfirmed(&self) -> bool {
+        match self {
+            TxStatus::Unconfirmed => true,
+            TxStatus::Confirmed(_) | TxStatus::Conflicted => false,
+        }
+    }
+
 }
 
 // convert from a negative float to a positive satoshi amount
