@@ -6,13 +6,11 @@ use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySe
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use bitcoin::consensus::encode::{deserialize, serialize};
-use bitcoin::Transaction;
-use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, sha256d, Hash};
+use bitcoin_hashes::{hex::ToHex, sha256, sha256d, Hash};
 use serde_json::{from_str, from_value, Value};
 
-use crate::addrman::{TxVal, Utxo};
-use crate::error::{fmt_error_chain, OptionExt, Result, ResultExt};
+use crate::addrman::TxVal;
+use crate::error::{fmt_error_chain, Result, ResultExt};
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
 
