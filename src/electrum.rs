@@ -136,8 +136,8 @@ impl Connection {
     }
 
     fn blockchain_relayfee(&self) -> Result<Value> {
-        // TODO read out bitcoind's relay fee
-        Ok(json!(1.0))
+        let fee_rate = self.query.relay_fee()?;
+        Ok(json!(fee_rate / 100_000f32))
     }
 
     fn blockchain_scripthash_subscribe(&mut self, params: Value) -> Result<Value> {

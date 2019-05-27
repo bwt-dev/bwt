@@ -6,7 +6,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use serde_json::Value;
 
 use crate::addrman::{AddrManager, TxVal, Utxo};
-use crate::error::Result;
+use crate::error::{OptionExt, Result};
 
 pub struct Query {
     rpc: Arc<RpcClient>,
@@ -63,6 +63,15 @@ impl Query {
             // from BTC/kB to sat/b
             .map(|rate| (rate * 100_000f64) as f32);
         Ok(feerate)
+    }
+
+    pub fn relay_fee(&self) -> Result<f32> {
+        let feerate = self.rpc.call::<Value>("getmempoolinfo", &[])?["minrelaytxfee"]
+            .as_f64()
+            .or_err("invalid getmempoolinfo reply")?;
+
+        // from BTC/kB to sat/b
+        Ok((feerate * 100_000f64) as f32)
     }
 
     /*
