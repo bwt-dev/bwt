@@ -18,3 +18,5 @@ pub mod util;
 
 #[cfg(feature = "electrum")]
 pub mod electrum;
+#[cfg(feature = "electrum")]
+pub mod electrum_new;

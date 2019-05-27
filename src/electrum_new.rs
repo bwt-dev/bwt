@@ -1,36 +1,40 @@
-use bitcoin::blockdata::transaction::Transaction;
-use bitcoin::consensus::encode::{deserialize, serialize};
-use bitcoin_hashes::hex::{FromHex, ToHex};
-use bitcoin_hashes::sha256d::Hash as Sha256dHash;
-use error_chain::ChainedError;
-use hex;
-use serde_json::{from_str, Value};
+use std::cmp;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
-use std::sync::mpsc::{Sender, SyncSender, TrySendError};
+use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::errors::*;
-use crate::metrics::{Gauge, HistogramOpts, HistogramVec, MetricOpts, Metrics};
-use crate::query::{Query, Status};
-use crate::util::{spawn_thread, Channel, HeaderEntry, SyncChannel};
+use bitcoin::consensus::encode::{deserialize, serialize};
+use bitcoin::Transaction;
+use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, sha256d};
+use serde_json::{from_str, Value};
 
-const ELECTRS_VERSION: &str = env!("CARGO_PKG_VERSION");
+use crate::addrman::{TxVal, Utxo};
+use crate::error::{fmt_error_chain, OptionExt, Result, ResultExt};
+use crate::query::Query;
+
+// Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
+// released under the MIT license. https://github.com/romanz/electrs
+
+const RUST_EPS_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL_VERSION: &str = "1.4";
+const MAX_HEADERS: u32 = 2016;
 
-// TODO: Sha256dHash should be a generic hash-container (since script hash is single SHA256)
-fn hash_from_value(val: Option<&Value>) -> Result<Sha256dHash> {
-    let script_hash = val.chain_err(|| "missing hash")?;
-    let script_hash = script_hash.as_str().chain_err(|| "non-string hash")?;
-    let script_hash = Sha256dHash::from_hex(script_hash).chain_err(|| "non-hex hash")?;
+fn hash_from_value<T>(val: Option<&Value>) -> Result<T>
+where
+    T: FromHex,
+{
+    let script_hash = val.or_err("missing hash")?;
+    let script_hash = script_hash.as_str().or_err("non-string hash")?;
+    let script_hash = T::from_hex(script_hash).context("non-hex hash")?;
     Ok(script_hash)
 }
 
 fn usize_from_value(val: Option<&Value>, name: &str) -> Result<usize> {
-    let val = val.chain_err(|| format!("missing {}", name))?;
-    let val = val.as_u64().chain_err(|| format!("non-integer {}", name))?;
+    let val = val.or_err(format!("missing {}", name))?;
+    let val = val.as_u64().or_err(format!("non-integer {}", name))?;
     Ok(val as usize)
 }
 
@@ -42,8 +46,8 @@ fn usize_from_value_or(val: Option<&Value>, name: &str, default: usize) -> Resul
 }
 
 fn bool_from_value(val: Option<&Value>, name: &str) -> Result<bool> {
-    let val = val.chain_err(|| format!("missing {}", name))?;
-    let val = val.as_bool().chain_err(|| format!("not a bool {}", name))?;
+    let val = val.or_err(format!("missing {}", name))?;
+    let val = val.as_bool().or_err(format!("not a bool {}", name))?;
     Ok(val)
 }
 
@@ -54,66 +58,44 @@ fn bool_from_value_or(val: Option<&Value>, name: &str, default: bool) -> Result<
     bool_from_value(val, name)
 }
 
-fn unspent_from_status(status: &Status) -> Value {
-    json!(Value::Array(
-        status
-            .unspent()
-            .into_iter()
-            .map(|out| json!({
-                "height": out.height,
-                "tx_pos": out.output_index,
-                "tx_hash": out.txn_id.to_hex(),
-                "value": out.value,
-            }))
-            .collect()
-    ))
-}
-
 struct Connection {
     query: Arc<Query>,
-    last_header_entry: Option<HeaderEntry>,
-    status_hashes: HashMap<Sha256dHash, Value>, // ScriptHash -> StatusHash
+    tip: Option<(u32, sha256d::Hash)>,
+    status_hashes: HashMap<sha256::Hash, Value>, // ScriptHash -> StatusHash
     stream: TcpStream,
     addr: SocketAddr,
     chan: SyncChannel<Message>,
-    stats: Arc<Stats>,
 }
 
 impl Connection {
-    pub fn new(
-        query: Arc<Query>,
-        stream: TcpStream,
-        addr: SocketAddr,
-        stats: Arc<Stats>,
-    ) -> Connection {
+    pub fn new(query: Arc<Query>, stream: TcpStream, addr: SocketAddr) -> Connection {
         Connection {
             query,
-            last_header_entry: None, // disable header subscription for now
+            tip: None, // disable header subscription for now
             status_hashes: HashMap::new(),
             stream,
             addr,
             chan: SyncChannel::new(10),
-            stats,
         }
     }
 
     fn blockchain_headers_subscribe(&mut self) -> Result<Value> {
-        let entry = self.query.get_best_header()?;
-        let hex_header = hex::encode(serialize(entry.header()));
-        let result = json!({"hex": hex_header, "height": entry.height()});
-        self.last_header_entry = Some(entry);
-        Ok(result)
+        let (tip_height, tip_hash) = self.query.get_tip()?;
+        let tip_hex = self.query.get_header_by_hash(tip_hash)?;
+        self.tip = Some((tip_height, tip_hash));
+        Ok(json!({ "height": tip_height, "hex": tip_hex }))
     }
 
     fn server_version(&self) -> Result<Value> {
         Ok(json!([
-            format!("electrs {}", ELECTRS_VERSION),
+            format!("rust-eps {}", RUST_EPS_VERSION),
             PROTOCOL_VERSION
         ]))
     }
 
     fn server_banner(&self) -> Result<Value> {
-        Ok(json!(self.query.get_banner()?))
+        // TODO
+        Ok(json!("Welcome"))
     }
 
     fn server_donation_address(&self) -> Result<Value> {
@@ -125,23 +107,24 @@ impl Connection {
     }
 
     fn mempool_get_fee_histogram(&self) -> Result<Value> {
-        Ok(json!(self.query.get_fee_histogram()))
+        Ok(Value::Null)
+        // TODO
+        //Ok(json!(self.query.get_fee_histogram()))
     }
 
     fn blockchain_block_header(&self, params: &[Value]) -> Result<Value> {
-        let height = usize_from_value(params.get(0), "height")?;
-        let cp_height = usize_from_value_or(params.get(1), "cp_height", 0)?;
+        let height = usize_from_value(params.get(0), "height")? as u32;
+        let cp_height = usize_from_value_or(params.get(1), "cp_height", 0)? as u32;
 
-        let raw_header_hex: String = self
-            .query
-            .get_headers(&[height])
-            .into_iter()
-            .map(|entry| hex::encode(&serialize(entry.header())))
-            .collect();
+        let header_hex = self.query.get_header(height)?;
 
         if cp_height == 0 {
-            return Ok(json!(raw_header_hex));
+            return Ok(json!(header_hex));
         }
+
+        // TODO
+        Ok(Value::Null)
+        /*
         let (branch, root) = self.query.get_header_merkle_proof(height, cp_height)?;
 
         let branch_vec: Vec<String> = branch.into_iter().map(|b| b.to_hex()).collect();
@@ -151,28 +134,30 @@ impl Connection {
             "root": root.to_hex(),
             "branch": branch_vec
         }))
+        */
     }
 
     fn blockchain_block_headers(&self, params: &[Value]) -> Result<Value> {
-        let start_height = usize_from_value(params.get(0), "start_height")?;
-        let count = usize_from_value(params.get(1), "count")?;
-        let cp_height = usize_from_value_or(params.get(2), "cp_height", 0)?;
-        let heights: Vec<usize> = (start_height..(start_height + count)).collect();
-        let headers: Vec<String> = self
-            .query
-            .get_headers(&heights)
-            .into_iter()
-            .map(|entry| hex::encode(&serialize(entry.header())))
-            .collect();
+        let start_height = usize_from_value(params.get(0), "start_height")? as u32;
+        let count = usize_from_value(params.get(1), "count")? as u32;
+        let cp_height = usize_from_value_or(params.get(2), "cp_height", 0)? as u32;
+
+        let count = cmp::min(count, MAX_HEADERS);
+        let heights: Vec<u32> = (start_height..(start_height + count)).collect();
+
+        let headers = self.query.get_headers(&heights)?;
 
         if count == 0 || cp_height == 0 {
             return Ok(json!({
                 "count": headers.len(),
                 "hex": headers.join(""),
-                "max": 2016,
+                "max": MAX_HEADERS,
             }));
         }
 
+        // TODO
+        Ok(Value::Null)
+        /*
         let (branch, root) = self
             .query
             .get_header_merkle_proof(start_height + (count - 1), cp_height)?;
@@ -186,58 +171,90 @@ impl Connection {
             "root": root.to_hex(),
             "branch" : branch_vec
         }))
+        */
     }
 
     fn blockchain_estimatefee(&self, params: &[Value]) -> Result<Value> {
         let blocks_count = usize_from_value(params.get(0), "blocks_count")?;
-        let fee_rate = self.query.estimate_fee(blocks_count); // in BTC/kB
-        Ok(json!(fee_rate))
+        let fee_rate = self.query.estimate_fee(blocks_count as u16)?;
+
+        // format for electrum: from sat/b to BTC/kB, -1 to indicate no estimate is available
+        Ok(json!(fee_rate.map_or(-1.0, |rate| rate / 100_000f32)))
     }
 
     fn blockchain_relayfee(&self) -> Result<Value> {
-        Ok(json!(0.0)) // allow sending transactions with any fee.
+        // TODO read out bitcoind's relay fee
+        Ok(json!(1.0))
     }
 
     fn blockchain_scripthash_subscribe(&mut self, params: &[Value]) -> Result<Value> {
-        let script_hash = hash_from_value(params.get(0)).chain_err(|| "bad script_hash")?;
+        let script_hash: sha256::Hash =
+            hash_from_value(params.get(0)).context("bad script_hash")?;
+        Ok(Value::Null)
+        // TODO
+        /*
         let status = self.query.status(&script_hash[..])?;
         let result = status.hash().map_or(Value::Null, |h| json!(hex::encode(h)));
         self.status_hashes.insert(script_hash, result.clone());
         Ok(result)
+        */
     }
 
     fn blockchain_scripthash_get_balance(&self, params: &[Value]) -> Result<Value> {
-        let script_hash = hash_from_value(params.get(0)).chain_err(|| "bad script_hash")?;
+        let script_hash: sha256::Hash =
+            hash_from_value(params.get(0)).context("bad script_hash")?;
+        Ok(Value::Null)
+        // TODO
+        /*
         let status = self.query.status(&script_hash[..])?;
         Ok(
             json!({ "confirmed": status.confirmed_balance(), "unconfirmed": status.mempool_balance() }),
         )
+        */
     }
 
     fn blockchain_scripthash_get_history(&self, params: &[Value]) -> Result<Value> {
-        let script_hash = hash_from_value(params.get(0)).chain_err(|| "bad script_hash")?;
-        let status = self.query.status(&script_hash[..])?;
-        Ok(json!(Value::Array(
-            status
-                .history()
-                .into_iter()
-                .map(|item| json!({"height": item.0, "tx_hash": item.1.to_hex()}))
-                .collect()
-        )))
+        let script_hash: sha256::Hash =
+            hash_from_value(params.get(0)).context("bad script_hash")?;
+        let txs: Vec<Value> = self
+            .query
+            .get_history(&script_hash)?
+            .into_iter()
+            .map(|TxVal(txid, entry)| {
+                json!({
+                    "height": entry.status.electrum_height(),
+                    "tx_hash": txid,
+                    "fee": entry.fee
+                })
+            })
+            .collect();
+        Ok(json!(txs))
     }
 
     fn blockchain_scripthash_listunspent(&self, params: &[Value]) -> Result<Value> {
-        let script_hash = hash_from_value(params.get(0)).chain_err(|| "bad script_hash")?;
-        Ok(unspent_from_status(&self.query.status(&script_hash[..])?))
+        let script_hash: sha256::Hash =
+            hash_from_value(params.get(0)).context("bad script_hash")?;
+        let utxos: Vec<Value> = self
+            .query
+            .list_unspent(&script_hash, 0)?
+            .iter()
+            .map(|utxo| {
+                json!({
+                    "height": utxo.status.electrum_height(),
+                    "tx_hash": utxo.txid,
+                    "tx_pos": utxo.vout,
+                    "value": utxo.value
+                })
+            })
+            .collect();
+        Ok(json!(utxos))
     }
 
     fn blockchain_transaction_broadcast(&self, params: &[Value]) -> Result<Value> {
-        let tx = params.get(0).chain_err(|| "missing tx")?;
-        let tx = tx.as_str().chain_err(|| "non-string tx")?;
-        let tx = hex::decode(&tx).chain_err(|| "non-hex tx")?;
-        let tx: Transaction = deserialize(&tx).chain_err(|| "failed to parse tx")?;
-        let txid = self.query.broadcast(&tx)?;
-        self.query.update_mempool()?;
+        let tx_hex = params.get(0).or_err("missing tx")?;
+        let tx_hex = tx_hex.as_str().or_err("non-string tx")?;
+        let txid = self.query.broadcast(&tx_hex)?;
+        //self.query.update_mempool()?; // TODO
         if let Err(e) = self.chan.sender().try_send(Message::PeriodicUpdate) {
             warn!("failed to issue PeriodicUpdate after broadcast: {}", e);
         }
@@ -245,17 +262,25 @@ impl Connection {
     }
 
     fn blockchain_transaction_get(&self, params: &[Value]) -> Result<Value> {
-        let tx_hash = hash_from_value(params.get(0)).chain_err(|| "bad tx_hash")?;
+        let txid: sha256d::Hash = hash_from_value(params.get(0)).context("bad tx_hash")?;
         let verbose = match params.get(1) {
-            Some(value) => value.as_bool().chain_err(|| "non-bool verbose value")?,
+            Some(value) => value.as_bool().or_err("non-bool verbose value")?,
             None => false,
         };
-        Ok(self.query.get_transaction(&tx_hash, verbose)?)
+        Ok(if verbose {
+            json!(self.query.get_transaction_decoded(&txid)?)
+        } else {
+            json!(self.query.get_transaction_hex(&txid)?)
+        })
     }
 
     fn blockchain_transaction_get_merkle(&self, params: &[Value]) -> Result<Value> {
-        let tx_hash = hash_from_value(params.get(0)).chain_err(|| "bad tx_hash")?;
+        let txid: sha256d::Hash = hash_from_value(params.get(0)).context("bad tx_hash")?;
         let height = usize_from_value(params.get(1), "height")?;
+
+        Ok(Value::Null)
+        // TODO
+        /*
         let (merkle, pos) = self
             .query
             .get_merkle_proof(&tx_hash, height)
@@ -265,6 +290,7 @@ impl Connection {
                 "block_height": height,
                 "merkle": merkle,
                 "pos": pos}))
+        */
     }
 
     fn blockchain_transaction_id_from_pos(&self, params: &[Value]) -> Result<Value> {
@@ -272,6 +298,9 @@ impl Connection {
         let tx_pos = usize_from_value(params.get(1), "tx_pos")?;
         let want_merkle = bool_from_value_or(params.get(2), "merkle", false)?;
 
+        Ok(Value::Null)
+        // TODO
+        /*
         let (txid, merkle) = self.query.get_id_from_pos(height, tx_pos, want_merkle)?;
 
         if !want_merkle {
@@ -283,14 +312,10 @@ impl Connection {
         Ok(json!({
             "tx_hash" : txid.to_hex(),
             "merkle" : merkle_vec}))
+        */
     }
 
     fn handle_command(&mut self, method: &str, params: &[Value], id: &Value) -> Result<Value> {
-        let timer = self
-            .stats
-            .latency
-            .with_label_values(&[method])
-            .start_timer();
         let result = match method {
             "blockchain.block.header" => self.blockchain_block_header(&params),
             "blockchain.block.headers" => self.blockchain_block_headers(&params),
@@ -315,42 +340,32 @@ impl Connection {
             "server.version" => self.server_version(),
             &_ => bail!("unknown method {} {:?}", method, params),
         };
-        timer.observe_duration();
         // TODO: return application errors should be sent to the client
         Ok(match result {
             Ok(result) => json!({"jsonrpc": "2.0", "id": id, "result": result}),
             Err(e) => {
-                warn!(
-                    "rpc #{} {} {:?} failed: {}",
-                    id,
-                    method,
-                    params,
-                    e.display_chain()
-                );
-                json!({"jsonrpc": "2.0", "id": id, "error": format!("{}", e)})
+                warn!("rpc #{} {} {:?} failed: {:?}", id, method, params, e,);
+                json!({"jsonrpc": "2.0", "id": id, "error": fmt_error_chain(&e)})
             }
         })
     }
 
     fn update_subscriptions(&mut self) -> Result<Vec<Value>> {
-        let timer = self
-            .stats
-            .latency
-            .with_label_values(&["periodic_update"])
-            .start_timer();
         let mut result = vec![];
-        if let Some(ref mut last_entry) = self.last_header_entry {
-            let entry = self.query.get_best_header()?;
-            if *last_entry != entry {
-                *last_entry = entry;
-                let hex_header = hex::encode(serialize(last_entry.header()));
-                let header = json!({"hex": hex_header, "height": last_entry.height()});
+        if let Some(ref mut last_tip) = self.tip {
+            let tip = self.query.get_tip()?;
+            if *last_tip != tip {
+                *last_tip = tip;
+                let hex_header = self.query.get_header_by_hash(tip.1)?;
+                let header = json!({"hex": hex_header, "height": tip.0 });
                 result.push(json!({
                     "jsonrpc": "2.0",
                     "method": "blockchain.headers.subscribe",
                     "params": [header]}));
             }
         }
+        // TODO
+        /*
         for (script_hash, status_hash) in self.status_hashes.iter_mut() {
             let status = self.query.status(&script_hash[..])?;
             let new_status_hash = status.hash().map_or(Value::Null, |h| json!(hex::encode(h)));
@@ -363,10 +378,7 @@ impl Connection {
                 "params": [script_hash.to_hex(), new_status_hash]}));
             *status_hash = new_status_hash;
         }
-        timer.observe_duration();
-        self.stats
-            .subscriptions
-            .set(self.status_hashes.len() as i64);
+        */
         Ok(result)
     }
 
@@ -375,7 +387,7 @@ impl Connection {
             let line = value.to_string() + "\n";
             self.stream
                 .write_all(line.as_bytes())
-                .chain_err(|| format!("failed to send {}", value))?;
+                .context(format!("failed to send {}", value))?;
         }
         Ok(())
     }
@@ -383,11 +395,11 @@ impl Connection {
     fn handle_replies(&mut self) -> Result<()> {
         let empty_params = json!([]);
         loop {
-            let msg = self.chan.receiver().recv().chain_err(|| "channel closed")?;
+            let msg = self.chan.receiver().recv().context("channel closed")?;
             trace!("RPC {:?}", msg);
             match msg {
                 Message::Request(line) => {
-                    let cmd: Value = from_str(&line).chain_err(|| "invalid JSON format")?;
+                    let cmd: Value = from_str(&line).context("invalid JSON format")?;
                     let reply = match (
                         cmd.get("method"),
                         cmd.get("params").unwrap_or_else(|| &empty_params),
@@ -405,7 +417,7 @@ impl Connection {
                 Message::PeriodicUpdate => {
                     let values = self
                         .update_subscriptions()
-                        .chain_err(|| "failed to update subscriptions")?;
+                        .context("failed to update subscriptions")?;
                     self.send_values(&values)?
                 }
                 Message::Done => return Ok(()),
@@ -418,9 +430,9 @@ impl Connection {
             let mut line = Vec::<u8>::new();
             reader
                 .read_until(b'\n', &mut line)
-                .chain_err(|| "failed to read a request")?;
+                .context("failed to read a request")?;
             if line.is_empty() {
-                tx.send(Message::Done).chain_err(|| "channel closed")?;
+                tx.send(Message::Done).context("channel closed")?;
                 return Ok(());
             } else {
                 if line.starts_with(&[22, 3, 1]) {
@@ -429,9 +441,7 @@ impl Connection {
                     bail!("invalid request - maybe SSL-encrypted data?: {:?}", line)
                 }
                 match String::from_utf8(line) {
-                    Ok(req) => tx
-                        .send(Message::Request(req))
-                        .chain_err(|| "channel closed")?,
+                    Ok(req) => tx.send(Message::Request(req)).context("channel closed")?,
                     Err(err) => {
                         let _ = tx.send(Message::Done);
                         bail!("invalid UTF8: {}", err)
@@ -446,16 +456,12 @@ impl Connection {
         let tx = self.chan.sender();
         let child = spawn_thread("reader", || Connection::handle_requests(reader, tx));
         if let Err(e) = self.handle_replies() {
-            error!(
-                "[{}] connection handling failed: {}",
-                self.addr,
-                e.display_chain().to_string()
-            );
+            error!("[{}] connection handling failed: {:#?}", self.addr, e,)
         }
         debug!("[{}] shutting down connection", self.addr);
         let _ = self.stream.shutdown(Shutdown::Both);
         if let Err(err) = child.join().expect("receiver panicked") {
-            error!("[{}] receiver failed: {}", self.addr, err);
+            error!("[{}] receiver failed: {:?}", self.addr, err);
         }
     }
 }
@@ -475,11 +481,6 @@ pub enum Notification {
 pub struct RPC {
     notification: Sender<Notification>,
     server: Option<thread::JoinHandle<()>>, // so we can join the server while dropping this ojbect
-}
-
-struct Stats {
-    latency: HistogramVec,
-    subscriptions: Gauge,
 }
 
 impl RPC {
@@ -529,17 +530,7 @@ impl RPC {
         chan
     }
 
-    pub fn start(addr: SocketAddr, query: Arc<Query>, metrics: &Metrics) -> RPC {
-        let stats = Arc::new(Stats {
-            latency: metrics.histogram_vec(
-                HistogramOpts::new("electrs_electrum_rpc", "Electrum RPC latency (seconds)"),
-                &["method"],
-            ),
-            subscriptions: metrics.gauge(MetricOpts::new(
-                "electrs_electrum_subscriptions",
-                "# of Electrum subscriptions",
-            )),
-        });
+    pub fn start(addr: SocketAddr, query: Arc<Query>) -> RPC {
         let notification = Channel::unbounded();
         RPC {
             notification: notification.sender(),
@@ -551,10 +542,9 @@ impl RPC {
                 while let Some((stream, addr)) = acceptor.receiver().recv().unwrap() {
                     let query = query.clone();
                     let senders = senders.clone();
-                    let stats = stats.clone();
                     children.push(spawn_thread("peer", move || {
                         info!("[{}] connected peer", addr);
-                        let conn = Connection::new(query, stream, addr, stats);
+                        let conn = Connection::new(query, stream, addr);
                         senders.lock().unwrap().push(conn.chan.sender());
                         conn.run();
                         info!("[{}] disconnected peer", addr);
@@ -586,5 +576,65 @@ impl Drop for RPC {
             handle.join().unwrap();
         }
         trace!("RPC server is stopped");
+    }
+}
+
+pub fn spawn_thread<F, T>(name: &str, f: F) -> thread::JoinHandle<T>
+where
+    F: FnOnce() -> T,
+    F: Send + 'static,
+    T: Send + 'static,
+{
+    thread::Builder::new()
+        .name(name.to_owned())
+        .spawn(f)
+        .unwrap()
+}
+
+pub struct SyncChannel<T> {
+    tx: SyncSender<T>,
+    rx: Receiver<T>,
+}
+
+impl<T> SyncChannel<T> {
+    pub fn new(size: usize) -> SyncChannel<T> {
+        let (tx, rx) = sync_channel(size);
+        SyncChannel { tx, rx }
+    }
+
+    pub fn sender(&self) -> SyncSender<T> {
+        self.tx.clone()
+    }
+
+    pub fn receiver(&self) -> &Receiver<T> {
+        &self.rx
+    }
+
+    pub fn into_receiver(self) -> Receiver<T> {
+        self.rx
+    }
+}
+
+pub struct Channel<T> {
+    tx: Sender<T>,
+    rx: Receiver<T>,
+}
+
+impl<T> Channel<T> {
+    pub fn unbounded() -> Self {
+        let (tx, rx) = channel();
+        Channel { tx, rx }
+    }
+
+    pub fn sender(&self) -> Sender<T> {
+        self.tx.clone()
+    }
+
+    pub fn receiver(&self) -> &Receiver<T> {
+        &self.rx
+    }
+
+    pub fn into_receiver(self) -> Receiver<T> {
+        self.rx
     }
 }

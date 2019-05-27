@@ -18,12 +18,15 @@ impl Query {
         Query { rpc, addrman }
     }
 
+    pub fn get_tip(&self) -> Result<(u32, sha256d::Hash)> {
+        let tip_height = self.rpc.get_block_count()? as u32;
+        let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
+        Ok((tip_height, tip_hash))
+    }
+
     pub fn get_header(&self, height: u32) -> Result<String> {
         let blockhash = self.rpc.get_block_hash(height as u64)?;
-        let blockhex = self
-            .rpc
-            .call("getblockheader", &[json!(blockhash), false.into()])?;
-        Ok(blockhex)
+        self.get_header_by_hash(blockhash)
     }
 
     pub fn get_headers(&self, heights: &[u32]) -> Result<Vec<String>> {
@@ -31,6 +34,12 @@ impl Query {
             .iter()
             .map(|h| self.get_header(*h))
             .collect::<Result<Vec<String>>>()?)
+    }
+
+    pub fn get_header_by_hash(&self, blockhash: sha256d::Hash) -> Result<String> {
+        Ok(self
+            .rpc
+            .call("getblockheader", &[json!(blockhash), false.into()])?)
     }
 
     pub fn estimate_fee(&self, target: u16) -> Result<Option<f32>> {
@@ -80,8 +89,11 @@ impl Query {
             .call("getrawtransaction", &[txid.to_hex().into(), true.into()])?)
     }
 
+    pub fn broadcast(&self, tx_hex: &str) -> Result<sha256d::Hash> {
+        Ok(self.rpc.send_raw_transaction(tx_hex)?)
+    }
+
     /*
-    // XXX broadcast here?
 
     pub fn get_transaction_merkle_proof(&self, txid: &sha256d::Hash) -> Result<MerkleProof> {
     }
