@@ -82,12 +82,11 @@ impl Connection {
         Ok(match cp_height {
             Some(cp_height) => {
                 let (branch, root) = get_header_merkle_proof(&self.query, height, cp_height)?;
-                let branch_vec: Vec<String> = branch.into_iter().map(|b| b.to_hex()).collect();
 
                 json!({
                     "header": header_hex,
                     "root": root.to_hex(),
-                    "branch": branch_vec
+                    "branch": map_str(branch),
                 })
             }
             None => json!(header_hex),
@@ -117,10 +116,7 @@ impl Connection {
                     get_header_merkle_proof(&self.query, start_height + (count - 1), cp_height)?;
 
                 result["root"] = json!(root.to_hex());
-                result["branch"] = json!(branch
-                    .into_iter()
-                    .map(|b| b.to_hex())
-                    .collect::<Vec<String>>());
+                result["branch"] = json!(map_str(branch));
             }
         }
 
@@ -223,7 +219,7 @@ impl Connection {
 
         Ok(json!({
             "block_height": height,
-            "merkle": merkle.into_iter().map(|txid| txid.to_hex()).collect::<Vec<String>>(),
+            "merkle": map_str(merkle),
             "pos": pos,
         }))
     }
@@ -240,7 +236,7 @@ impl Connection {
         } else {
             json!({
                 "tx_hash": txid,
-                "merkle": merkle.into_iter().map(|txid| txid.to_hex()).collect::<Vec<String>>(),
+                "merkle": map_str(merkle),
             })
         })
     }
@@ -392,6 +388,13 @@ fn pad_params(mut params: Value, n: usize) -> Value {
         }
     } // passing a non-array is a noop
     params
+}
+
+fn map_str<T>(items: Vec<T>) -> Vec<String>
+where
+    T: ToString,
+{
+    items.into_iter().map(|item| item.to_string()).collect()
 }
 
 fn get_status_hash(query: &Query, script_hash: &sha256::Hash) -> Result<sha256::Hash> {
