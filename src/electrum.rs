@@ -132,12 +132,15 @@ impl Connection {
     }
 
     fn blockchain_relayfee(&self) -> Result<Value> {
+        return Ok(json!(0));
         let fee_rate = self.query.relay_fee()?;
         Ok(json!(fee_rate / 100_000f32))
     }
 
     fn blockchain_scripthash_subscribe(&mut self, params: Value) -> Result<Value> {
         let (script_hash,): (sha256::Hash,) = from_value(params)?;
+        let script_hash = reverse_hash(script_hash);
+
         let status_hash = get_status_hash(&self.query, &script_hash)?;
         self.status_hashes.insert(script_hash, status_hash.clone());
 
@@ -146,6 +149,8 @@ impl Connection {
 
     fn blockchain_scripthash_get_balance(&self, params: Value) -> Result<Value> {
         let (script_hash,): (sha256::Hash,) = from_value(params)?;
+        let script_hash = reverse_hash(script_hash);
+
         let (confirmed_balance, mempool_balance) = self.query.get_balance(&script_hash)?;
 
         Ok(json!({
@@ -156,6 +161,7 @@ impl Connection {
 
     fn blockchain_scripthash_get_history(&self, params: Value) -> Result<Value> {
         let (script_hash,): (sha256::Hash,) = from_value(params)?;
+        let script_hash = reverse_hash(script_hash);
 
         let txs: Vec<Value> = self
             .query
@@ -174,6 +180,7 @@ impl Connection {
 
     fn blockchain_scripthash_listunspent(&self, params: Value) -> Result<Value> {
         let (script_hash,): (sha256::Hash,) = from_value(params)?;
+        let script_hash = reverse_hash(script_hash);
 
         let utxos: Vec<Value> = self
             .query
@@ -296,7 +303,7 @@ impl Connection {
             result.push(json!({
                 "jsonrpc": "2.0",
                 "method": "blockchain.scripthash.subscribe",
-                "params": [script_hash, new_status_hash]
+                "params": [encode_reverse(script_hash), new_status_hash]
             }));
             *status_hash = new_status_hash;
         }
@@ -409,6 +416,16 @@ fn get_status_hash(query: &Query, script_hash: &sha256::Hash) -> Result<Option<s
     } else {
         None
     })
+}
+
+fn encode_reverse(hash: &sha256::Hash) -> String {
+    reverse_hash(*hash).to_hex()
+}
+
+fn reverse_hash(hash: sha256::Hash) -> sha256::Hash {
+    let mut inner = hash.into_inner();
+    inner.reverse();
+    sha256::Hash::from_slice(&inner).unwrap()
 }
 
 #[derive(Debug)]
