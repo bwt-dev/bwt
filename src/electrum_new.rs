@@ -8,7 +8,7 @@ use std::thread;
 
 use bitcoin::consensus::encode::{deserialize, serialize};
 use bitcoin::Transaction;
-use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, sha256d};
+use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, sha256d, Hash};
 use serde_json::{from_str, from_value, Value};
 
 use crate::addrman::{TxVal, Utxo};
@@ -25,7 +25,7 @@ const MAX_HEADERS: u32 = 2016;
 struct Connection {
     query: Arc<Query>,
     tip: Option<(u32, sha256d::Hash)>,
-    status_hashes: HashMap<sha256::Hash, Value>, // ScriptHash -> StatusHash
+    status_hashes: HashMap<sha256::Hash, sha256::Hash>, // ScriptHash -> StatusHash
     stream: TcpStream,
     addr: SocketAddr,
     chan: SyncChannel<Message>,
@@ -152,14 +152,12 @@ impl Connection {
 
     fn blockchain_scripthash_subscribe(&mut self, params: Value) -> Result<Value> {
         let (script_hash,): (sha256::Hash,) = from_value(params)?;
-        Ok(Value::Null)
-        // TODO
-        /*
-        let status = self.query.status(&script_hash[..])?;
-        let result = status.hash().map_or(Value::Null, |h| json!(hex::encode(h)));
-        self.status_hashes.insert(script_hash, result.clone());
-        Ok(result)
-        */
+
+        let status_hash = get_status_hash(&self.query, &script_hash)?;
+
+        self.status_hashes.insert(script_hash, status_hash.clone());
+
+        Ok(json!(status_hash))
     }
 
     fn blockchain_scripthash_get_balance(&self, params: Value) -> Result<Value> {
@@ -318,21 +316,18 @@ impl Connection {
                     "params": [header]}));
             }
         }
-        // TODO
-        /*
         for (script_hash, status_hash) in self.status_hashes.iter_mut() {
-            let status = self.query.status(&script_hash[..])?;
-            let new_status_hash = status.hash().map_or(Value::Null, |h| json!(hex::encode(h)));
+            let new_status_hash = get_status_hash(&self.query, &script_hash)?;
             if new_status_hash == *status_hash {
                 continue;
             }
             result.push(json!({
                 "jsonrpc": "2.0",
                 "method": "blockchain.scripthash.subscribe",
-                "params": [script_hash.to_hex(), new_status_hash]}));
+                "params": [script_hash, new_status_hash]
+            }));
             *status_hash = new_status_hash;
         }
-        */
         Ok(result)
     }
 
@@ -422,6 +417,18 @@ fn pad_params(mut params: Value, n: usize) -> Value {
         }
     } // passing a non-array is a noop
     params
+}
+
+fn get_status_hash(query: &Query, script_hash: &sha256::Hash) -> Result<sha256::Hash> {
+    Ok(sha256::Hash::hash(
+        &query
+            .get_history(script_hash)?
+            .iter()
+            .map(|TxVal(txid, entry)| format!("{}:{}:", txid, entry.status.electrum_height()))
+            .collect::<Vec<String>>()
+            .join("")
+            .into_bytes(),
+    ))
 }
 
 #[derive(Debug)]
