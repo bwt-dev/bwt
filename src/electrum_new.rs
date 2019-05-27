@@ -9,7 +9,7 @@ use std::thread;
 use bitcoin::consensus::encode::{deserialize, serialize};
 use bitcoin::Transaction;
 use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, sha256d};
-use serde_json::{from_str, Value};
+use serde_json::{from_str, from_value, Value};
 
 use crate::addrman::{TxVal, Utxo};
 use crate::error::{fmt_error_chain, OptionExt, Result, ResultExt};
@@ -21,42 +21,6 @@ use crate::query::Query;
 const RUST_EPS_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL_VERSION: &str = "1.4";
 const MAX_HEADERS: u32 = 2016;
-
-fn hash_from_value<T>(val: Option<&Value>) -> Result<T>
-where
-    T: FromHex,
-{
-    let script_hash = val.or_err("missing hash")?;
-    let script_hash = script_hash.as_str().or_err("non-string hash")?;
-    let script_hash = T::from_hex(script_hash).context("non-hex hash")?;
-    Ok(script_hash)
-}
-
-fn usize_from_value(val: Option<&Value>, name: &str) -> Result<usize> {
-    let val = val.or_err(format!("missing {}", name))?;
-    let val = val.as_u64().or_err(format!("non-integer {}", name))?;
-    Ok(val as usize)
-}
-
-fn usize_from_value_or(val: Option<&Value>, name: &str, default: usize) -> Result<usize> {
-    if val.is_none() {
-        return Ok(default);
-    }
-    usize_from_value(val, name)
-}
-
-fn bool_from_value(val: Option<&Value>, name: &str) -> Result<bool> {
-    let val = val.or_err(format!("missing {}", name))?;
-    let val = val.as_bool().or_err(format!("not a bool {}", name))?;
-    Ok(val)
-}
-
-fn bool_from_value_or(val: Option<&Value>, name: &str, default: bool) -> Result<bool> {
-    if val.is_none() {
-        return Ok(default);
-    }
-    bool_from_value(val, name)
-}
 
 struct Connection {
     query: Arc<Query>,
@@ -112,13 +76,12 @@ impl Connection {
         //Ok(json!(self.query.get_fee_histogram()))
     }
 
-    fn blockchain_block_header(&self, params: &[Value]) -> Result<Value> {
-        let height = usize_from_value(params.get(0), "height")? as u32;
-        let cp_height = usize_from_value_or(params.get(1), "cp_height", 0)? as u32;
+    fn blockchain_block_header(&self, params: Value) -> Result<Value> {
+        let (height, cp_height): (u32, Option<u32>) = from_value(pad_params(params, 2))?;
 
         let header_hex = self.query.get_header(height)?;
 
-        if cp_height == 0 {
+        if cp_height.is_none() {
             return Ok(json!(header_hex));
         }
 
@@ -137,17 +100,16 @@ impl Connection {
         */
     }
 
-    fn blockchain_block_headers(&self, params: &[Value]) -> Result<Value> {
-        let start_height = usize_from_value(params.get(0), "start_height")? as u32;
-        let count = usize_from_value(params.get(1), "count")? as u32;
-        let cp_height = usize_from_value_or(params.get(2), "cp_height", 0)? as u32;
+    fn blockchain_block_headers(&self, params: Value) -> Result<Value> {
+        let (start_height, count, cp_height): (u32, u32, Option<u32>) =
+            from_value(pad_params(params, 3))?;
 
         let count = cmp::min(count, MAX_HEADERS);
         let heights: Vec<u32> = (start_height..(start_height + count)).collect();
 
         let headers = self.query.get_headers(&heights)?;
 
-        if count == 0 || cp_height == 0 {
+        if count == 0 || cp_height.is_none() {
             return Ok(json!({
                 "count": headers.len(),
                 "hex": headers.join(""),
@@ -174,9 +136,10 @@ impl Connection {
         */
     }
 
-    fn blockchain_estimatefee(&self, params: &[Value]) -> Result<Value> {
-        let blocks_count = usize_from_value(params.get(0), "blocks_count")?;
-        let fee_rate = self.query.estimate_fee(blocks_count as u16)?;
+    fn blockchain_estimatefee(&self, params: Value) -> Result<Value> {
+        let (target,): (u16,) = from_value(params)?;
+
+        let fee_rate = self.query.estimate_fee(target)?;
 
         // format for electrum: from sat/b to BTC/kB, -1 to indicate no estimate is available
         Ok(json!(fee_rate.map_or(-1.0, |rate| rate / 100_000f32)))
@@ -187,9 +150,8 @@ impl Connection {
         Ok(json!(1.0))
     }
 
-    fn blockchain_scripthash_subscribe(&mut self, params: &[Value]) -> Result<Value> {
-        let script_hash: sha256::Hash =
-            hash_from_value(params.get(0)).context("bad script_hash")?;
+    fn blockchain_scripthash_subscribe(&mut self, params: Value) -> Result<Value> {
+        let (script_hash,): (sha256::Hash,) = from_value(params)?;
         Ok(Value::Null)
         // TODO
         /*
@@ -200,9 +162,8 @@ impl Connection {
         */
     }
 
-    fn blockchain_scripthash_get_balance(&self, params: &[Value]) -> Result<Value> {
-        let script_hash: sha256::Hash =
-            hash_from_value(params.get(0)).context("bad script_hash")?;
+    fn blockchain_scripthash_get_balance(&self, params: Value) -> Result<Value> {
+        let (script_hash,): (sha256::Hash,) = from_value(params)?;
         Ok(Value::Null)
         // TODO
         /*
@@ -213,9 +174,9 @@ impl Connection {
         */
     }
 
-    fn blockchain_scripthash_get_history(&self, params: &[Value]) -> Result<Value> {
-        let script_hash: sha256::Hash =
-            hash_from_value(params.get(0)).context("bad script_hash")?;
+    fn blockchain_scripthash_get_history(&self, params: Value) -> Result<Value> {
+        let (script_hash,): (sha256::Hash,) = from_value(params)?;
+
         let txs: Vec<Value> = self
             .query
             .get_history(&script_hash)?
@@ -231,9 +192,9 @@ impl Connection {
         Ok(json!(txs))
     }
 
-    fn blockchain_scripthash_listunspent(&self, params: &[Value]) -> Result<Value> {
-        let script_hash: sha256::Hash =
-            hash_from_value(params.get(0)).context("bad script_hash")?;
+    fn blockchain_scripthash_listunspent(&self, params: Value) -> Result<Value> {
+        let (script_hash,): (sha256::Hash,) = from_value(params)?;
+
         let utxos: Vec<Value> = self
             .query
             .list_unspent(&script_hash, 0)?
@@ -250,9 +211,9 @@ impl Connection {
         Ok(json!(utxos))
     }
 
-    fn blockchain_transaction_broadcast(&self, params: &[Value]) -> Result<Value> {
-        let tx_hex = params.get(0).or_err("missing tx")?;
-        let tx_hex = tx_hex.as_str().or_err("non-string tx")?;
+    fn blockchain_transaction_broadcast(&self, params: Value) -> Result<Value> {
+        let (tx_hex,): (String,) = from_value(params)?;
+
         let txid = self.query.broadcast(&tx_hex)?;
         //self.query.update_mempool()?; // TODO
         if let Err(e) = self.chan.sender().try_send(Message::PeriodicUpdate) {
@@ -261,12 +222,10 @@ impl Connection {
         Ok(json!(txid.to_hex()))
     }
 
-    fn blockchain_transaction_get(&self, params: &[Value]) -> Result<Value> {
-        let txid: sha256d::Hash = hash_from_value(params.get(0)).context("bad tx_hash")?;
-        let verbose = match params.get(1) {
-            Some(value) => value.as_bool().or_err("non-bool verbose value")?,
-            None => false,
-        };
+    fn blockchain_transaction_get(&self, params: Value) -> Result<Value> {
+        let (txid, verbose): (sha256d::Hash, Option<bool>) = from_value(pad_params(params, 2))?;
+        let verbose = verbose.unwrap_or(false);
+
         Ok(if verbose {
             json!(self.query.get_transaction_decoded(&txid)?)
         } else {
@@ -274,9 +233,8 @@ impl Connection {
         })
     }
 
-    fn blockchain_transaction_get_merkle(&self, params: &[Value]) -> Result<Value> {
-        let txid: sha256d::Hash = hash_from_value(params.get(0)).context("bad tx_hash")?;
-        let height = usize_from_value(params.get(1), "height")?;
+    fn blockchain_transaction_get_merkle(&self, params: Value) -> Result<Value> {
+        let (txid, height): (sha256d::Hash, u32) = from_value(params)?;
 
         Ok(Value::Null)
         // TODO
@@ -293,10 +251,8 @@ impl Connection {
         */
     }
 
-    fn blockchain_transaction_id_from_pos(&self, params: &[Value]) -> Result<Value> {
-        let height = usize_from_value(params.get(0), "height")?;
-        let tx_pos = usize_from_value(params.get(1), "tx_pos")?;
-        let want_merkle = bool_from_value_or(params.get(2), "merkle", false)?;
+    fn blockchain_transaction_id_from_pos(&self, params: Value) -> Result<Value> {
+        let (height, tx_pos, want_merkle): (usize, usize, Option<bool>) = from_value(params)?;
 
         Ok(Value::Null)
         // TODO
@@ -315,23 +271,21 @@ impl Connection {
         */
     }
 
-    fn handle_command(&mut self, method: &str, params: &[Value], id: &Value) -> Result<Value> {
+    fn handle_command(&mut self, method: &str, params: Value, id: Value) -> Result<Value> {
         let result = match method {
-            "blockchain.block.header" => self.blockchain_block_header(&params),
-            "blockchain.block.headers" => self.blockchain_block_headers(&params),
-            "blockchain.estimatefee" => self.blockchain_estimatefee(&params),
+            "blockchain.block.header" => self.blockchain_block_header(params),
+            "blockchain.block.headers" => self.blockchain_block_headers(params),
+            "blockchain.estimatefee" => self.blockchain_estimatefee(params),
             "blockchain.headers.subscribe" => self.blockchain_headers_subscribe(),
             "blockchain.relayfee" => self.blockchain_relayfee(),
-            "blockchain.scripthash.get_balance" => self.blockchain_scripthash_get_balance(&params),
-            "blockchain.scripthash.get_history" => self.blockchain_scripthash_get_history(&params),
-            "blockchain.scripthash.listunspent" => self.blockchain_scripthash_listunspent(&params),
-            "blockchain.scripthash.subscribe" => self.blockchain_scripthash_subscribe(&params),
-            "blockchain.transaction.broadcast" => self.blockchain_transaction_broadcast(&params),
-            "blockchain.transaction.get" => self.blockchain_transaction_get(&params),
-            "blockchain.transaction.get_merkle" => self.blockchain_transaction_get_merkle(&params),
-            "blockchain.transaction.id_from_pos" => {
-                self.blockchain_transaction_id_from_pos(&params)
-            }
+            "blockchain.scripthash.get_balance" => self.blockchain_scripthash_get_balance(params),
+            "blockchain.scripthash.get_history" => self.blockchain_scripthash_get_history(params),
+            "blockchain.scripthash.listunspent" => self.blockchain_scripthash_listunspent(params),
+            "blockchain.scripthash.subscribe" => self.blockchain_scripthash_subscribe(params),
+            "blockchain.transaction.broadcast" => self.blockchain_transaction_broadcast(params),
+            "blockchain.transaction.get" => self.blockchain_transaction_get(params),
+            "blockchain.transaction.get_merkle" => self.blockchain_transaction_get_merkle(params),
+            "blockchain.transaction.id_from_pos" => self.blockchain_transaction_id_from_pos(params),
             "mempool.get_fee_histogram" => self.mempool_get_fee_histogram(),
             "server.banner" => self.server_banner(),
             "server.donation_address" => self.server_donation_address(),
@@ -340,11 +294,11 @@ impl Connection {
             "server.version" => self.server_version(),
             &_ => bail!("unknown method {} {:?}", method, params),
         };
-        // TODO: return application errors should be sent to the client
+
         Ok(match result {
             Ok(result) => json!({"jsonrpc": "2.0", "id": id, "result": result}),
             Err(e) => {
-                warn!("rpc #{} {} {:?} failed: {:?}", id, method, params, e,);
+                warn!("rpc #{} {} failed: {:?}", id, method, e,);
                 json!({"jsonrpc": "2.0", "id": id, "error": fmt_error_chain(&e)})
             }
         })
@@ -399,18 +353,13 @@ impl Connection {
             trace!("RPC {:?}", msg);
             match msg {
                 Message::Request(line) => {
-                    let cmd: Value = from_str(&line).context("invalid JSON format")?;
-                    let reply = match (
-                        cmd.get("method"),
-                        cmd.get("params").unwrap_or_else(|| &empty_params),
-                        cmd.get("id"),
-                    ) {
-                        (
-                            Some(&Value::String(ref method)),
-                            &Value::Array(ref params),
-                            Some(ref id),
-                        ) => self.handle_command(method, params, id)?,
-                        _ => bail!("invalid command: {}", cmd),
+                    let mut cmd: Value = from_str(&line).context("invalid JSON format")?;
+                    let reply = match (cmd["method"].take(), cmd["params"].take(), cmd["id"].take())
+                    {
+                        (Value::String(method), params, id) => {
+                            self.handle_command(&method, params, id)?
+                        }
+                        _ => bail!("invalid command: {}", line),
                     };
                     self.send_values(&[reply])?
                 }
@@ -464,6 +413,15 @@ impl Connection {
             error!("[{}] receiver failed: {:?}", self.addr, err);
         }
     }
+}
+
+fn pad_params(mut params: Value, n: usize) -> Value {
+    if let Value::Array(ref mut values) = params {
+        while values.len() < n {
+            values.push(Value::Null);
+        }
+    } // passing a non-array is a noop
+    params
 }
 
 #[derive(Debug)]
