@@ -58,8 +58,7 @@ impl Connection {
     }
 
     fn server_banner(&self) -> Result<Value> {
-        // TODO
-        Ok(json!("Welcome"))
+        Ok(json!("Welcome to rust-eps"))
     }
 
     fn server_donation_address(&self) -> Result<Value> {
