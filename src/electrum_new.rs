@@ -478,12 +478,12 @@ pub enum Notification {
     Exit,
 }
 
-pub struct RPC {
+pub struct ElectrumServer {
     notification: Sender<Notification>,
     server: Option<thread::JoinHandle<()>>, // so we can join the server while dropping this ojbect
 }
 
-impl RPC {
+impl ElectrumServer {
     fn start_notifier(
         notification: Channel<Notification>,
         senders: Arc<Mutex<Vec<SyncSender<Message>>>>,
@@ -530,14 +530,14 @@ impl RPC {
         chan
     }
 
-    pub fn start(addr: SocketAddr, query: Arc<Query>) -> RPC {
+    pub fn start(addr: SocketAddr, query: Arc<Query>) -> Self {
         let notification = Channel::unbounded();
-        RPC {
+        Self {
             notification: notification.sender(),
             server: Some(spawn_thread("rpc", move || {
                 let senders = Arc::new(Mutex::new(Vec::<SyncSender<Message>>::new()));
-                let acceptor = RPC::start_acceptor(addr);
-                RPC::start_notifier(notification, senders.clone(), acceptor.sender());
+                let acceptor = Self::start_acceptor(addr);
+                Self::start_notifier(notification, senders.clone(), acceptor.sender());
                 let mut children = vec![];
                 while let Some((stream, addr)) = acceptor.receiver().recv().unwrap() {
                     let query = query.clone();
@@ -566,9 +566,15 @@ impl RPC {
     pub fn notify(&self) {
         self.notification.send(Notification::Periodic).unwrap();
     }
+
+    pub fn join(mut self) {
+        if let Some(server) = self.server.take() {
+            server.join().unwrap()
+        }
+    }
 }
 
-impl Drop for RPC {
+impl Drop for ElectrumServer {
     fn drop(&mut self) {
         trace!("stop accepting new RPCs");
         self.notification.send(Notification::Exit).unwrap();
