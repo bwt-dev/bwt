@@ -25,7 +25,7 @@ const MAX_HEADERS: u32 = 2016;
 struct Connection {
     query: Arc<Query>,
     tip: Option<(u32, sha256d::Hash)>,
-    status_hashes: HashMap<sha256::Hash, sha256::Hash>, // ScriptHash -> StatusHash
+    status_hashes: HashMap<sha256::Hash, Option<sha256::Hash>>, // ScriptHash -> StatusHash
     stream: TcpStream,
     addr: SocketAddr,
     chan: SyncChannel<Message>,
@@ -397,16 +397,18 @@ where
     items.into_iter().map(|item| item.to_string()).collect()
 }
 
-fn get_status_hash(query: &Query, script_hash: &sha256::Hash) -> Result<sha256::Hash> {
-    Ok(sha256::Hash::hash(
-        &query
-            .get_history(script_hash)?
-            .into_iter()
-            .map(|TxVal(txid, entry)| format!("{}:{}:", txid, entry.status.electrum_height()))
-            .collect::<Vec<String>>()
-            .join("")
-            .into_bytes(),
-    ))
+fn get_status_hash(query: &Query, script_hash: &sha256::Hash) -> Result<Option<sha256::Hash>> {
+    let p = query
+        .get_history(script_hash)?
+        .into_iter()
+        .map(|TxVal(txid, entry)| format!("{}:{}:", txid, entry.status.electrum_height()))
+        .collect::<Vec<String>>();
+
+    Ok(if p.len() > 0 {
+        Some(sha256::Hash::hash(&p.join("").into_bytes()))
+    } else {
+        None
+    })
 }
 
 #[derive(Debug)]
