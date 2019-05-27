@@ -11,6 +11,7 @@ use serde_json::{from_str, from_value, Value};
 
 use crate::addrman::TxVal;
 use crate::error::{fmt_error_chain, Result, ResultExt};
+use crate::mempool::get_fee_histogram;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
 
@@ -69,9 +70,8 @@ impl Connection {
     }
 
     fn mempool_get_fee_histogram(&self) -> Result<Value> {
-        Ok(Value::Null)
-        // TODO
-        //Ok(json!(self.query.get_fee_histogram()))
+        let histogram = get_fee_histogram(&self.query)?;
+        Ok(json!(histogram))
     }
 
     fn blockchain_block_header(&self, params: Value) -> Result<Value> {
@@ -199,7 +199,6 @@ impl Connection {
         let (tx_hex,): (String,) = from_value(params)?;
 
         let txid = self.query.broadcast(&tx_hex)?;
-        //self.query.update_mempool()?; // TODO
         if let Err(e) = self.chan.sender().try_send(Message::PeriodicUpdate) {
             warn!("failed to issue PeriodicUpdate after broadcast: {}", e);
         }

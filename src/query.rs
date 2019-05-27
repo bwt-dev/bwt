@@ -74,18 +74,6 @@ impl Query {
         Ok((feerate * 100_000f64) as f32)
     }
 
-    /*
-        // XXX sat/byte or btc/kb?
-        pub fn estimate_fee(&self, target: u32) -> Result<f64> {
-        }
-
-        pub fn relay_fee(&self) -> Result<f64> {
-        }
-
-        pub fn get_balance(&self, scripthash: &sha256::Hash) -> Result<(f64, f64)> {
-        }
-    */
-
     pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<TxVal>> {
         Ok(self.addrman.get_history(scripthash))
     }
@@ -112,6 +100,10 @@ impl Query {
 
     pub fn broadcast(&self, tx_hex: &str) -> Result<sha256d::Hash> {
         Ok(self.rpc.send_raw_transaction(tx_hex)?)
+    }
+
+    pub fn get_raw_mempool(&self) -> Result<Value> {
+        Ok(self.rpc.call("getrawmempool", &[json!(true)])?)
     }
 
     /*

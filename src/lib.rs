@@ -13,6 +13,7 @@ extern crate lazy_static;
 pub mod addrman;
 pub mod error;
 pub mod json;
+pub mod mempool;
 pub mod query;
 pub mod util;
 
