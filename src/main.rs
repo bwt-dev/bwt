@@ -1,9 +1,11 @@
 #[macro_use]
 extern crate log;
 
-use std::sync::Arc;
-use std::str::FromStr;
 use std::net;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 use bitcoincore_rpc::{Auth as RpcAuth, Client as RpcClient};
 
@@ -27,10 +29,18 @@ fn main() -> Result<()> {
     manager.update()?;
 
     #[cfg(feature = "electrum")]
-    {
+    let electrum = {
         let rpc_addr = net::SocketAddr::from_str("127.0.0.1:3005")?;
-        let electrum = ElectrumServer::start(rpc_addr, Arc::clone(&query));
-        electrum.join();
+        ElectrumServer::start(rpc_addr, Arc::clone(&query))
+    };
+
+    loop {
+        manager.update()?;
+
+        #[cfg(feature = "electrum")]
+        electrum.notify();
+
+        thread::sleep(Duration::from_secs(5));
     }
 
     Ok(())
