@@ -178,7 +178,7 @@ impl Connection {
         let utxos: Vec<Value> = self
             .query
             .list_unspent(&script_hash, 0)?
-            .iter()
+            .into_iter()
             .map(|utxo| {
                 json!({
                     "height": utxo.status.electrum_height(),
@@ -401,7 +401,7 @@ fn get_status_hash(query: &Query, script_hash: &sha256::Hash) -> Result<sha256::
     Ok(sha256::Hash::hash(
         &query
             .get_history(script_hash)?
-            .iter()
+            .into_iter()
             .map(|TxVal(txid, entry)| format!("{}:{}:", txid, entry.status.electrum_height()))
             .collect::<Vec<String>>()
             .join("")
