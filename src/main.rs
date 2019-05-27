@@ -14,7 +14,7 @@ use rust_eps::error::Result;
 use rust_eps::query::Query;
 
 #[cfg(feature = "electrum")]
-use rust_eps::electrum_new::ElectrumServer;
+use rust_eps::electrum::ElectrumServer;
 
 fn main() -> Result<()> {
     stderrlog::new().verbosity(3).init()?;
