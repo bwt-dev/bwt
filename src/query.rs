@@ -19,14 +19,17 @@ impl Query {
     }
 
     pub fn get_tip(&self) -> Result<(u32, sha256d::Hash)> {
-        let tip_height = self.rpc.get_block_count()? as u32;
-        let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
+        let tip_height = self.get_tip_height()?;
+        let tip_hash = self.get_block_hash(tip_height)?;
         Ok((tip_height, tip_hash))
     }
 
+    pub fn get_tip_height(&self) -> Result<u32> {
+        Ok(self.rpc.get_block_count()? as u32)
+    }
+
     pub fn get_header(&self, height: u32) -> Result<String> {
-        let blockhash = self.rpc.get_block_hash(height as u64)?;
-        self.get_header_by_hash(blockhash)
+        self.get_header_by_hash(&self.get_block_hash(height)?)
     }
 
     pub fn get_headers(&self, heights: &[u32]) -> Result<Vec<String>> {
@@ -36,10 +39,19 @@ impl Query {
             .collect::<Result<Vec<String>>>()?)
     }
 
-    pub fn get_header_by_hash(&self, blockhash: sha256d::Hash) -> Result<String> {
+    pub fn get_header_by_hash(&self, blockhash: &sha256d::Hash) -> Result<String> {
         Ok(self
             .rpc
             .call("getblockheader", &[json!(blockhash), false.into()])?)
+    }
+
+    pub fn get_block_hash(&self, height: u32) -> Result<sha256d::Hash> {
+        Ok(self.rpc.get_block_hash(height as u64)?)
+    }
+
+    pub fn get_block_txids(&self, blockhash: &sha256d::Hash) -> Result<Vec<sha256d::Hash>> {
+        let info = self.rpc.get_block_info(blockhash)?;
+        Ok(info.tx)
     }
 
     pub fn estimate_fee(&self, target: u16) -> Result<Option<f32>> {

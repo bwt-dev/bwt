@@ -13,6 +13,7 @@ use serde_json::{from_str, from_value, Value};
 
 use crate::addrman::{TxVal, Utxo};
 use crate::error::{fmt_error_chain, OptionExt, Result, ResultExt};
+use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
 
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
@@ -45,7 +46,7 @@ impl Connection {
 
     fn blockchain_headers_subscribe(&mut self) -> Result<Value> {
         let (tip_height, tip_hash) = self.query.get_tip()?;
-        let tip_hex = self.query.get_header_by_hash(tip_hash)?;
+        let tip_hex = self.query.get_header_by_hash(&tip_hash)?;
         self.tip = Some((tip_height, tip_hash));
         Ok(json!({ "height": tip_height, "hex": tip_hex }))
     }
@@ -80,23 +81,19 @@ impl Connection {
 
         let header_hex = self.query.get_header(height)?;
 
-        if cp_height.is_none() {
-            return Ok(json!(header_hex));
-        }
+        Ok(match cp_height {
+            Some(cp_height) => {
+                let (branch, root) = get_header_merkle_proof(&self.query, height, cp_height)?;
+                let branch_vec: Vec<String> = branch.into_iter().map(|b| b.to_hex()).collect();
 
-        // TODO
-        Ok(Value::Null)
-        /*
-        let (branch, root) = self.query.get_header_merkle_proof(height, cp_height)?;
-
-        let branch_vec: Vec<String> = branch.into_iter().map(|b| b.to_hex()).collect();
-
-        Ok(json!({
-            "header": raw_header_hex,
-            "root": root.to_hex(),
-            "branch": branch_vec
-        }))
-        */
+                json!({
+                    "header": header_hex,
+                    "root": root.to_hex(),
+                    "branch": branch_vec
+                })
+            }
+            None => json!(header_hex),
+        })
     }
 
     fn blockchain_block_headers(&self, params: Value) -> Result<Value> {
@@ -106,33 +103,30 @@ impl Connection {
         let count = cmp::min(count, MAX_HEADERS);
         let heights: Vec<u32> = (start_height..(start_height + count)).collect();
 
+        // TODO: "If the chain has not extended sufficiently far, only the available headers will
+        // be returned. If more headers than max were requested at most max will be returned."
         let headers = self.query.get_headers(&heights)?;
 
-        if count == 0 || cp_height.is_none() {
-            return Ok(json!({
-                "count": headers.len(),
-                "hex": headers.join(""),
-                "max": MAX_HEADERS,
-            }));
-        }
-
-        // TODO
-        Ok(Value::Null)
-        /*
-        let (branch, root) = self
-            .query
-            .get_header_merkle_proof(start_height + (count - 1), cp_height)?;
-
-        let branch_vec: Vec<String> = branch.into_iter().map(|b| b.to_hex()).collect();
-
-        Ok(json!({
+        let mut result = json!({
             "count": headers.len(),
             "hex": headers.join(""),
-            "max": 2016,
-            "root": root.to_hex(),
-            "branch" : branch_vec
-        }))
-        */
+            "max": MAX_HEADERS,
+        });
+
+        if count > 0 {
+            if let Some(cp_height) = cp_height {
+                let (branch, root) =
+                    get_header_merkle_proof(&self.query, start_height + (count - 1), cp_height)?;
+
+                result["root"] = json!(root.to_hex());
+                result["branch"] = json!(branch
+                    .into_iter()
+                    .map(|b| b.to_hex())
+                    .collect::<Vec<String>>());
+            }
+        }
+
+        Ok(result)
     }
 
     fn blockchain_estimatefee(&self, params: Value) -> Result<Value> {
@@ -233,39 +227,30 @@ impl Connection {
     fn blockchain_transaction_get_merkle(&self, params: Value) -> Result<Value> {
         let (txid, height): (sha256d::Hash, u32) = from_value(params)?;
 
-        Ok(Value::Null)
-        // TODO
-        /*
-        let (merkle, pos) = self
-            .query
-            .get_merkle_proof(&tx_hash, height)
-            .chain_err(|| "cannot create merkle proof")?;
-        let merkle: Vec<String> = merkle.into_iter().map(|txid| txid.to_hex()).collect();
+        let (merkle, pos) = get_merkle_proof(&self.query, &txid, height)?;
+
         Ok(json!({
-                "block_height": height,
-                "merkle": merkle,
-                "pos": pos}))
-        */
+            "block_height": height,
+            "merkle": merkle.into_iter().map(|txid| txid.to_hex()).collect::<Vec<String>>(),
+            "pos": pos,
+        }))
     }
 
     fn blockchain_transaction_id_from_pos(&self, params: Value) -> Result<Value> {
-        let (height, tx_pos, want_merkle): (usize, usize, Option<bool>) = from_value(params)?;
+        let (height, tx_pos, want_merkle): (u32, usize, Option<bool>) =
+            from_value(pad_params(params, 3))?;
+        let want_merkle = want_merkle.unwrap_or(false);
 
-        Ok(Value::Null)
-        // TODO
-        /*
-        let (txid, merkle) = self.query.get_id_from_pos(height, tx_pos, want_merkle)?;
+        let (txid, merkle) = get_id_from_pos(&self.query, height, tx_pos, want_merkle)?;
 
-        if !want_merkle {
-            return Ok(json!(txid.to_hex()));
-        }
-
-        let merkle_vec: Vec<String> = merkle.into_iter().map(|entry| entry.to_hex()).collect();
-
-        Ok(json!({
-            "tx_hash" : txid.to_hex(),
-            "merkle" : merkle_vec}))
-        */
+        Ok(if !want_merkle {
+            json!(txid.to_hex())
+        } else {
+            json!({
+                "tx_hash": txid,
+                "merkle": merkle.into_iter().map(|txid| txid.to_hex()).collect::<Vec<String>>(),
+            })
+        })
     }
 
     fn handle_command(&mut self, method: &str, params: Value, id: Value) -> Result<Value> {
@@ -307,7 +292,7 @@ impl Connection {
             let tip = self.query.get_tip()?;
             if *last_tip != tip {
                 *last_tip = tip;
-                let hex_header = self.query.get_header_by_hash(tip.1)?;
+                let hex_header = self.query.get_header_by_hash(&tip.1)?;
                 let header = json!({"hex": hex_header, "height": tip.0 });
                 result.push(json!({
                     "jsonrpc": "2.0",
@@ -341,7 +326,6 @@ impl Connection {
     }
 
     fn handle_replies(&mut self) -> Result<()> {
-        let empty_params = json!([]);
         loop {
             let msg = self.chan.receiver().recv().context("channel closed")?;
             trace!("RPC {:?}", msg);

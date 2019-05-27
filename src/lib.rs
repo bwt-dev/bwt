@@ -20,3 +20,5 @@ pub mod util;
 pub mod electrum;
 #[cfg(feature = "electrum")]
 pub mod electrum_new;
+#[cfg(feature = "electrum")]
+pub mod merkle;
