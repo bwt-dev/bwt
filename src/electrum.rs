@@ -1,11 +1,16 @@
 use std::cmp;
 use std::sync::Arc;
+use std::sync::RwLock;
+use std::thread;
+use std::time;
 
 use bitcoin_hashes::{sha256, sha256d};
-use jsonrpc_tcp_server::jsonrpc_core::{
-    Error as RpcServerError, IoHandler, Params, Result as RpcResult,
+use jsonrpc_core::{
+    futures, futures::Future, Error as RpcServerError, MetaIoHandler, Params, Result as RpcResult,
 };
-use jsonrpc_tcp_server::ServerBuilder;
+use jsonrpc_pubsub::{PubSubHandler, Session, Sink, Subscriber, SubscriptionId};
+use jsonrpc_tcp_server::{RequestContext, ServerBuilder};
+
 use serde::Serialize;
 use serde_json::Value;
 
@@ -15,54 +20,83 @@ use crate::query::Query;
 
 pub struct ElectrumServer {
     query: Arc<Query>,
+    subscriptions: Arc<RwLock<Subscriptions>>,
+}
+
+struct Subscriptions {
+    headers: Vec<Sink>,
+}
+
+impl Subscriptions {
+    fn new() -> Self {
+        Self { headers: vec![] }
+    }
 }
 
 impl ElectrumServer {
     const MAX_HEADERS: u32 = 2016;
 
     pub fn new(query: Arc<Query>) -> Self {
-        Self { query }
+        Self {
+            query,
+            subscriptions: Arc::new(RwLock::new(Subscriptions::new())),
+        }
     }
 
     pub fn start(self) -> Result<()> {
         let server = Arc::new(self);
-        let mut io = IoHandler::default();
+        let mut io = PubSubHandler::new(MetaIoHandler::default());
 
+        // server
         io.add_method("server.banner", {
             let server = Arc::clone(&server);
             move |_params| wrap(server.server_banner())
         });
-
         io.add_method("server.ping", {
             let server = Arc::clone(&server);
             move |_params| wrap(server.server_ping())
         });
 
-        io.add_method("blockchain.block.header", {
-            let server = Arc::clone(&server);
-            move |params| wrap(server.blockchain_block_header(params))
-        });
-
-        io.add_method("blockchain.block.headers", {
-            let server = Arc::clone(&server);
-            move |params| wrap(server.blockchain_block_headers(params))
-        });
-
+        // blockchain
         io.add_method("blockchain.estimatefee", {
             let server = Arc::clone(&server);
             move |params| wrap(server.blockchain_estimatefee(params))
         });
-
         io.add_method("blockchain.relayfee", {
             let server = Arc::clone(&server);
             move |params| wrap(server.blockchain_relayfee(params))
         });
 
+        // blockchain.block
+        io.add_method("blockchain.block.header", {
+            let server = Arc::clone(&server);
+            move |params| wrap(server.blockchain_block_header(params))
+        });
+        io.add_method("blockchain.block.headers", {
+            let server = Arc::clone(&server);
+            move |params| wrap(server.blockchain_block_headers(params))
+        });
+
+        // blockchain.headers
+        io.add_subscription(
+            "blockchain.headers.subscribe",
+            ("blockchain.headers.subscribe", {
+                let server = Arc::clone(&server);
+                move |params, _, sub: Subscriber| {
+                    server.blockchain_headers_subscribe(params, sub);
+                }
+            }),
+            ("blockchain.headers.unsubscribe", {
+                let server = Arc::clone(&server);
+                move |id: SubscriptionId, _| wrap(server.blockchain_headers_unsubscribe(id))
+            }),
+        );
+
+        // blockchain.scripthash
         io.add_method("blockchain.scripthash.get_history", {
             let server = Arc::clone(&server);
             move |params| wrap(server.blockchain_scripthash_get_history(params))
         });
-
         io.add_method("blockchain.scripthash.get_mempool", {
             let server = Arc::clone(&server);
             move |params| wrap(server.blockchain_scripthash_get_mempool(params))
@@ -78,12 +112,16 @@ impl ElectrumServer {
             move |params| wrap(server.blockchain_scripthash_get_balance(params))
         });
 
+        // blockchain.transaction
         io.add_method("blockchain.transaction.get", {
             let server = Arc::clone(&server);
             move |params| wrap(server.blockchain_transaction_get(params))
         });
 
         let server = ServerBuilder::new(io)
+            .session_meta_extractor(|context: &RequestContext| {
+                Some(Arc::new(Session::new(context.sender.clone())))
+            })
             .start(&"127.0.0.1:9009".parse().unwrap())
             .expect("failed starting server");
 
@@ -186,6 +224,37 @@ impl ElectrumServer {
             bail!("unimplemented")
         })
     }
+
+    fn blockchain_headers_subscribe(&self, p: Params, sub: Subscriber) -> Result<()> {
+        let sub_id = make_sub_id();
+        let sink = sub
+            .assign_id(sub_id)
+            .map_err(|_| format_err!("cannot assign id"))?; // async, wait?
+
+        {
+            let mut subscriptions = self.subscriptions.write().unwrap();
+            subscriptions.headers.push(sink);
+        }
+
+        let subscriptions = Arc::clone(&self.subscriptions);
+        thread::spawn(move || {
+            loop {
+                thread::sleep(time::Duration::from_millis(100));
+                let subscriptions = subscriptions.read().unwrap();
+                for sink in &subscriptions.headers {
+                    sink.notify(Params::Array(vec!["test".into()]))
+                        .wait()
+                        .map_err(|e| warn!("notify failed: {:?}", e))
+                        .ok();
+                }
+            }
+        });
+
+        Ok(())
+    }
+    fn blockchain_headers_unsubscribe(&self, id: SubscriptionId) -> Result<Value> {
+        Ok(Value::Null)
+    }
 }
 
 fn wrap<T: Serialize>(res: Result<T>) -> RpcResult<Value> {
@@ -212,4 +281,15 @@ fn pad_params(mut params: Params, n: usize) -> Params {
         }
     } // passing a non-array is a noop
     params
+}
+
+lazy_static! {
+    static ref SUBS_COUNT: RwLock<u64> = RwLock::new(100);
+}
+
+// XXX should this be random?
+fn make_sub_id() -> SubscriptionId {
+    let mut count = SUBS_COUNT.write().unwrap();
+    *count = *count + 1;
+    SubscriptionId::Number(*count)
 }

@@ -7,6 +7,8 @@ extern crate log;
 extern crate stderrlog;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate lazy_static;
 
 pub mod addrman;
 pub mod error;
