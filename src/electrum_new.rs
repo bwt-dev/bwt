@@ -131,7 +131,6 @@ impl Connection {
 
     fn blockchain_estimatefee(&self, params: Value) -> Result<Value> {
         let (target,): (u16,) = from_value(params)?;
-
         let fee_rate = self.query.estimate_fee(target)?;
 
         // format for electrum: from sat/b to BTC/kB, -1 to indicate no estimate is available
@@ -145,9 +144,7 @@ impl Connection {
 
     fn blockchain_scripthash_subscribe(&mut self, params: Value) -> Result<Value> {
         let (script_hash,): (sha256::Hash,) = from_value(params)?;
-
         let status_hash = get_status_hash(&self.query, &script_hash)?;
-
         self.status_hashes.insert(script_hash, status_hash.clone());
 
         Ok(json!(status_hash))
@@ -155,14 +152,12 @@ impl Connection {
 
     fn blockchain_scripthash_get_balance(&self, params: Value) -> Result<Value> {
         let (script_hash,): (sha256::Hash,) = from_value(params)?;
-        Ok(Value::Null)
-        // TODO
-        /*
-        let status = self.query.status(&script_hash[..])?;
-        Ok(
-            json!({ "confirmed": status.confirmed_balance(), "unconfirmed": status.mempool_balance() }),
-        )
-        */
+        let (confirmed_balance, mempool_balance) = self.query.get_balance(&script_hash)?;
+
+        Ok(json!({
+            "confirmed": confirmed_balance,
+            "unconfirmed": mempool_balance,
+        }))
     }
 
     fn blockchain_scripthash_get_history(&self, params: Value) -> Result<Value> {

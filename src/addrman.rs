@@ -161,6 +161,7 @@ impl AddrManager {
         let utxos = self.list_unspent(scripthash, 0)?;
         let (confirmed, unconfirmed): (Vec<Utxo>, Vec<Utxo>) = utxos
             .into_iter()
+            .filter(|utxo| utxo.status.is_viable())
             .partition(|utxo| utxo.status.is_confirmed());
 
         Ok((
