@@ -171,7 +171,7 @@ impl Connection {
                 json!({
                     "height": entry.status.electrum_height(),
                     "tx_hash": txid,
-                    "fee": entry.fee
+                    "fee": entry.status.fee(),
                 })
             })
             .collect();

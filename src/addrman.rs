@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
@@ -36,7 +37,6 @@ struct HistoryEntry {
 #[derive(Debug, Clone)]
 pub struct TxEntry {
     pub status: TxStatus,
-    pub fee: Option<u64>,
 }
 
 #[derive(Debug)]
@@ -53,7 +53,7 @@ pub struct Utxo {
 impl Utxo {
     fn from_unspent(unspent: ListUnspentResult, tip_height: u32) -> Self {
         Self {
-            status: TxStatus::from_confirmations(unspent.confirmations as i32, tip_height),
+            status: TxStatus::new(unspent.confirmations as i32, None, tip_height),
             txid: unspent.txid,
             vout: unspent.vout,
             value: unspent.amount.into_inner() as u64,
@@ -187,7 +187,7 @@ impl Index {
             return;
         }
 
-        let status = TxStatus::from_confirmations(ltx.confirmations, tip_height);
+        let status = TxStatus::new(ltx.confirmations, parse_fee(ltx.fee), tip_height);
 
         if !status.is_viable() {
             return self.purge_tx(&ltx.txid);
@@ -195,10 +195,7 @@ impl Index {
 
         let height = status.sorting_height();
 
-        let txentry = TxEntry {
-            status,
-            fee: parse_fee(ltx.fee),
-        };
+        let txentry = TxEntry { status };
         self.index_tx_entry(&ltx.txid, txentry);
 
         let txhist = HistoryEntry {
@@ -210,7 +207,7 @@ impl Index {
 
     /// Process a transaction entry retrieved from "gettransaction"
     pub fn process_gtx(&mut self, gtx: GetTransactionResult, tip_height: u32) {
-        let status = TxStatus::from_confirmations(gtx.confirmations, tip_height);
+        let status = TxStatus::new(gtx.confirmations, parse_fee(gtx.fee), tip_height);
 
         if !status.is_viable() {
             return self.purge_tx(&gtx.txid);
@@ -218,10 +215,7 @@ impl Index {
 
         let height = status.sorting_height();
 
-        let txentry = TxEntry {
-            status,
-            fee: parse_fee(gtx.fee),
-        };
+        let txentry = TxEntry { status };
         self.index_tx_entry(&gtx.txid, txentry);
 
         let txhist = HistoryEntry {
@@ -347,17 +341,17 @@ impl Index {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum TxStatus {
-    Conflicted, // aka double spent
-    Unconfirmed,
-    Confirmed(u32 /*, sha256d::Hash */),
+    Conflicted,               // aka double spent
+    Unconfirmed(Option<u64>), // (fee)
+    Confirmed(u32),           // (height)
 }
 
 impl TxStatus {
-    fn from_confirmations(confirmations: i32, tip_height: u32) -> Self {
+    fn new(confirmations: i32, fee: Option<u64>, tip_height: u32) -> Self {
         if confirmations > 0 {
             TxStatus::Confirmed(tip_height - (confirmations as u32) + 1)
         } else if confirmations == 0 {
-            TxStatus::Unconfirmed
+            TxStatus::Unconfirmed(fee)
         } else {
             // negative confirmations indicate the tx conflicts with the best chain (aka was double-spent)
             TxStatus::Conflicted
@@ -368,9 +362,9 @@ impl TxStatus {
     fn sorting_height(&self) -> u32 {
         match self {
             TxStatus::Confirmed(height) => *height,
-            TxStatus::Unconfirmed => std::u32::MAX,
+            TxStatus::Unconfirmed(_) => std::u32::MAX,
             TxStatus::Conflicted => {
-                panic!("sorting_height() should not be called on conflicted txs")
+                unreachable!("sorting_height() should not be called on conflicted txs")
             }
         }
     }
@@ -379,14 +373,16 @@ impl TxStatus {
     pub fn electrum_height(&self) -> u32 {
         match self {
             TxStatus::Confirmed(height) => *height,
-            TxStatus::Unconfirmed => 0,
-            TxStatus::Conflicted => panic!("elc_height() should not be called on conflicted txs"),
+            TxStatus::Unconfirmed(_) => 0,
+            TxStatus::Conflicted => {
+                unreachable!("electrum_height() should not be called on conflicted txs")
+            }
         }
     }
 
     fn is_viable(&self) -> bool {
         match self {
-            TxStatus::Confirmed(_) | TxStatus::Unconfirmed => true,
+            TxStatus::Confirmed(_) | TxStatus::Unconfirmed(_) => true,
             TxStatus::Conflicted => false,
         }
     }
@@ -394,14 +390,21 @@ impl TxStatus {
     pub fn is_confirmed(&self) -> bool {
         match self {
             TxStatus::Confirmed(_) => true,
-            TxStatus::Unconfirmed | TxStatus::Conflicted => false,
+            TxStatus::Unconfirmed(_) | TxStatus::Conflicted => false,
         }
     }
 
     pub fn is_unconfirmed(&self) -> bool {
         match self {
-            TxStatus::Unconfirmed => true,
+            TxStatus::Unconfirmed(_) => true,
             TxStatus::Confirmed(_) | TxStatus::Conflicted => false,
+        }
+    }
+
+    pub fn fee(&self) -> Option<u64> {
+        match self {
+            TxStatus::Unconfirmed(fee) => *fee,
+            _ => None,
         }
     }
 }
