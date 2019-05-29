@@ -24,11 +24,11 @@ struct Index {
 #[derive(Debug)]
 struct ScriptEntry {
     address: String,
-    history: BTreeSet<ScriptHist>,
+    history: BTreeSet<HistoryEntry>,
 }
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
-struct ScriptHist {
+struct HistoryEntry {
     height: u32,
     txid: sha256d::Hash,
 }
@@ -201,7 +201,7 @@ impl Index {
         };
         self.index_tx_entry(&ltx.txid, txentry);
 
-        let txhist = ScriptHist {
+        let txhist = HistoryEntry {
             height,
             txid: ltx.txid,
         };
@@ -224,7 +224,7 @@ impl Index {
         };
         self.index_tx_entry(&gtx.txid, txentry);
 
-        let txhist = ScriptHist {
+        let txhist = HistoryEntry {
             height,
             txid: gtx.txid,
         };
@@ -259,7 +259,7 @@ impl Index {
     }
 
     /// Index address history entry
-    fn index_address_history(&mut self, address: &Address, txhist: ScriptHist) {
+    fn index_address_history(&mut self, address: &Address, txhist: HistoryEntry) {
         let scripthash = address_to_scripthash(address);
 
         debug!(
@@ -295,11 +295,11 @@ impl Index {
             return;
         }
 
-        let old_txhist = ScriptHist {
+        let old_txhist = HistoryEntry {
             height: old_height,
             txid: *txid,
         };
-        let new_txhist = ScriptHist {
+        let new_txhist = HistoryEntry {
             height: new_height,
             txid: *txid,
         };
@@ -315,7 +315,7 @@ impl Index {
     fn purge_tx(&mut self, txid: &sha256d::Hash) {
         debug!("purge_tx {:?}", txid);
         if let Some(old_entry) = self.transactions.remove(txid) {
-            let old_txhist = ScriptHist {
+            let old_txhist = HistoryEntry {
                 height: old_entry.status.sorting_height(),
                 txid: *txid,
             };
@@ -329,7 +329,7 @@ impl Index {
         }
     }
 
-    pub fn get_history(&self, scripthash: &sha256::Hash) -> Option<&BTreeSet<ScriptHist>> {
+    pub fn get_history(&self, scripthash: &sha256::Hash) -> Option<&BTreeSet<HistoryEntry>> {
         self.scripthashes.get(scripthash).map(|x| &x.history)
     }
 
