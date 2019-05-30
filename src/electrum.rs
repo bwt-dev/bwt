@@ -1,5 +1,5 @@
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySendError};
@@ -9,6 +9,7 @@ use std::thread;
 use bitcoin_hashes::{hex::ToHex, sha256, sha256d, Hash};
 use serde_json::{from_str, from_value, Value};
 
+use crate::addrman::HistoryEntry;
 use crate::error::{fmt_error_chain, Result, ResultExt};
 use crate::mempool::get_fee_histogram;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
@@ -140,7 +141,7 @@ impl Connection {
         let (script_hash,): (sha256::Hash,) = from_value(params)?;
         let script_hash = reverse_hash(script_hash);
 
-        let status_hash = get_status_hash(&self.query, &script_hash)?;
+        let status_hash = self.query.status_hash(&script_hash);
         self.status_hashes.insert(script_hash, status_hash.clone());
 
         Ok(json!(status_hash))
@@ -166,11 +167,11 @@ impl Connection {
             .query
             .get_history(&script_hash)?
             .into_iter()
-            .map(|hist| {
+            .map(|tx| {
                 json!({
-                    "height": hist.status.electrum_height(),
-                    "tx_hash": hist.txid,
-                    "fee": hist.status.fee(),
+                    "height": tx.entry.status.electrum_height(),
+                    "tx_hash": tx.txid,
+                    "fee": tx.entry.fee,
                 })
             })
             .collect();
@@ -297,7 +298,7 @@ impl Connection {
             }
         }
         for (script_hash, status_hash) in self.status_hashes.iter_mut() {
-            let new_status_hash = get_status_hash(&self.query, &script_hash)?;
+            let new_status_hash = self.query.status_hash(&script_hash);
             if new_status_hash == *status_hash {
                 continue;
             }
@@ -412,19 +413,13 @@ where
     items.into_iter().map(|item| item.to_string()).collect()
 }
 
-fn get_status_hash(query: &Query, script_hash: &sha256::Hash) -> Result<Option<sha256::Hash>> {
-    // TODO operate on the index directly to avoid copying
-    let p = query
-        .get_history(script_hash)?
-        .into_iter()
+pub fn get_status_hash(entries: &BTreeSet<HistoryEntry>) -> sha256::Hash {
+    let p = entries
+        .iter()
         .map(|hist| format!("{}:{}:", hist.txid, hist.status.electrum_height()))
         .collect::<Vec<String>>();
 
-    Ok(if p.len() > 0 {
-        Some(sha256::Hash::hash(&p.join("").into_bytes()))
-    } else {
-        None
-    })
+    sha256::Hash::hash(&p.join("").into_bytes())
 }
 
 fn encode_reverse(hash: &sha256::Hash) -> String {

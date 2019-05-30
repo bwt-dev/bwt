@@ -11,6 +11,9 @@ use crate::error::{OptionExt, Result};
 use crate::json::{GetTransactionResult, ListTransactionsResult, TxCategory};
 use crate::util::address_to_scripthash;
 
+#[cfg(feature = "electrum")]
+use crate::electrum::get_status_hash;
+
 pub struct AddrManager {
     rpc: Arc<RpcClient>,
     index: RwLock<Index>,
@@ -37,6 +40,12 @@ pub struct HistoryEntry {
 #[derive(Debug, Clone)]
 pub struct TxEntry {
     pub status: TxStatus,
+    pub fee: Option<u64>,
+}
+
+pub struct Tx {
+    pub txid: sha256d::Hash,
+    pub entry: TxEntry,
 }
 
 #[derive(Debug)]
@@ -50,7 +59,7 @@ pub struct Utxo {
 impl Utxo {
     fn from_unspent(unspent: ListUnspentResult, tip_height: u32) -> Self {
         Self {
-            status: TxStatus::new(unspent.confirmations as i32, None, tip_height),
+            status: TxStatus::new(unspent.confirmations as i32, tip_height),
             txid: unspent.txid,
             vout: unspent.vout,
             value: unspent.amount.into_inner() as u64,
@@ -104,12 +113,28 @@ impl AddrManager {
         Ok(())
     }
 
-    pub fn get_history(&self, scripthash: &sha256::Hash) -> BTreeSet<HistoryEntry> {
+    pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<Tx>> {
         let index = self.index.read().unwrap();
-        index
-            .get_history(scripthash)
-            .cloned()
-            .unwrap_or_else(|| BTreeSet::new())
+        index.get_history(scripthash).map_or_else(
+            || Ok(Vec::new()),
+            |entries| {
+                entries
+                    .into_iter()
+                    .map(|hist| {
+                        Ok(Tx {
+                            txid: hist.txid,
+                            entry: index.get_tx(&hist.txid).or_err("missing tx")?.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<Tx>>>()
+            },
+        )
+    }
+
+    #[cfg(feature = "electrum")]
+    pub fn status_hash(&self, scripthash: &sha256::Hash) -> Option<sha256::Hash> {
+        let index = self.index.read().unwrap();
+        index.get_history(scripthash).map(get_status_hash)
     }
 
     /// Get the unspent utxos owned by scripthash
@@ -171,7 +196,7 @@ impl Index {
             return;
         }
 
-        let status = TxStatus::new(ltx.confirmations, parse_fee(ltx.fee), tip_height);
+        let status = TxStatus::new(ltx.confirmations, tip_height);
 
         if !status.is_viable() {
             return self.purge_tx(&ltx.txid);
@@ -179,6 +204,7 @@ impl Index {
 
         let txentry = TxEntry {
             status: status.clone(),
+            fee: parse_fee(ltx.fee),
         };
         self.index_tx_entry(&ltx.txid, txentry);
 
@@ -191,7 +217,7 @@ impl Index {
 
     /// Process a transaction entry retrieved from "gettransaction"
     pub fn process_gtx(&mut self, gtx: GetTransactionResult, tip_height: u32) {
-        let status = TxStatus::new(gtx.confirmations, parse_fee(gtx.fee), tip_height);
+        let status = TxStatus::new(gtx.confirmations, tip_height);
 
         if !status.is_viable() {
             return self.purge_tx(&gtx.txid);
@@ -199,6 +225,7 @@ impl Index {
 
         let txentry = TxEntry {
             status: status.clone(),
+            fee: parse_fee(gtx.fee),
         };
         self.index_tx_entry(&gtx.txid, txentry);
 
@@ -300,9 +327,7 @@ impl Index {
     }
 
     pub fn get_history(&self, scripthash: &sha256::Hash) -> Option<&BTreeSet<HistoryEntry>> {
-        self.scripthashes
-            .get(scripthash)
-            .map(|entry| &entry.history)
+        Some(&self.scripthashes.get(scripthash)?.history)
     }
 
     // get the address of a scripthash
@@ -319,9 +344,9 @@ impl Index {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum TxStatus {
-    Conflicted,               // aka double spent
-    Unconfirmed, // (fee)
-    Confirmed(u32),           // (height)
+    Conflicted,     // aka double spent
+    Unconfirmed,    // (fee)
+    Confirmed(u32), // (height)
 }
 
 impl Ord for TxStatus {
@@ -329,15 +354,15 @@ impl Ord for TxStatus {
         match self {
             TxStatus::Confirmed(height) => match other {
                 TxStatus::Confirmed(other_height) => height.cmp(other_height),
-                TxStatus::Unconfirmed(_) | TxStatus::Conflicted => Ordering::Greater,
+                TxStatus::Unconfirmed | TxStatus::Conflicted => Ordering::Greater,
             },
-            TxStatus::Unconfirmed(height) => match other {
+            TxStatus::Unconfirmed => match other {
                 TxStatus::Confirmed(_) => Ordering::Less,
-                TxStatus::Unconfirmed(_) => Ordering::Equal,
+                TxStatus::Unconfirmed => Ordering::Equal,
                 TxStatus::Conflicted => Ordering::Greater,
             },
             TxStatus::Conflicted => match other {
-                TxStatus::Confirmed(_) | TxStatus::Unconfirmed(_) => Ordering::Less,
+                TxStatus::Confirmed(_) | TxStatus::Unconfirmed => Ordering::Less,
                 TxStatus::Conflicted => Ordering::Equal,
             },
         }
@@ -363,11 +388,11 @@ impl PartialOrd for HistoryEntry {
 }
 
 impl TxStatus {
-    fn new(confirmations: i32, fee: Option<u64>, tip_height: u32) -> Self {
+    fn new(confirmations: i32, tip_height: u32) -> Self {
         if confirmations > 0 {
             TxStatus::Confirmed(tip_height - (confirmations as u32) + 1)
         } else if confirmations == 0 {
-            TxStatus::Unconfirmed(fee)
+            TxStatus::Unconfirmed
         } else {
             // negative confirmations indicate the tx conflicts with the best chain (aka was double-spent)
             TxStatus::Conflicted
@@ -379,7 +404,7 @@ impl TxStatus {
     pub fn electrum_height(&self) -> u32 {
         match self {
             TxStatus::Confirmed(height) => *height,
-            TxStatus::Unconfirmed(_) => 0,
+            TxStatus::Unconfirmed => 0,
             TxStatus::Conflicted => {
                 unreachable!("electrum_height() should not be called on conflicted txs")
             }
@@ -388,7 +413,7 @@ impl TxStatus {
 
     fn is_viable(&self) -> bool {
         match self {
-            TxStatus::Confirmed(_) | TxStatus::Unconfirmed(_) => true,
+            TxStatus::Confirmed(_) | TxStatus::Unconfirmed => true,
             TxStatus::Conflicted => false,
         }
     }
@@ -396,21 +421,14 @@ impl TxStatus {
     pub fn is_confirmed(&self) -> bool {
         match self {
             TxStatus::Confirmed(_) => true,
-            TxStatus::Unconfirmed(_) | TxStatus::Conflicted => false,
+            TxStatus::Unconfirmed | TxStatus::Conflicted => false,
         }
     }
 
     pub fn is_unconfirmed(&self) -> bool {
         match self {
-            TxStatus::Unconfirmed(_) => true,
+            TxStatus::Unconfirmed => true,
             TxStatus::Confirmed(_) | TxStatus::Conflicted => false,
-        }
-    }
-
-    pub fn fee(&self) -> Option<u64> {
-        match self {
-            TxStatus::Unconfirmed(fee) => *fee,
-            _ => None,
         }
     }
 }

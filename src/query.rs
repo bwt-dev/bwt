@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use bitcoin_hashes::{hex::ToHex, sha256, sha256d};
@@ -6,7 +5,7 @@ use bitcoincore_rpc::json::EstimateSmartFeeResult;
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use serde_json::Value;
 
-use crate::addrman::{AddrManager, HistoryEntry, Utxo};
+use crate::addrman::{AddrManager, Tx, Utxo};
 use crate::error::{OptionExt, Result};
 
 pub struct Query {
@@ -75,12 +74,17 @@ impl Query {
         Ok((feerate * 100_000f64) as f32)
     }
 
-    pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<BTreeSet<HistoryEntry>> {
-        Ok(self.addrman.get_history(scripthash))
+    pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<Tx>> {
+        Ok(self.addrman.get_history(scripthash)?)
     }
 
     pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: u32) -> Result<Vec<Utxo>> {
         Ok(self.addrman.list_unspent(scripthash, min_conf)?)
+    }
+
+    #[cfg(feature = "electrum")]
+    pub fn status_hash(&self, scripthash: &sha256::Hash) -> Option<sha256::Hash> {
+        self.addrman.status_hash(scripthash)
     }
 
     pub fn get_balance(&self, scripthash: &sha256::Hash) -> Result<(u64, u64)> {
