@@ -30,7 +30,7 @@ struct ScriptEntry {
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
 struct HistoryEntry {
-    height: u32,
+    status: TxStatus,
     txid: sha256d::Hash,
 }
 
@@ -193,13 +193,13 @@ impl Index {
             return self.purge_tx(&ltx.txid);
         }
 
-        let height = status.sorting_height();
-
-        let txentry = TxEntry { status };
+        let txentry = TxEntry {
+            status: status.clone(),
+        };
         self.index_tx_entry(&ltx.txid, txentry);
 
         let txhist = HistoryEntry {
-            height,
+            status,
             txid: ltx.txid,
         };
         self.index_address_history(&ltx.address, txhist);
@@ -213,13 +213,13 @@ impl Index {
             return self.purge_tx(&gtx.txid);
         }
 
-        let height = status.sorting_height();
-
-        let txentry = TxEntry { status };
+        let txentry = TxEntry {
+            status: status.clone(),
+        };
         self.index_tx_entry(&gtx.txid, txentry);
 
         let txhist = HistoryEntry {
-            height,
+            status,
             txid: gtx.txid,
         };
         for detail in gtx.details {
@@ -241,13 +241,10 @@ impl Index {
             "should not index non-viable tx entries"
         );
 
-        let new_height = txentry.status.sorting_height();
+        let new_status = txentry.status.clone();
 
         match self.transactions.insert(*txid, txentry) {
-            Some(old_entry) => {
-                let old_height = old_entry.status.sorting_height();
-                self.update_tx_height(txid, old_height, new_height)
-            }
+            Some(old_entry) => self.update_tx_status(txid, old_entry.status, new_status),
             None => (),
         }
     }
@@ -271,30 +268,24 @@ impl Index {
             .insert(txhist);
     }
 
-    /*
-    pub fn update_tx_status(&mut self, txid: &sha256d::Hash, new_status: TxStatus) -> Result<()> {
-        let txentry = self.transactions.get_mut(txid).or_err("tx not found")?;
-        if txentry.status != new_status {
-            let old_status = txentry.status.clone();
-            txentry.status = new_status.clone();
-            self.update_tx_height(txid, &old_status, &new_status);
-        }
-        Ok(())
-    }
-    */
-
     /// Update the scripthash history index to reflect the new tx status
-    fn update_tx_height(&mut self, txid: &sha256d::Hash, old_height: u32, new_height: u32) {
-        if old_height == new_height {
+    fn update_tx_status(
+        &mut self,
+        txid: &sha256d::Hash,
+        old_status: TxStatus,
+        new_status: TxStatus,
+    ) {
+        if old_status == new_status {
             return;
         }
 
         let old_txhist = HistoryEntry {
-            height: old_height,
+            status: old_status,
             txid: *txid,
         };
+
         let new_txhist = HistoryEntry {
-            height: new_height,
+            status: new_status,
             txid: *txid,
         };
 
@@ -310,7 +301,7 @@ impl Index {
         debug!("purge_tx {:?}", txid);
         if let Some(old_entry) = self.transactions.remove(txid) {
             let old_txhist = HistoryEntry {
-                height: old_entry.status.sorting_height(),
+                status: old_entry.status,
                 txid: *txid,
             };
 
@@ -339,11 +330,30 @@ impl Index {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum TxStatus {
     Conflicted,               // aka double spent
     Unconfirmed(Option<u64>), // (fee)
     Confirmed(u32),           // (height)
+}
+
+impl Ord for TxStatus {
+    fn cmp(&self, other: &TxStatus) -> Ordering {
+        match (self, other) {
+            (TxStatus::Unconfirmed(_), _) => Ordering::Less,
+            (_, TxStatus::Unconfirmed(_)) => Ordering::Greater,
+            (TxStatus::Confirmed(height), TxStatus::Confirmed(other_height)) => {
+                height.cmp(other_height)
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl PartialOrd for TxStatus {
+    fn partial_cmp(&self, other: &TxStatus) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl TxStatus {
@@ -358,18 +368,8 @@ impl TxStatus {
         }
     }
 
-    // height representation for index sorting
-    fn sorting_height(&self) -> u32 {
-        match self {
-            TxStatus::Confirmed(height) => *height,
-            TxStatus::Unconfirmed(_) => std::u32::MAX,
-            TxStatus::Conflicted => {
-                unreachable!("sorting_height() should not be called on conflicted txs")
-            }
-        }
-    }
-
     // height suitable for the electrum protocol
+    // TODO -1 to indicate unconfirmed tx with unconfirmed parents
     pub fn electrum_height(&self) -> u32 {
         match self {
             TxStatus::Confirmed(height) => *height,
