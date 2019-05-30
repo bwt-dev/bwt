@@ -17,7 +17,7 @@ use rust_eps::query::Query;
 use rust_eps::electrum::ElectrumServer;
 
 fn main() -> Result<()> {
-    stderrlog::new().verbosity(3).init()?;
+    stderrlog::new().verbosity(2).init()?;
 
     let rpc_url = "http://localhost:18888/".into();
     let rpc_auth = RpcAuth::UserPass("user3".into(), "password3".into());

@@ -301,6 +301,10 @@ impl Connection {
             if new_status_hash == *status_hash {
                 continue;
             }
+            info!(
+                "status hash for {:?} updated to {:?} (was {:?})",
+                script_hash, new_status_hash, status_hash
+            );
             result.push(json!({
                 "jsonrpc": "2.0",
                 "method": "blockchain.scripthash.subscribe",

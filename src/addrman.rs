@@ -28,10 +28,10 @@ struct ScriptEntry {
     history: BTreeSet<HistoryEntry>,
 }
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct HistoryEntry {
-    pub status: TxStatus,
     pub txid: sha256d::Hash,
+    pub status: TxStatus,
 }
 
 #[derive(Debug, Clone)]
@@ -99,12 +99,7 @@ impl AddrManager {
             index.process_ltx(ltx, tip_height);
         }
 
-        debug!(
-            "indexed: {:#?} {:#?}",
-            index.scripthashes, index.transactions
-        );
-
-        // TODO: remove missing txids from index
+        // TODO: remove confliced txids from index
 
         Ok(())
     }
@@ -172,8 +167,6 @@ impl Index {
 
     /// Process a transaction entry retrieved from "listtransactions"
     pub fn process_ltx(&mut self, ltx: ListTransactionsResult, tip_height: u32) {
-        debug!("index ltx: {:?}", ltx);
-
         if !ltx.category.should_process() {
             return;
         }
@@ -225,18 +218,17 @@ impl Index {
 
     /// Index transaction entry
     fn index_tx_entry(&mut self, txid: &sha256d::Hash, txentry: TxEntry) {
-        debug!("index_tx_entry: {:?} {:?}", txid, txentry);
-
         assert!(
             txentry.status.is_viable(),
             "should not index non-viable tx entries"
         );
 
+        // XXX re-read out from self.transactions if needed instead of cloning anyway?
         let new_status = txentry.status.clone();
 
         match self.transactions.insert(*txid, txentry) {
             Some(old_entry) => self.update_tx_status(txid, old_entry.status, new_status),
-            None => (),
+            None => info!("new tx: {:?}", txid),
         }
     }
 
@@ -244,19 +236,18 @@ impl Index {
     fn index_address_history(&mut self, address: &Address, txhist: HistoryEntry) {
         let scripthash = address_to_scripthash(address);
 
-        debug!(
-            "index address history: address {:?} / scripthash {:?} --> {:?}",
-            address, scripthash, txhist
-        );
-
-        self.scripthashes
-            .entry(scripthash)
+        let added = self.scripthashes
+            .entry(&scripthash)
             .or_insert_with(|| ScriptEntry {
                 address: address.to_string(),
                 history: BTreeSet::new(),
             })
             .history
             .insert(txhist);
+
+        if added {
+            info!("new history entry for {:?}", scripthash)
+        }
     }
 
     /// Update the scripthash history index to reflect the new tx status
@@ -269,6 +260,8 @@ impl Index {
         if old_status == new_status {
             return;
         }
+
+        info!("transition tx {:?} status: {:?} -> {:?}", txid, old_status, new_status);
 
         let old_txhist = HistoryEntry {
             status: old_status,
@@ -289,7 +282,8 @@ impl Index {
     }
 
     fn purge_tx(&mut self, txid: &sha256d::Hash) {
-        debug!("purge_tx {:?}", txid);
+        info!("purge tx {:?}", txid);
+
         if let Some(old_entry) = self.transactions.remove(txid) {
             let old_txhist = HistoryEntry {
                 status: old_entry.status,
@@ -326,19 +320,26 @@ impl Index {
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum TxStatus {
     Conflicted,               // aka double spent
-    Unconfirmed(Option<u64>), // (fee)
+    Unconfirmed, // (fee)
     Confirmed(u32),           // (height)
 }
 
 impl Ord for TxStatus {
     fn cmp(&self, other: &TxStatus) -> Ordering {
-        match (self, other) {
-            (TxStatus::Unconfirmed(_), _) => Ordering::Less,
-            (_, TxStatus::Unconfirmed(_)) => Ordering::Greater,
-            (TxStatus::Confirmed(height), TxStatus::Confirmed(other_height)) => {
-                height.cmp(other_height)
-            }
-            _ => unreachable!(),
+        match self {
+            TxStatus::Confirmed(height) => match other {
+                TxStatus::Confirmed(other_height) => height.cmp(other_height),
+                TxStatus::Unconfirmed(_) | TxStatus::Conflicted => Ordering::Greater,
+            },
+            TxStatus::Unconfirmed(height) => match other {
+                TxStatus::Confirmed(_) => Ordering::Less,
+                TxStatus::Unconfirmed(_) => Ordering::Equal,
+                TxStatus::Conflicted => Ordering::Greater,
+            },
+            TxStatus::Conflicted => match other {
+                TxStatus::Confirmed(_) | TxStatus::Unconfirmed(_) => Ordering::Less,
+                TxStatus::Conflicted => Ordering::Equal,
+            },
         }
     }
 }
@@ -346,6 +347,18 @@ impl Ord for TxStatus {
 impl PartialOrd for TxStatus {
     fn partial_cmp(&self, other: &TxStatus) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl Ord for HistoryEntry {
+    fn cmp(&self, other: &HistoryEntry) -> Ordering {
+        self.status.cmp(&other.status)
+    }
+}
+
+impl PartialOrd for HistoryEntry {
+    fn partial_cmp(&self, other: &HistoryEntry) -> Option<Ordering> {
+        Some(self.status.cmp(&other.status))
     }
 }
 
