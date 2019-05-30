@@ -115,20 +115,18 @@ impl AddrManager {
 
     pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<Tx>> {
         let index = self.index.read().unwrap();
-        index.get_history(scripthash).map_or_else(
-            || Ok(Vec::new()),
-            |entries| {
-                entries
-                    .into_iter()
-                    .map(|hist| {
-                        Ok(Tx {
-                            txid: hist.txid,
-                            entry: index.get_tx(&hist.txid).or_err("missing tx")?.clone(),
-                        })
-                    })
-                    .collect::<Result<Vec<Tx>>>()
-            },
-        )
+        index
+            .get_history(scripthash)
+            .cloned()
+            .unwrap_or_else(|| BTreeSet::new())
+            .into_iter()
+            .map(|hist| {
+                Ok(Tx {
+                    txid: hist.txid,
+                    entry: index.get_tx(&hist.txid).or_err("missing tx")?.clone(),
+                })
+            })
+            .collect::<Result<Vec<Tx>>>()
     }
 
     #[cfg(feature = "electrum")]
