@@ -9,7 +9,6 @@ use std::thread;
 use bitcoin_hashes::{hex::ToHex, sha256, sha256d, Hash};
 use serde_json::{from_str, from_value, Value};
 
-use crate::addrman::TxVal;
 use crate::error::{fmt_error_chain, Result, ResultExt};
 use crate::mempool::get_fee_histogram;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
@@ -167,11 +166,11 @@ impl Connection {
             .query
             .get_history(&script_hash)?
             .into_iter()
-            .map(|TxVal(txid, entry)| {
+            .map(|hist| {
                 json!({
-                    "height": entry.status.electrum_height(),
-                    "tx_hash": txid,
-                    "fee": entry.status.fee(),
+                    "height": hist.status.electrum_height(),
+                    "tx_hash": hist.txid,
+                    "fee": hist.status.fee(),
                 })
             })
             .collect();
@@ -410,10 +409,11 @@ where
 }
 
 fn get_status_hash(query: &Query, script_hash: &sha256::Hash) -> Result<Option<sha256::Hash>> {
+    // TODO operate on the index directly to avoid copying
     let p = query
         .get_history(script_hash)?
         .into_iter()
-        .map(|TxVal(txid, entry)| format!("{}:{}:", txid, entry.status.electrum_height()))
+        .map(|hist| format!("{}:{}:", hist.txid, hist.status.electrum_height()))
         .collect::<Vec<String>>();
 
     Ok(if p.len() > 0 {

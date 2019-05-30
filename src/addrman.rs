@@ -29,18 +29,15 @@ struct ScriptEntry {
 }
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
-struct HistoryEntry {
-    status: TxStatus,
-    txid: sha256d::Hash,
+pub struct HistoryEntry {
+    pub status: TxStatus,
+    pub txid: sha256d::Hash,
 }
 
 #[derive(Debug, Clone)]
 pub struct TxEntry {
     pub status: TxStatus,
 }
-
-#[derive(Debug)]
-pub struct TxVal(pub sha256d::Hash, pub TxEntry);
 
 #[derive(Debug)]
 pub struct Utxo {
@@ -112,18 +109,12 @@ impl AddrManager {
         Ok(())
     }
 
-    pub fn get_history(&self, scripthash: &sha256::Hash) -> Vec<TxVal> {
+    pub fn get_history(&self, scripthash: &sha256::Hash) -> BTreeSet<HistoryEntry> {
         let index = self.index.read().unwrap();
         index
             .get_history(scripthash)
             .cloned()
             .unwrap_or_else(|| BTreeSet::new())
-            .into_iter()
-            .filter_map(|hist| {
-                let entry = index.get_tx(&hist.txid)?.clone();
-                Some(TxVal(hist.txid, entry))
-            })
-            .collect()
     }
 
     /// Get the unspent utxos owned by scripthash
@@ -315,7 +306,9 @@ impl Index {
     }
 
     pub fn get_history(&self, scripthash: &sha256::Hash) -> Option<&BTreeSet<HistoryEntry>> {
-        self.scripthashes.get(scripthash).map(|x| &x.history)
+        self.scripthashes
+            .get(scripthash)
+            .map(|entry| &entry.history)
     }
 
     // get the address of a scripthash
