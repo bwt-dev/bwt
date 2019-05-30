@@ -105,15 +105,4 @@ impl Query {
     pub fn get_raw_mempool(&self) -> Result<Value> {
         Ok(self.rpc.call("getrawmempool", &[json!(true)])?)
     }
-
-    /*
-
-    pub fn get_transaction_merkle_proof(&self, txid: &sha256d::Hash) -> Result<MerkleProof> {
-    }
-
-    pub fn get_transaction_from_pos(&self, height: u32, position: u32) -> Result<sha256d::Hash> {
-    }
-
-    pub fn get_fee_histogram(&self) -> Result<Vec<(f32, u32)>> {
-    }*/
 }
