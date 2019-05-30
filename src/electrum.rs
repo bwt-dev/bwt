@@ -132,8 +132,8 @@ impl Connection {
     }
 
     fn blockchain_relayfee(&self) -> Result<Value> {
-        return Ok(json!(0));
         let fee_rate = self.query.relay_fee()?;
+        // sat/b to BTC/kB
         Ok(json!(fee_rate / 100_000f32))
     }
 
@@ -249,6 +249,7 @@ impl Connection {
     }
 
     fn handle_command(&mut self, method: &str, params: Value, id: Value) -> Result<Value> {
+        info!("handle command {} {:?}", method, params);
         let result = match method {
             "blockchain.block.header" => self.blockchain_block_header(params),
             "blockchain.block.headers" => self.blockchain_block_headers(params),
@@ -271,6 +272,7 @@ impl Connection {
             "server.version" => self.server_version(),
             &_ => bail!("unknown method {} {:?}", method, params),
         };
+        info!("reply for {}: {:?}", method, result);
 
         Ok(match result {
             Ok(result) => json!({"jsonrpc": "2.0", "id": id, "result": result}),
@@ -306,6 +308,9 @@ impl Connection {
                 "params": [encode_reverse(script_hash), new_status_hash]
             }));
             *status_hash = new_status_hash;
+        }
+        if result.len() > 0 {
+            info!("sending notifications: {:#?}", result);
         }
         Ok(result)
     }
