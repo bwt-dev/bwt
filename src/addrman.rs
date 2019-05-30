@@ -201,7 +201,7 @@ impl Index {
         }
 
         let txentry = TxEntry {
-            status: status.clone(),
+            status: status,
             fee: parse_fee(ltx.fee),
         };
         self.index_tx_entry(&ltx.txid, txentry);
@@ -222,7 +222,7 @@ impl Index {
         }
 
         let txentry = TxEntry {
-            status: status.clone(),
+            status,
             fee: parse_fee(gtx.fee),
         };
         self.index_tx_entry(&gtx.txid, txentry);
@@ -340,7 +340,7 @@ impl Index {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Copy)]
 pub enum TxStatus {
     Conflicted,     // aka double spent
     Unconfirmed,    // (fee)
