@@ -248,12 +248,28 @@ impl Index {
             "should not index non-viable tx entries"
         );
 
-        // XXX re-read out from self.transactions if needed instead of cloning anyway?
-        let new_status = txentry.status.clone();
+        let new_status = txentry.status;
+        let mut changed_from = None;
 
-        match self.transactions.insert(*txid, txentry) {
-            Some(old_entry) => self.update_tx_status(txid, old_entry.status, new_status),
-            None => info!("new tx: {:?}", txid),
+        self.transactions
+            .entry(*txid)
+            .and_modify(|curr_entry| {
+                if let (None, &Some(_)) = (curr_entry.fee, &txentry.fee) {
+                    curr_entry.fee = txentry.fee;
+                }
+
+                if &curr_entry.status != &txentry.status {
+                    changed_from = Some(curr_entry.status);
+                    curr_entry.status = new_status;
+                }
+            })
+            .or_insert_with(|| {
+                info!("new tx: {:?}", txid);
+                txentry
+            });
+
+        if let Some(old_status) = changed_from {
+            self.update_tx_status(txid, old_status, new_status)
         }
     }
 
