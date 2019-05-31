@@ -20,10 +20,9 @@ use rust_eps::electrum::ElectrumServer;
 fn main() -> Result<()> {
     stderrlog::new().verbosity(2).init()?;
 
-    let wallet = HDWallet::from_xpub("vpub5SLqN2bLY4WeYNv2F1CjDgcvvuq7rcF7EKr69tcMXBUD4GyxfQWix8vQJsT41rMMusx3jXuYgm9DkXx4JZHQDP4NNsuPdkbxsuxkuUT47kt")?;
-    let wallet = HDWallet::new(wallet.derive(0));
+    let wallets = HDWallet::from_xpub("tpubD6NzVbkrYhZ4WmV7Mum4qn9JbyDfjEjAcBUq5ETGd6yrumH8EwgwLhuWbKT1YAcSX4iZr4cY9BgNDHfo8oxfhHssBA3YV6uB1KgTSd9vDcM")?;
 
-    let watcher = HDWatcher::new(vec![wallet]);
+    let watcher = HDWatcher::new(wallets);
 
     let rpc_url = "http://localhost:18888/".into();
     let rpc_auth = RpcAuth::UserPass("user3".into(), "password3".into());

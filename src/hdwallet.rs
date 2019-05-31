@@ -2,7 +2,7 @@ use std::cmp;
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
+use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint, ScriptType};
 use bitcoin::Address;
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use hex;
@@ -60,32 +60,32 @@ pub struct HDWallet {
 
 impl HDWallet {
     pub fn new(master: ExtendedPubKey) -> Self {
-        let x = Self {
+        Self {
             master,
             buffer_size: 50, // TODO configurable
             max_used_index: 0,
             // FIXME: index 0 is skipped, change to "next_import_index"
             max_imported_index: 0,
-        };
-
-        info!(
-            "derive 0: {:?}",
-            Address::p2pkh(&x.derive(0).public_key, x.master.network)
-        );
-        x
+        }
     }
 
-    pub fn from_xpub(s: &str) -> Result<Self> {
-        // XXX
-        Ok(Self::new(ExtendedPubKey::from_str(s)?))
+    pub fn from_xpub(s: &str) -> Result<Vec<Self>> {
+        let key = ExtendedPubKey::from_str(s)?;
+        // XXX verify key network type
+
+        let receive = ChildNumber::from_normal_idx(0).unwrap();
+        let change = ChildNumber::from_normal_idx(1).unwrap();
+
+        Ok(vec![
+            Self::new(key.derive_pub(&*EC, &[receive])?),
+            Self::new(key.derive_pub(&*EC, &[change])?),
+        ])
     }
 
     pub fn derive(&self, index: u32) -> ExtendedPubKey {
+        let child = ChildNumber::from_normal_idx(index).expect("invalid derivation index");
         self.master
-            .derive_pub(
-                &*EC,
-                &[ChildNumber::from_normal_idx(index).expect("invalid derivation index")],
-            )
+            .derive_pub(&*EC, &[child])
             .expect("failed key derivation")
     }
 
@@ -121,7 +121,7 @@ impl HDWallet {
         let import_reqs = (start_index..start_index + len)
             .map(|index| {
                 let key = self.derive(index);
-                let address = self.as_address(&key);
+                let address = to_address(&key);
                 let deriviation = DerivationInfo::Derived(key.parent_fingerprint, index);
                 (address, rescan, deriviation)
             })
@@ -135,10 +135,13 @@ impl HDWallet {
 
         Ok(())
     }
+}
 
-    fn as_address(&self, key: &ExtendedPubKey) -> Address {
-        // TODO support other script types
-        Address::p2pkh(&key.public_key, key.network)
+fn to_address(key: &ExtendedPubKey) -> Address {
+    match key.script_type {
+        ScriptType::P2pkh => Address::p2pkh(&key.public_key, key.network),
+        ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, key.network),
+        ScriptType::P2shP2wpkh => Address::p2shwpkh(&key.public_key, key.network),
     }
 }
 
