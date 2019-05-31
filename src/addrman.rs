@@ -1,13 +1,14 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
-use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 use bitcoin::Address;
 use bitcoin_hashes::{sha256, sha256d};
 use bitcoincore_rpc::{json::ListUnspentResult, Client as RpcClient, RpcApi};
+use serde_json::Value;
 
 use crate::error::{OptionExt, Result};
+use crate::hdwallet::{DerivationInfo, HDWatcher};
 use crate::json::{GetTransactionResult, ListTransactionsResult, TxCategory};
 use crate::util::address_to_scripthash;
 
@@ -16,6 +17,7 @@ use crate::electrum::get_status_hash;
 
 pub struct AddrManager {
     rpc: Arc<RpcClient>,
+    watcher: RwLock<HDWatcher>,
     index: RwLock<Index>,
 }
 
@@ -28,6 +30,7 @@ struct Index {
 #[derive(Debug)]
 struct ScriptEntry {
     address: String,
+    derivation_info: DerivationInfo,
     history: BTreeSet<HistoryEntry>,
 }
 
@@ -68,23 +71,17 @@ impl Utxo {
 }
 
 impl AddrManager {
-    pub fn new(rpc: Arc<RpcClient>) -> Self {
+    pub fn new(rpc: Arc<RpcClient>, watcher: HDWatcher) -> Self {
         AddrManager {
             rpc,
+            watcher: RwLock::new(watcher),
             index: RwLock::new(Index::new()),
         }
     }
-
-    pub fn import(&self, address: &str, rescan: bool) -> Result<()> {
-        let address = Address::from_str(address)?;
-        self.rpc
-            .import_address(&address, None, Some(rescan), None)?;
-        // if rescan {self.update()?;}
-        Ok(())
-    }
-
     pub fn update(&self) -> Result<()> {
         self.update_listtransactions()?;
+
+        self.watcher.write().unwrap().import_addresses(&self.rpc)?;
 
         Ok(())
     }
@@ -100,12 +97,13 @@ impl AddrManager {
 
         if tip_hash != self.rpc.get_best_block_hash()? {
             warn!("tip changed while fetching transactions, retrying...");
-            return self.update();
+            return self.update_listtransactions();
         }
 
         let mut index = self.index.write().unwrap();
+        let mut watcher = self.watcher.write().unwrap();
         for ltx in ltxs {
-            index.process_ltx(ltx, tip_height);
+            index.process_ltx(ltx, tip_height, &mut watcher);
         }
 
         // TODO: remove confliced txids from index
@@ -189,7 +187,12 @@ impl Index {
     }
 
     /// Process a transaction entry retrieved from "listtransactions"
-    pub fn process_ltx(&mut self, ltx: ListTransactionsResult, tip_height: u32) {
+    pub fn process_ltx(
+        &mut self,
+        ltx: ListTransactionsResult,
+        tip_height: u32,
+        watcher: &mut HDWatcher,
+    ) {
         if !ltx.category.should_process() {
             return;
         }
@@ -210,11 +213,16 @@ impl Index {
             status,
             txid: ltx.txid,
         };
-        self.index_address_history(&ltx.address, txhist);
+        self.index_address_history(&ltx.address, &ltx.label, txhist, watcher);
     }
 
     /// Process a transaction entry retrieved from "gettransaction"
-    pub fn process_gtx(&mut self, gtx: GetTransactionResult, tip_height: u32) {
+    pub fn process_gtx(
+        &mut self,
+        gtx: GetTransactionResult,
+        tip_height: u32,
+        watcher: &mut HDWatcher,
+    ) {
         let status = TxStatus::new(gtx.confirmations, tip_height);
 
         if !status.is_viable() {
@@ -237,7 +245,7 @@ impl Index {
                 continue;
             }
 
-            self.index_address_history(&detail.address, txhist.clone());
+            self.index_address_history(&detail.address, &detail.label, txhist.clone(), watcher);
         }
     }
 
@@ -274,14 +282,31 @@ impl Index {
     }
 
     /// Index address history entry
-    fn index_address_history(&mut self, address: &Address, txhist: HistoryEntry) {
+    fn index_address_history(
+        &mut self,
+        address: &Address,
+        label: &str,
+        txhist: HistoryEntry,
+        watcher: &mut HDWatcher,
+    ) {
         let scripthash = address_to_scripthash(address);
 
-        let added = self.scripthashes
-            .entry(&scripthash)
-            .or_insert_with(|| ScriptEntry {
-                address: address.to_string(),
-                history: BTreeSet::new(),
+        let added = self
+            .scripthashes
+            .entry(scripthash)
+            .or_insert_with(|| {
+                let derivation_info = DerivationInfo::from_label(label);
+                info!(
+                    "new address {:?} ({:?}), marking as used",
+                    address, derivation_info
+                );
+                watcher.mark_used(&derivation_info);
+
+                ScriptEntry {
+                    address: address.to_string(),
+                    derivation_info,
+                    history: BTreeSet::new(),
+                }
             })
             .history
             .insert(txhist);
@@ -302,7 +327,10 @@ impl Index {
             return;
         }
 
-        info!("transition tx {:?} status: {:?} -> {:?}", txid, old_status, new_status);
+        info!(
+            "transition tx {:?} status: {:?} -> {:?}",
+            txid, old_status, new_status
+        );
 
         let old_txhist = HistoryEntry {
             status: old_status,
@@ -450,4 +478,20 @@ impl TxStatus {
 // convert from a negative float to a positive satoshi amount
 fn parse_fee(fee: Option<f64>) -> Option<u64> {
     fee.map(|fee| (fee * -1.0 * 100_000_000.0) as u64)
+}
+#[derive(Copy, Clone, Debug)]
+pub enum KeyRescan {
+    None,
+    All,
+    Since(u32),
+}
+
+impl KeyRescan {
+    pub fn rpc_arg(&self) -> Value {
+        match self {
+            KeyRescan::None => json!("now"),
+            KeyRescan::All => json!(0),
+            KeyRescan::Since(epoch) => json!(epoch),
+        }
+    }
 }

@@ -13,6 +13,9 @@ pub struct ListTransactionsResult {
     pub confirmations: i32,
     pub blockhash: Option<sha256d::Hash>,
     pub fee: Option<f64>,
+
+    #[serde(default)]
+    pub label: String,
 }
 
 // available in bitcoincore_json, but blockhash is mandatory -- TODO upstream a fix
