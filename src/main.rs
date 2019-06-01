@@ -20,7 +20,7 @@ use rust_eps::electrum::ElectrumServer;
 fn main() -> Result<()> {
     stderrlog::new().verbosity(2).init()?;
 
-    let wallets = HDWallet::from_xpub("tpubD6NzVbkrYhZ4WmV7Mum4qn9JbyDfjEjAcBUq5ETGd6yrumH8EwgwLhuWbKT1YAcSX4iZr4cY9BgNDHfo8oxfhHssBA3YV6uB1KgTSd9vDcM")?;
+    let wallets = HDWallet::from_xpub("tpubD6NzVbkrYhZ4WmV7Mum4qn9JbyDfjEjAcBUq5ETGd6yrumH8EwgwLhuWbKT1YAcSX4iZr4cY9BgNDHfo8oxfhHssBA3YV6uB1KgTSd9vDcM", None)?;
 
     let watcher = HDWatcher::new(wallets);
 

@@ -60,19 +60,23 @@ impl HDWatcher {
                     .max_imported_index
                     .map_or(0, |max_imported| max_imported + 1);
 
+                let rescan = if wallet.done_initial_import {
+                    KeyRescan::None
+                } else {
+                    wallet.initial_rescan
+                };
+
                 info!(
-                    "importing hd key {} range {}-{}",
-                    wallet.master, start_index, watch_index,
+                    "importing hd wallet {} range {}-{} with rescan policy {:?}",
+                    wallet.master, start_index, watch_index, rescan,
                 );
 
-                // FIXME use wallet creation time for initial rescan, then with no rescan as new
-                // addresses are added in
-                import_reqs.append(&mut wallet.make_imports(
-                    start_index,
-                    watch_index,
-                    KeyRescan::None,
-                ));
+                import_reqs.append(&mut wallet.make_imports(start_index, watch_index, rescan));
                 pending_updates.push((wallet, watch_index));
+            } else if !wallet.done_initial_import {
+                info!("done initial import for {}", wallet.master);
+                // XXX figure out done_initial_import logic (following restart etc)
+                wallet.done_initial_import = true;
             }
         }
 
@@ -90,9 +94,11 @@ impl HDWatcher {
 #[derive(Debug)]
 pub struct HDWallet {
     master: ExtendedPubKey,
+    initial_rescan: KeyRescan,
     buffer_size: u32,
     initial_import_size: u32,
 
+    done_initial_import: bool,
     max_used_index: Option<u32>,
     max_imported_index: Option<u32>,
 }
@@ -101,25 +107,35 @@ pub struct HDWallet {
 // or using getaddressesbylabel and a binary search (lots of requests)
 
 impl HDWallet {
-    pub fn new(master: ExtendedPubKey) -> Self {
+    pub fn new(master: ExtendedPubKey, creation_time: Option<u32>) -> Self {
+        let initial_rescan = creation_time.map_or(KeyRescan::All, KeyRescan::Since);
+
         Self {
             master,
+            initial_rescan,
             buffer_size: 20,          // TODO configurable
             initial_import_size: 100, // TODO configurable
+            done_initial_import: false,
             max_used_index: None,
             max_imported_index: None,
         }
     }
 
-    pub fn from_xpub(s: &str) -> Result<Vec<Self>> {
+    pub fn from_xpub(s: &str, creation_time: Option<u32>) -> Result<Vec<Self>> {
         let key = ExtendedPubKey::from_str(s)?;
         // XXX verify key network type
 
         Ok(vec![
             // receive account
-            Self::new(key.derive_pub(&*EC, &[ChildNumber::from(0)])?),
+            Self::new(
+                key.derive_pub(&*EC, &[ChildNumber::from(0)])?,
+                creation_time,
+            ),
             // change account
-            Self::new(key.derive_pub(&*EC, &[ChildNumber::from(1)])?),
+            Self::new(
+                key.derive_pub(&*EC, &[ChildNumber::from(1)])?,
+                creation_time,
+            ),
         ])
     }
 
@@ -164,6 +180,8 @@ fn batch_import(
     rpc: &RpcClient,
     import_reqs: Vec<(Address, KeyRescan, DerivationInfo)>,
 ) -> Result<Vec<Value>> {
+    debug!("importing {} addresses", import_reqs.len());
+
     // TODO: parse result, detect errors
     Ok(rpc.call(
         "importmulti",

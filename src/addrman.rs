@@ -5,7 +5,6 @@ use std::sync::{Arc, RwLock};
 use bitcoin::Address;
 use bitcoin_hashes::{sha256, sha256d};
 use bitcoincore_rpc::{json::ListUnspentResult, Client as RpcClient, RpcApi};
-use serde_json::Value;
 
 use crate::error::{OptionExt, Result};
 use crate::hdwallet::{DerivationInfo, HDWatcher};
@@ -386,8 +385,8 @@ impl Index {
 
 #[derive(Clone, Eq, PartialEq, Debug, Copy)]
 pub enum TxStatus {
-    Conflicted,     // aka double spent
-    Unconfirmed,    // (fee)
+    Conflicted, // aka double spent
+    Unconfirmed,
     Confirmed(u32), // (height)
 }
 
@@ -478,20 +477,4 @@ impl TxStatus {
 // convert from a negative float to a positive satoshi amount
 fn parse_fee(fee: Option<f64>) -> Option<u64> {
     fee.map(|fee| (fee * -1.0 * 100_000_000.0) as u64)
-}
-#[derive(Copy, Clone, Debug)]
-pub enum KeyRescan {
-    None,
-    All,
-    Since(u32),
-}
-
-impl KeyRescan {
-    pub fn rpc_arg(&self) -> Value {
-        match self {
-            KeyRescan::None => json!("now"),
-            KeyRescan::All => json!(0),
-            KeyRescan::Since(epoch) => json!(epoch),
-        }
-    }
 }
