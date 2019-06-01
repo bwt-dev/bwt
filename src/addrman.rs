@@ -300,7 +300,7 @@ impl Index {
                     "new address {:?} ({:?}), marking as used",
                     address, derivation_info
                 );
-                watcher.mark_used(&derivation_info);
+                watcher.mark_address(&derivation_info, true);
 
                 ScriptEntry {
                     address: address.to_string(),

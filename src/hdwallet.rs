@@ -1,4 +1,3 @@
-use std::cmp;
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -9,7 +8,6 @@ use hex;
 use secp256k1::Secp256k1;
 use serde_json::Value;
 
-use crate::addrman::KeyRescan;
 use crate::error::Result;
 
 const LABEL_PREFIX: &str = "rust_eps";
@@ -18,6 +16,7 @@ lazy_static! {
     static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
 }
 
+#[derive(Debug)]
 pub struct HDWatcher {
     wallets: HashMap<Fingerprint, HDWallet>,
 }
@@ -32,13 +31,17 @@ impl HDWatcher {
         }
     }
 
-    pub fn mark_used(&mut self, derivation: &DerivationInfo) {
+    /// Mark an address as imported and optionally used
+    pub fn mark_address(&mut self, derivation: &DerivationInfo, is_used: bool) {
         if let DerivationInfo::Derived(parent_fingerprint, index) = derivation {
             if let Some(wallet) = self.wallets.get_mut(&parent_fingerprint) {
-                wallet.max_used_index = cmp::max(wallet.max_used_index, *index);
-                // if its used, its necessarily imported
-                wallet.max_imported_index =
-                    cmp::max(wallet.max_imported_index, wallet.max_used_index);
+                if wallet.max_imported_index.map_or(true, |max| *index > max) {
+                    wallet.max_imported_index = Some(*index);
+                }
+
+                if is_used && wallet.max_used_index.map_or(true, |max| *index > max) {
+                    wallet.max_used_index = Some(*index);
+                }
             }
         }
     }
@@ -51,12 +54,14 @@ impl HDWatcher {
     }
 }
 
+#[derive(Debug)]
 pub struct HDWallet {
     master: ExtendedPubKey,
     buffer_size: u32,
+    initial_import_size: u32,
 
-    max_used_index: u32,
-    max_imported_index: u32,
+    max_used_index: Option<u32>,
+    max_imported_index: Option<u32>,
 }
 
 // TODO figure out the imported indexes, either with listreceivedbyaddress (lots of data)
@@ -66,10 +71,10 @@ impl HDWallet {
     pub fn new(master: ExtendedPubKey) -> Self {
         Self {
             master,
-            buffer_size: 50, // TODO configurable
-            max_used_index: 0,
-            // FIXME: index 0 is skipped, change to "next_import_index"
-            max_imported_index: 0,
+            buffer_size: 20,          // TODO configurable
+            initial_import_size: 100, // TODO configurable
+            max_used_index: None,
+            max_imported_index: None,
         }
     }
 
@@ -78,31 +83,38 @@ impl HDWallet {
         // XXX verify key network type
 
         Ok(vec![
-           // receive account
+            // receive account
             Self::new(key.derive_pub(&*EC, &[ChildNumber::from(0)])?),
             // change account
             Self::new(key.derive_pub(&*EC, &[ChildNumber::from(1)])?),
         ])
     }
 
-    pub fn derive(&self, index: u32) -> ExtendedPubKey {
+    fn derive(&self, index: u32) -> ExtendedPubKey {
         self.master
             .derive_pub(&*EC, &[ChildNumber::from(index)])
             .unwrap()
     }
 
     fn do_imports(&mut self, rpc: &RpcClient) -> Result<()> {
-        if self.max_imported_index - self.max_used_index < self.buffer_size {
-            // TODO set KeyRescan to the wallet's creation time during the initial sync,
-            //      then to None for ongoing use
-            self.import_range(
-                rpc,
-                self.max_imported_index + 1,
-                self.buffer_size,
-                KeyRescan::None,
-            )
-        } else {
-            Ok(())
+        match (self.max_imported_index, self.max_used_index) {
+            // nothing is imported yet, begin with initial_import_size
+            (None, _) => self.import_range(rpc, 0, self.initial_import_size, KeyRescan::None),
+
+            // we have imported and used addresses, extend the buffer as needed
+            (Some(max_imported_index), Some(max_used_index))
+                if max_imported_index < max_used_index + self.buffer_size =>
+            {
+                self.import_range(
+                    rpc,
+                    max_imported_index + 1,
+                    max_used_index + self.buffer_size,
+                    KeyRescan::None,
+                )
+            }
+
+            // we're all good!
+            _ => Ok(()),
         }
     }
 
@@ -110,17 +122,17 @@ impl HDWallet {
         &mut self,
         rpc: &RpcClient,
         start_index: u32,
-        len: u32,
+        end_index: u32,
         rescan: KeyRescan,
     ) -> Result<()> {
+        assert!(end_index > start_index);
+
         info!(
-            "importing hd key {:?} range {} - {}",
-            self.master,
-            start_index,
-            start_index + len
+            "importing hd key {} range {}-{}",
+            self.master, start_index, end_index,
         );
 
-        let import_reqs = (start_index..start_index + len)
+        let import_reqs = (start_index..end_index)
             .map(|index| {
                 let key = self.derive(index);
                 let address = to_address(&key);
@@ -131,9 +143,9 @@ impl HDWallet {
 
         batch_import(rpc, import_reqs)?;
 
-        info!("done importing for {:?}", self.master);
+        info!("done importing hd key {} up to {}", self.master, end_index);
 
-        self.max_imported_index = cmp::max(self.max_imported_index, start_index + len);
+        self.max_imported_index = Some(end_index);
 
         Ok(())
     }
@@ -151,23 +163,24 @@ fn batch_import(
     rpc: &RpcClient,
     import_reqs: Vec<(Address, KeyRescan, DerivationInfo)>,
 ) -> Result<Vec<Value>> {
-    info!("importing to bitcoind: {:#?}", import_reqs);
-
     // TODO: parse result, detect errors
     Ok(rpc.call(
         "importmulti",
         &[json!(import_reqs
             .into_iter()
             .map(|(address, rescan, derivation)| {
+                let label = derivation.to_label();
+
+                info!(
+                    "importing {} as {} with rescan {:?}",
+                    address, label, rescan
+                );
+
                 json!({
                   "scriptPubKey": { "address": address },
                   "timestamp": rescan.rpc_arg(),
-                  "label": derivation.to_label(),
+                  "label": label,
                 })
-            })
-            .map(|x| {
-                info!("importing: {:?}", x);
-                x
             })
             .collect::<Vec<Value>>())],
     )?)
@@ -205,5 +218,22 @@ impl DerivationInfo {
             ),
             _ => DerivationInfo::Standalone,
         })
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum KeyRescan {
+    None,
+    All,
+    Since(u32),
+}
+
+impl KeyRescan {
+    pub fn rpc_arg(&self) -> Value {
+        match self {
+            KeyRescan::None => json!("now"),
+            KeyRescan::All => json!(0),
+            KeyRescan::Since(epoch) => json!(epoch),
+        }
     }
 }
