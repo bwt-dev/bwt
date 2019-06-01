@@ -79,14 +79,14 @@ impl AddrManager {
         }
     }
     pub fn update(&self) -> Result<()> {
-        self.update_listtransactions()?;
+        self.update_transactions()?;
 
-        self.watcher.write().unwrap().import_addresses(&self.rpc)?;
+        self.watcher.write().unwrap().do_imports(&self.rpc)?;
 
         Ok(())
     }
 
-    fn update_listtransactions(&self) -> Result<()> {
+    fn update_transactions(&self) -> Result<()> {
         let tip_height = self.rpc.get_block_count()? as u32;
         let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
@@ -97,7 +97,7 @@ impl AddrManager {
 
         if tip_hash != self.rpc.get_best_block_hash()? {
             warn!("tip changed while fetching transactions, retrying...");
-            return self.update_listtransactions();
+            return self.update_transactions();
         }
 
         let mut index = self.index.write().unwrap();

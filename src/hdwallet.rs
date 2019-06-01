@@ -24,11 +24,12 @@ pub struct HDWatcher {
 
 impl HDWatcher {
     pub fn new(wallets: Vec<HDWallet>) -> Self {
-        let wallets = wallets
-            .into_iter()
-            .map(|wallet| (wallet.master.fingerprint(), wallet))
-            .collect();
-        HDWatcher { wallets }
+        HDWatcher {
+            wallets: wallets
+                .into_iter()
+                .map(|wallet| (wallet.master.fingerprint(), wallet))
+                .collect(),
+        }
     }
 
     pub fn mark_used(&mut self, derivation: &DerivationInfo) {
@@ -42,9 +43,9 @@ impl HDWatcher {
         }
     }
 
-    pub fn import_addresses(&mut self, rpc: &RpcClient) -> Result<()> {
+    pub fn do_imports(&mut self, rpc: &RpcClient) -> Result<()> {
         for (_, wallet) in &mut self.wallets {
-            wallet.import_addresses(rpc)?
+            wallet.do_imports(rpc)?
         }
         Ok(())
     }
@@ -57,6 +58,9 @@ pub struct HDWallet {
     max_used_index: u32,
     max_imported_index: u32,
 }
+
+// TODO figure out the imported indexes, either with listreceivedbyaddress (lots of data)
+// or using getaddressesbylabel and a binary search (lots of requests)
 
 impl HDWallet {
     pub fn new(master: ExtendedPubKey) -> Self {
@@ -73,23 +77,21 @@ impl HDWallet {
         let key = ExtendedPubKey::from_str(s)?;
         // XXX verify key network type
 
-        let receive = ChildNumber::from_normal_idx(0).unwrap();
-        let change = ChildNumber::from_normal_idx(1).unwrap();
-
         Ok(vec![
-            Self::new(key.derive_pub(&*EC, &[receive])?),
-            Self::new(key.derive_pub(&*EC, &[change])?),
+           // receive account
+            Self::new(key.derive_pub(&*EC, &[ChildNumber::from(0)])?),
+            // change account
+            Self::new(key.derive_pub(&*EC, &[ChildNumber::from(1)])?),
         ])
     }
 
     pub fn derive(&self, index: u32) -> ExtendedPubKey {
-        let child = ChildNumber::from_normal_idx(index).expect("invalid derivation index");
         self.master
-            .derive_pub(&*EC, &[child])
-            .expect("failed key derivation")
+            .derive_pub(&*EC, &[ChildNumber::from(index)])
+            .unwrap()
     }
 
-    fn import_addresses(&mut self, rpc: &RpcClient) -> Result<()> {
+    fn do_imports(&mut self, rpc: &RpcClient) -> Result<()> {
         if self.max_imported_index - self.max_used_index < self.buffer_size {
             // TODO set KeyRescan to the wallet's creation time during the initial sync,
             //      then to None for ongoing use
@@ -180,10 +182,10 @@ pub enum DerivationInfo {
 impl DerivationInfo {
     pub fn to_label(&self) -> String {
         match self {
-            DerivationInfo::Derived(parent, index) => format!(
+            DerivationInfo::Derived(parent_fingerprint, index) => format!(
                 "{}/{}/{}",
                 LABEL_PREFIX,
-                hex::encode(parent.as_bytes()),
+                hex::encode(parent_fingerprint.as_bytes()),
                 index
             ),
             DerivationInfo::Standalone => LABEL_PREFIX.into(),
@@ -198,7 +200,7 @@ impl DerivationInfo {
         let parts: Vec<&str> = s.splitn(3, "/").collect();
         Ok(match (parts.get(0), parts.get(1), parts.get(2)) {
             (Some(&LABEL_PREFIX), Some(parent), Some(index)) => DerivationInfo::Derived(
-                Fingerprint::from(&hex::decode(parent)?[0..4]),
+                Fingerprint::from(&hex::decode(parent)?[..]),
                 index.parse()?,
             ),
             _ => DerivationInfo::Standalone,
