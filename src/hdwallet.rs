@@ -47,9 +47,42 @@ impl HDWatcher {
     }
 
     pub fn do_imports(&mut self, rpc: &RpcClient) -> Result<()> {
-        for (_, wallet) in &mut self.wallets {
-            wallet.do_imports(rpc)?
+        let mut import_reqs = vec![];
+        let mut pending_updates = vec![];
+
+        for (_, wallet) in self.wallets.iter_mut() {
+            let watch_index = wallet.watch_index();
+            if wallet
+                .max_imported_index
+                .map_or(true, |max_imported| watch_index > max_imported)
+            {
+                let start_index = wallet
+                    .max_imported_index
+                    .map_or(0, |max_imported| max_imported + 1);
+
+                info!(
+                    "importing hd key {} range {}-{}",
+                    wallet.master, start_index, watch_index,
+                );
+
+                // FIXME use wallet creation time for initial rescan, then with no rescan as new
+                // addresses are added in
+                import_reqs.append(&mut wallet.make_imports(
+                    start_index,
+                    watch_index,
+                    KeyRescan::None,
+                ));
+                pending_updates.push((wallet, watch_index));
+            }
         }
+
+        batch_import(rpc, import_reqs)?;
+
+        for (wallet, watched_index) in pending_updates {
+            info!("imported hd key {} up to {}", wallet.master, watched_index,);
+            wallet.max_imported_index = Some(watched_index);
+        }
+
         Ok(())
     }
 }
@@ -96,58 +129,26 @@ impl HDWallet {
             .unwrap()
     }
 
-    fn do_imports(&mut self, rpc: &RpcClient) -> Result<()> {
-        match (self.max_imported_index, self.max_used_index) {
-            // nothing is imported yet, begin with initial_import_size
-            (None, _) => self.import_range(rpc, 0, self.initial_import_size, KeyRescan::None),
-
-            // we have imported and used addresses, extend the buffer as needed
-            (Some(max_imported_index), Some(max_used_index))
-                if max_imported_index < max_used_index + self.buffer_size =>
-            {
-                self.import_range(
-                    rpc,
-                    max_imported_index + 1,
-                    max_used_index + self.buffer_size,
-                    KeyRescan::None,
-                )
-            }
-
-            // we're all good!
-            _ => Ok(()),
-        }
+    /// Returns the maximum index that needs to be watched
+    fn watch_index(&self) -> u32 {
+        self.max_used_index
+            .map_or(self.initial_import_size, |max| max + self.buffer_size)
     }
 
-    fn import_range(
-        &mut self,
-        rpc: &RpcClient,
+    fn make_imports(
+        &self,
         start_index: u32,
         end_index: u32,
         rescan: KeyRescan,
-    ) -> Result<()> {
-        assert!(end_index > start_index);
-
-        info!(
-            "importing hd key {} range {}-{}",
-            self.master, start_index, end_index,
-        );
-
-        let import_reqs = (start_index..end_index)
+    ) -> Vec<(Address, KeyRescan, DerivationInfo)> {
+        (start_index..end_index)
             .map(|index| {
                 let key = self.derive(index);
                 let address = to_address(&key);
                 let deriviation = DerivationInfo::Derived(key.parent_fingerprint, index);
                 (address, rescan, deriviation)
             })
-            .collect();
-
-        batch_import(rpc, import_reqs)?;
-
-        info!("done importing hd key {} up to {}", self.master, end_index);
-
-        self.max_imported_index = Some(end_index);
-
-        Ok(())
+            .collect()
     }
 }
 
