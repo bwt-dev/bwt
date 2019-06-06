@@ -34,7 +34,7 @@ impl HDWatcher {
     /// Mark an address as imported and optionally used
     pub fn mark_address(&mut self, derivation: &DerivationInfo, is_used: bool) {
         if let DerivationInfo::Derived(parent_fingerprint, index) = derivation {
-            if let Some(wallet) = self.wallets.get_mut(&parent_fingerprint) {
+            if let Some(wallet) = self.wallets.get_mut(parent_fingerprint) {
                 if wallet.max_imported_index.map_or(true, |max| *index > max) {
                     wallet.max_imported_index = Some(*index);
                 }
@@ -96,7 +96,7 @@ pub struct HDWallet {
     master: ExtendedPubKey,
     initial_rescan: KeyRescan,
     buffer_size: u32,
-    initial_import_size: u32,
+    initial_buffer_size: u32,
 
     done_initial_import: bool,
     max_used_index: Option<u32>,
@@ -114,7 +114,7 @@ impl HDWallet {
             master,
             initial_rescan,
             buffer_size: 20,          // TODO configurable
-            initial_import_size: 100, // TODO configurable
+            initial_buffer_size: 100, // TODO configurable
             done_initial_import: false,
             max_used_index: None,
             max_imported_index: None,
@@ -147,8 +147,14 @@ impl HDWallet {
 
     /// Returns the maximum index that needs to be watched
     fn watch_index(&self) -> u32 {
+        let buffer_size = if self.done_initial_import {
+            self.buffer_size
+        } else {
+            self.initial_buffer_size
+        };
+
         self.max_used_index
-            .map_or(self.initial_import_size, |max| max + self.buffer_size)
+            .map_or(buffer_size - 1, |max| max + buffer_size)
     }
 
     fn make_imports(
