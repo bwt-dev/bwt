@@ -11,7 +11,7 @@ use bitcoincore_rpc::{Auth as RpcAuth, Client as RpcClient};
 
 use rust_eps::addrman::AddrManager;
 use rust_eps::error::Result;
-use rust_eps::hdwallet::{HDWallet, HDWatcher};
+use rust_eps::hdwallet::{HDWallet, HDWatcher, KeyRescan};
 use rust_eps::query::Query;
 
 #[cfg(feature = "electrum")]
@@ -20,7 +20,7 @@ use rust_eps::electrum::ElectrumServer;
 fn main() -> Result<()> {
     stderrlog::new().verbosity(2).init()?;
 
-    let wallets = HDWallet::from_xpub("tpubD6NzVbkrYhZ4WmV7Mum4qn9JbyDfjEjAcBUq5ETGd6yrumH8EwgwLhuWbKT1YAcSX4iZr4cY9BgNDHfo8oxfhHssBA3YV6uB1KgTSd9vDcM", None)?;
+    let wallets = HDWallet::from_xpub("tpubD6NzVbkrYhZ4WmV7Mum4qn9JbyDfjEjAcBUq5ETGd6yrumH8EwgwLhuWbKT1YAcSX4iZr4cY9BgNDHfo8oxfhHssBA3YV6uB1KgTSd9vDcM", KeyRescan::All)?;
 
     let watcher = HDWatcher::new(wallets);
 
