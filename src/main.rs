@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use bitcoincore_rpc::{Auth as RpcAuth, Client as RpcClient};
 
-use pxt::{AddrManager, HDWallet, HDWatcher, KeyRescan, Query, Result};
+use pxt::{AddrManager, HDWallet, HDWatcher, Query, Result};
 
 #[cfg(feature = "electrum")]
 use pxt::ElectrumServer;
@@ -17,7 +17,7 @@ use pxt::ElectrumServer;
 fn main() -> Result<()> {
     stderrlog::new().verbosity(2).init()?;
 
-    let wallets = HDWallet::from_xpub("tpubD6NzVbkrYhZ4WmV7Mum4qn9JbyDfjEjAcBUq5ETGd6yrumH8EwgwLhuWbKT1YAcSX4iZr4cY9BgNDHfo8oxfhHssBA3YV6uB1KgTSd9vDcM", KeyRescan::All)?;
+    let wallets = HDWallet::from_xpub("tpubD6NzVbkrYhZ4WmV7Mum4qn9JbyDfjEjAcBUq5ETGd6yrumH8EwgwLhuWbKT1YAcSX4iZr4cY9BgNDHfo8oxfhHssBA3YV6uB1KgTSd9vDcM", Some(0))?;
 
     let watcher = HDWatcher::new(wallets);
 

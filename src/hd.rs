@@ -107,10 +107,12 @@ pub struct HDWallet {
 // or using getaddressesbylabel and a binary search (lots of requests)
 
 impl HDWallet {
-    pub fn new(master: ExtendedPubKey, rescan: KeyRescan) -> Self {
+    pub fn new(master: ExtendedPubKey, creation_time: Option<u32>) -> Self {
+        let initial_rescan = creation_time.map_or(KeyRescan::None, KeyRescan::Since);
+
         Self {
             master,
-            initial_rescan: rescan,
+            initial_rescan,
             buffer_size: 20,          // TODO configurable
             initial_buffer_size: 100, // TODO configurable
             done_initial_import: false,
@@ -119,15 +121,21 @@ impl HDWallet {
         }
     }
 
-    pub fn from_xpub(s: &str, rescan: KeyRescan) -> Result<Vec<Self>> {
+    pub fn from_xpub(s: &str, creation_time: Option<u32>) -> Result<Vec<Self>> {
         let key = ExtendedPubKey::from_str(s)?;
         // XXX verify key network type
 
         Ok(vec![
             // external chain (receive)
-            Self::new(key.derive_pub(&*EC, &[ChildNumber::from(0)])?, rescan),
+            Self::new(
+                key.derive_pub(&*EC, &[ChildNumber::from(0)])?,
+                creation_time,
+            ),
             // internal chain (change)
-            Self::new(key.derive_pub(&*EC, &[ChildNumber::from(1)])?, rescan),
+            Self::new(
+                key.derive_pub(&*EC, &[ChildNumber::from(1)])?,
+                creation_time,
+            ),
         ])
     }
 
