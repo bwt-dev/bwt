@@ -40,6 +40,7 @@ fn main() -> Result<()> {
     };
 
     loop {
+        // TODO cpature errors
         manager.update()?;
 
         #[cfg(feature = "electrum")]

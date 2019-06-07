@@ -83,7 +83,7 @@ impl HDWatcher {
         batch_import(rpc, import_reqs)?;
 
         for (wallet, watched_index) in pending_updates {
-            info!("imported hd key {} up to {}", wallet.master, watched_index,);
+            info!("imported hd key {} up to {}", wallet.master, watched_index);
             wallet.max_imported_index = Some(watched_index);
         }
 
@@ -124,9 +124,9 @@ impl HDWallet {
         // XXX verify key network type
 
         Ok(vec![
-            // receive account
+            // external chain (receive)
             Self::new(key.derive_pub(&*EC, &[ChildNumber::from(0)])?, rescan),
-            // change account
+            // internal chain (change)
             Self::new(key.derive_pub(&*EC, &[ChildNumber::from(1)])?, rescan),
         ])
     }

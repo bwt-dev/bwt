@@ -51,10 +51,7 @@ impl Connection {
     }
 
     fn server_version(&self) -> Result<Value> {
-        Ok(json!([
-            format!("pxt {}", PXT_VERSION),
-            PROTOCOL_VERSION
-        ]))
+        Ok(json!([format!("pxt {}", PXT_VERSION), PROTOCOL_VERSION]))
     }
 
     fn server_banner(&self) -> Result<Value> {
