@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use crate::error::Result;
 
-const LABEL_PREFIX: &str = "rust_eps";
+const LABEL_PREFIX: &str = "pxt";
 
 lazy_static! {
     static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();

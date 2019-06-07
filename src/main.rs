@@ -9,13 +9,13 @@ use std::time::Duration;
 
 use bitcoincore_rpc::{Auth as RpcAuth, Client as RpcClient};
 
-use rust_eps::addrman::AddrManager;
-use rust_eps::error::Result;
-use rust_eps::hdwallet::{HDWallet, HDWatcher, KeyRescan};
-use rust_eps::query::Query;
+use pxt::addrman::AddrManager;
+use pxt::error::Result;
+use pxt::hdwallet::{HDWallet, HDWatcher, KeyRescan};
+use pxt::query::Query;
 
 #[cfg(feature = "electrum")]
-use rust_eps::electrum::ElectrumServer;
+use pxt::electrum::ElectrumServer;
 
 fn main() -> Result<()> {
     stderrlog::new().verbosity(2).init()?;

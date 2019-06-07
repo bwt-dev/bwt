@@ -18,7 +18,7 @@ use crate::query::Query;
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
 // released under the MIT license. https://github.com/romanz/electrs
 
-const RUST_EPS_VERSION: &str = env!("CARGO_PKG_VERSION");
+const PXT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL_VERSION: &str = "1.4";
 const MAX_HEADERS: u32 = 2016;
 
@@ -52,13 +52,13 @@ impl Connection {
 
     fn server_version(&self) -> Result<Value> {
         Ok(json!([
-            format!("rust-eps {}", RUST_EPS_VERSION),
+            format!("pxt {}", PXT_VERSION),
             PROTOCOL_VERSION
         ]))
     }
 
     fn server_banner(&self) -> Result<Value> {
-        Ok(json!("Welcome to rust-eps"))
+        Ok(json!("Welcome to pxt"))
     }
 
     fn server_donation_address(&self) -> Result<Value> {

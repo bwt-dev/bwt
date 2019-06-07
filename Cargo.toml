@@ -1,5 +1,5 @@
 [package]
-name = "rust-eps"
+name = "pxt"
 version = "0.1.0"
 authors = ["Nadav Ivgi <nadav@shesek.info>"]
 edition = "2018"
