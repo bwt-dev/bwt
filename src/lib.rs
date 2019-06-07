@@ -18,7 +18,15 @@ pub mod mempool;
 pub mod query;
 pub mod util;
 
+pub use addrman::AddrManager;
+pub use error::{Error, Result};
+pub use hd::{HDWallet, HDWatcher, KeyRescan};
+pub use query::Query;
+
 #[cfg(feature = "electrum")]
 pub mod electrum;
 #[cfg(feature = "electrum")]
 pub mod merkle;
+
+#[cfg(feature = "electrum")]
+pub use electrum::ElectrumServer;
