@@ -11,7 +11,7 @@ use bitcoincore_rpc::{Auth as RpcAuth, Client as RpcClient};
 
 use pxt::addrman::AddrManager;
 use pxt::error::Result;
-use pxt::hdwallet::{HDWallet, HDWatcher, KeyRescan};
+use pxt::hd::{HDWallet, HDWatcher, KeyRescan};
 use pxt::query::Query;
 
 #[cfg(feature = "electrum")]

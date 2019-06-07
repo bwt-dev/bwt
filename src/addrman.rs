@@ -8,7 +8,7 @@ use bitcoincore_rpc::{json::ListUnspentResult, Client as RpcClient, RpcApi};
 use serde_json::Value;
 
 use crate::error::{OptionExt, Result};
-use crate::hdwallet::{DerivationInfo, HDWatcher};
+use crate::hd::{DerivationInfo, HDWatcher};
 use crate::json::{GetTransactionResult, ListTransactionsResult, TxCategory};
 use crate::util::address_to_scripthash;
 
