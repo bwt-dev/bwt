@@ -29,7 +29,7 @@ struct Index {
 
 #[derive(Debug)]
 struct ScriptEntry {
-    address: String,
+    address: Address,
     derivation_info: DerivationInfo,
     history: BTreeSet<HistoryEntry>,
 }
@@ -132,7 +132,7 @@ impl AddrManager {
             index
                 .get_address(scripthash)
                 .or_err("unknown scripthash")?
-                .to_owned()
+                .to_string()
         };
 
         loop {
@@ -212,7 +212,7 @@ impl Index {
             status,
             txid: ltx.txid,
         };
-        self.index_address_history(&ltx.address, &ltx.label, txhist, watcher);
+        self.index_address_history(ltx.address, &ltx.label, txhist, watcher);
     }
 
     /// Process a transaction entry retrieved from "gettransaction"
@@ -244,7 +244,7 @@ impl Index {
                 continue;
             }
 
-            self.index_address_history(&detail.address, &detail.label, txhist.clone(), watcher);
+            self.index_address_history(detail.address, &detail.label, txhist.clone(), watcher);
         }
     }
 
@@ -283,12 +283,12 @@ impl Index {
     /// Index address history entry
     fn index_address_history(
         &mut self,
-        address: &Address,
+        address: Address,
         label: &str,
         txhist: HistoryEntry,
         watcher: &mut HDWatcher,
     ) {
-        let scripthash = address_to_scripthash(address);
+        let scripthash = address_to_scripthash(&address);
 
         let added = self
             .scripthashes
@@ -302,7 +302,7 @@ impl Index {
                 watcher.mark_address(&derivation_info, true);
 
                 ScriptEntry {
-                    address: address.to_string(),
+                    address,
                     derivation_info,
                     history: BTreeSet::new(),
                 }
@@ -311,7 +311,7 @@ impl Index {
             .insert(txhist);
 
         if added {
-            info!("new history entry for {:?}", address)
+            info!("new history entry for {}", label)
         }
     }
 
@@ -372,10 +372,10 @@ impl Index {
     }
 
     // get the address of a scripthash
-    pub fn get_address(&self, scripthash: &sha256::Hash) -> Option<&str> {
+    pub fn get_address(&self, scripthash: &sha256::Hash) -> Option<&Address> {
         self.scripthashes
             .get(scripthash)
-            .map(|x| x.address.as_str())
+            .map(|entry| &entry.address)
     }
 
     pub fn get_tx(&self, txid: &sha256d::Hash) -> Option<&TxEntry> {
