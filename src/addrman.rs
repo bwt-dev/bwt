@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 use bitcoin::Address;
 use bitcoin_hashes::{sha256, sha256d};
 use bitcoincore_rpc::{json::ListUnspentResult, Client as RpcClient, RpcApi};
+use serde_json::Value;
 
 use crate::error::{OptionExt, Result};
 use crate::hdwallet::{DerivationInfo, HDWatcher};
@@ -86,25 +87,17 @@ impl AddrManager {
     }
 
     fn update_transactions(&self) -> Result<()> {
-        let tip_height = self.rpc.get_block_count()? as u32;
-        let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
-
-        let ltxs: Vec<ListTransactionsResult> = self.rpc.call(
-            "listtransactions",
-            &["*".into(), 100_000_000.into(), 0.into(), true.into()],
-        )?;
-
-        if tip_hash != self.rpc.get_best_block_hash()? {
-            warn!("tip changed while fetching transactions, retrying...");
-            return self.update_transactions();
-        }
-
         let mut index = self.index.write().unwrap();
         let mut watcher = self.watcher.write().unwrap();
-        for ltx in ltxs {
-            index.process_ltx(ltx, tip_height, &mut watcher);
-        }
 
+        load_transactions_since(&self.rpc, 25, 0, &mut |chunk, tip_height| {
+            for ltx in chunk {
+                index.process_ltx(ltx, tip_height, &mut watcher);
+            }
+        })?;
+
+        // TODO: keep track of last known tip
+        // TODO: keep track of how many new txs are returned on avg
         // TODO: remove confliced txids from index
 
         Ok(())
@@ -311,7 +304,7 @@ impl Index {
             .insert(txhist);
 
         if added {
-            info!("new history entry for {:?}", scripthash)
+            info!("new history entry for {:?}", address)
         }
     }
 
@@ -477,4 +470,71 @@ impl TxStatus {
 // convert from a negative float to a positive satoshi amount
 fn parse_fee(fee: Option<f64>) -> Option<u64> {
     fee.map(|fee| (fee * -1.0 * 100_000_000.0) as u64)
+}
+
+// Fetch all unconfirmed transactions + transactions confirmed at or after start_height
+fn load_transactions_since(
+    rpc: &RpcClient,
+    init_per_page: usize,
+    start_height: u32,
+    chunk_handler: &mut FnMut(Vec<ListTransactionsResult>, u32),
+) -> Result<()> {
+    let mut per_page = init_per_page;
+    let mut start_index = 0;
+    let mut oldest_seen = None;
+
+    let tip_height = rpc.get_block_count()? as u32;
+    let tip_hash = rpc.get_block_hash(tip_height as u64)?;
+
+    let mut args = ["*".into(), Value::Null, Value::Null, true.into()];
+
+    // TODO: if the newest entry has the exact same (txid,address,height) as the previous newest,
+    // skip processing the entries entirely
+
+    while {
+        args[1] = per_page.into();
+        args[2] = start_index.into();
+
+        info!(
+            "reading {} transactions starting at index {}",
+            per_page, start_index
+        );
+
+        let mut chunk: Vec<ListTransactionsResult> = rpc.call("listtransactions", &args)?;
+
+        let mut exhausted = chunk.len() < per_page;
+
+        // this is necessary because we rely on the tip height to derive the confirmed height
+        // from the number of confirmations
+        if tip_hash != rpc.get_best_block_hash()? {
+            warn!("tip changed while fetching transactions, retrying...");
+            return load_transactions_since(rpc, per_page, start_height, chunk_handler);
+        }
+
+        // make sure we didn't miss any transactions by comparing the first entry of this page with
+        // the last entry of the last page. note that the entry used for comprasion is popped off
+        if oldest_seen.is_some() && chunk.pop().map(|ltx| (ltx.txid, ltx.address)) != oldest_seen {
+            warn!("transaction set changed while fetching transactions, retrying...");
+            return load_transactions_since(rpc, per_page, start_height, chunk_handler);
+        }
+
+        // process entries (if any)
+        if let Some(last) = chunk.last() {
+            oldest_seen = Some((last.txid.clone(), last.address.clone()));
+
+            exhausted = exhausted
+                || (last.confirmations > 0
+                    && tip_height - last.confirmations as u32 + 1 < start_height);
+
+            chunk_handler(chunk, tip_height);
+        }
+
+        exhausted
+    } {
+        // -1 so we'll get the last entry of this page as the first of the next, as a marker for sanity check
+        start_index = start_index + per_page - 1;
+        per_page = per_page * 2;
+    }
+
+    Ok(())
 }
