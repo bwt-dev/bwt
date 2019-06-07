@@ -442,6 +442,7 @@ impl TxStatus {
 
     // height suitable for the electrum protocol
     // TODO -1 to indicate unconfirmed tx with unconfirmed parents
+    #[cfg(feature = "electrum")]
     pub fn electrum_height(&self) -> u32 {
         match self {
             TxStatus::Confirmed(height) => *height,
