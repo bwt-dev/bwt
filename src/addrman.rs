@@ -127,32 +127,39 @@ impl AddrManager {
 
     /// Get the unspent utxos owned by scripthash
     pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: u32) -> Result<Vec<Utxo>> {
-        let index = self.index.read().unwrap();
-        let address = index.get_address(scripthash).or_err("unknown scripthash")?;
+        let address = {
+            let index = self.index.read().unwrap();
+            index
+                .get_address(scripthash)
+                .or_err("unknown scripthash")?
+                .to_owned()
+        };
 
-        let tip_height = self.rpc.get_block_count()? as u32;
-        let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
+        loop {
+            let tip_height = self.rpc.get_block_count()? as u32;
+            let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
-        let unspents: Vec<ListUnspentResult> = self.rpc.call(
-            "listunspent",
-            &[
-                min_conf.into(),
-                9999999.into(),
-                vec![address].into(),
-                false.into(),
-            ],
-        )?;
+            let unspents: Vec<ListUnspentResult> = self.rpc.call(
+                "listunspent",
+                &[
+                    min_conf.into(),
+                    9999999.into(),
+                    vec![address.as_str()].into(),
+                    false.into(),
+                ],
+            )?;
 
-        if tip_hash != self.rpc.get_best_block_hash()? {
-            warn!("tip changed while fetching unspents, retrying...");
-            return self.list_unspent(scripthash, min_conf);
+            if tip_hash != self.rpc.get_best_block_hash()? {
+                warn!("tip changed while fetching unspents, retrying...");
+                continue;
+            }
+
+            return Ok(unspents
+                .into_iter()
+                .map(|unspent| Utxo::from_unspent(unspent, tip_height))
+                .filter(|utxo| utxo.status.is_viable())
+                .collect());
         }
-
-        Ok(unspents
-            .into_iter()
-            .map(|unspent| Utxo::from_unspent(unspent, tip_height))
-            .filter(|utxo| utxo.status.is_viable())
-            .collect())
     }
 
     /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)
