@@ -158,16 +158,28 @@ impl Config {
             )
         });
 
-        // might be a None if there's no known home directory
-        let bitcoind_dir = bitcoind_dir.or_else(|| {
-            let mut dir = home_dir()?.join(".bitcoin");
-            match network {
-                Network::Bitcoin => (),
-                Network::Testnet => dir.push("testnet3"),
-                Network::Regtest => dir.push("regtest"),
-            }
-            Some(dir)
-        });
+        let get_dir = || {
+            bitcoind_dir.or_else(|| {
+                let mut dir = home_dir()?.join(".bitcoin");
+                match network {
+                    Network::Bitcoin => (),
+                    Network::Testnet => dir.push("testnet3"),
+                    Network::Regtest => dir.push("regtest"),
+                }
+                Some(dir)
+            })
+        };
+
+        let get_cookie = || {
+            bitcoind_cookie.or_else(|| {
+                let cookie = get_dir()?.join(".cookie");
+                if cookie.exists() {
+                    Some(cookie)
+                } else {
+                    None
+                }
+            })
+        };
 
         let bitcoind_auth = bitcoind_cred
             .and_then(|cred| {
@@ -175,15 +187,7 @@ impl Config {
                 Some(RpcAuth::UserPass(parts.next()?.into(), parts.next()?.into()))
             })
             .or_else(|| {
-                let cookie = bitcoind_cookie.or_else(|| {
-                    let cookie = bitcoind_dir?.join(".cookie");
-                    if cookie.exists() {
-                        Some(cookie)
-                    } else {
-                        None
-                    }
-                })?;
-                Some(RpcAuth::CookieFile(cookie))
+                Some(RpcAuth::CookieFile(get_cookie()?))
             })
             .or_err("no available authentication for bitcoind rpc, please specify credentials or a cookie file")?;
 
