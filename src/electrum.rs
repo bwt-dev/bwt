@@ -6,7 +6,7 @@ use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySe
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use bitcoin_hashes::{hex::ToHex, sha256, sha256d, Hash};
+use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, sha256d, Hash};
 use serde_json::{from_str, from_value, Value};
 
 use crate::addrman::HistoryEntry;
@@ -135,8 +135,8 @@ impl Connection {
     }
 
     fn blockchain_scripthash_subscribe(&mut self, params: Value) -> Result<Value> {
-        let (script_hash,): (sha256::Hash,) = from_value(params)?;
-        let script_hash = reverse_hash(script_hash);
+        let (script_hash,): (String,) = from_value(params)?;
+        let script_hash = decode_script_hash(&script_hash)?;
 
         let status_hash = self.query.status_hash(&script_hash);
         self.status_hashes.insert(script_hash, status_hash.clone());
@@ -145,8 +145,8 @@ impl Connection {
     }
 
     fn blockchain_scripthash_get_balance(&self, params: Value) -> Result<Value> {
-        let (script_hash,): (sha256::Hash,) = from_value(params)?;
-        let script_hash = reverse_hash(script_hash);
+        let (script_hash,): (String,) = from_value(params)?;
+        let script_hash = decode_script_hash(&script_hash)?;
 
         let (confirmed_balance, mempool_balance) = self.query.get_balance(&script_hash)?;
 
@@ -157,8 +157,8 @@ impl Connection {
     }
 
     fn blockchain_scripthash_get_history(&self, params: Value) -> Result<Value> {
-        let (script_hash,): (sha256::Hash,) = from_value(params)?;
-        let script_hash = reverse_hash(script_hash);
+        let (script_hash,): (String,) = from_value(params)?;
+        let script_hash = decode_script_hash(&script_hash)?;
 
         let txs: Vec<Value> = self
             .query
@@ -176,8 +176,8 @@ impl Connection {
     }
 
     fn blockchain_scripthash_listunspent(&self, params: Value) -> Result<Value> {
-        let (script_hash,): (sha256::Hash,) = from_value(params)?;
-        let script_hash = reverse_hash(script_hash);
+        let (script_hash,): (String,) = from_value(params)?;
+        let script_hash = decode_script_hash(&script_hash)?;
 
         let utxos: Vec<Value> = self
             .query
@@ -306,7 +306,7 @@ impl Connection {
             result.push(json!({
                 "jsonrpc": "2.0",
                 "method": "blockchain.scripthash.subscribe",
-                "params": [encode_reverse(script_hash), new_status_hash]
+                "params": [encode_script_hash(script_hash), new_status_hash]
             }));
             *status_hash = new_status_hash;
         }
@@ -419,8 +419,14 @@ pub fn get_status_hash(entries: &BTreeSet<HistoryEntry>) -> sha256::Hash {
     sha256::Hash::hash(&p.join("").into_bytes())
 }
 
-fn encode_reverse(hash: &sha256::Hash) -> String {
+fn encode_script_hash(hash: &sha256::Hash) -> String {
     reverse_hash(*hash).to_hex()
+}
+
+fn decode_script_hash(s: &str) -> Result<sha256::Hash> {
+    Ok(reverse_hash(
+        sha256::Hash::from_hex(s).context("invalid script hash")?,
+    ))
 }
 
 fn reverse_hash(hash: sha256::Hash) -> sha256::Hash {
