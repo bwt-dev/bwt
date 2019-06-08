@@ -7,11 +7,12 @@ use dirs::home_dir;
 use structopt::StructOpt;
 
 use crate::error::{OptionExt, Result, ResultExt};
+use crate::KeyRescan;
 
 #[derive(Debug)]
 pub struct Config {
     pub network: Network,
-    pub xpubs: Vec<(String, Option<u32>)>,
+    pub xpubs: Vec<(String, KeyRescan)>,
     pub verbose: usize,
     pub poll_interval: time::Duration,
 
@@ -91,7 +92,7 @@ pub struct CliConfig {
         help = "xpubs to scan and since when (<xpub>, <xpub>:now, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
         parse(try_from_str = "parse_xpub")
     )]
-    xpubs: Vec<(String, Option<u32>)>,
+    xpubs: Vec<(String, KeyRescan)>,
 
     //// TODO
     //#[structopt(
@@ -100,7 +101,7 @@ pub struct CliConfig {
     //help = "addresses to track (address:yyyy-mm-dd)",
     //parse(try_from_str = "parse_address")
     //)]
-    //addresses: Vec<(String, Option<u32>)>,
+    //addresses: Vec<(String, KeyRescan)>,
 
     // pxt server configuration
     #[cfg(feature = "electrum")]
@@ -202,19 +203,19 @@ impl Config {
     }
 }
 
-fn parse_xpub(s: &str) -> Result<(String, Option<u32>)> {
+fn parse_xpub(s: &str) -> Result<(String, KeyRescan)> {
     let mut parts = s.splitn(2, ":");
     let xpub = parts.next().or_err("missing xpub")?;
-    let creation_time = parts.next().map_or(Ok(Some(0)), parse_rescan)?;
-    Ok((xpub.into(), creation_time))
+    let rescan = parts.next().map_or(Ok(KeyRescan::Since(0)), parse_rescan)?;
+    Ok((xpub.into(), rescan))
 }
 
-fn parse_rescan(s: &str) -> Result<Option<u32>> {
+fn parse_rescan(s: &str) -> Result<KeyRescan> {
     Ok(if s == "now" {
-        None
+        KeyRescan::None
     } else {
         // try as a unix timestamp first, then as a datetime string
-        Some(
+        KeyRescan::Since(
             s.parse::<u32>()
                 .or_else(|_| parse_yyyymmdd(s))
                 .context("invalid rescan value")?,

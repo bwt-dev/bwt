@@ -23,7 +23,7 @@ pub mod util;
 pub use addrman::AddrManager;
 pub use config::Config;
 pub use error::{Error, Result};
-pub use hd::{HDWallet, HDWatcher};
+pub use hd::{HDWallet, HDWatcher, KeyRescan};
 pub use query::Query;
 
 #[cfg(feature = "electrum")]

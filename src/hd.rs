@@ -107,9 +107,7 @@ pub struct HDWallet {
 // or using getaddressesbylabel and a binary search (lots of requests)
 
 impl HDWallet {
-    pub fn new(master: ExtendedPubKey, creation_time: Option<u32>) -> Self {
-        let initial_rescan = creation_time.map_or(KeyRescan::None, KeyRescan::Since);
-
+    pub fn new(master: ExtendedPubKey, initial_rescan: KeyRescan) -> Self {
         Self {
             master,
             initial_rescan,
@@ -121,7 +119,7 @@ impl HDWallet {
         }
     }
 
-    pub fn from_xpub(s: &str, creation_time: Option<u32>) -> Result<Vec<Self>> {
+    pub fn from_xpub(s: &str, initial_rescan: KeyRescan) -> Result<Vec<Self>> {
         let key = ExtendedPubKey::from_str(s)?;
         // XXX verify key network type
 
@@ -129,21 +127,21 @@ impl HDWallet {
             // external chain (receive)
             Self::new(
                 key.derive_pub(&*EC, &[ChildNumber::from(0)])?,
-                creation_time,
+                initial_rescan,
             ),
             // internal chain (change)
             Self::new(
                 key.derive_pub(&*EC, &[ChildNumber::from(1)])?,
-                creation_time,
+                initial_rescan,
             ),
         ])
     }
 
-    pub fn from_xpubs(xpubs: &[(String, Option<u32>)]) -> Result<Vec<Self>> {
+    pub fn from_xpubs(xpubs: &[(String, KeyRescan)]) -> Result<Vec<Self>> {
         let mut wallets = vec![];
-        for (xpub, creation_time) in xpubs {
+        for (xpub, rescan) in xpubs {
             wallets.append(
-                &mut Self::from_xpub(xpub, *creation_time)
+                &mut Self::from_xpub(xpub, *rescan)
                     .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
             );
         }
