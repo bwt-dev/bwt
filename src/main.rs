@@ -32,8 +32,10 @@ fn main() -> Result<()> {
     );
 
     loop {
-        // TODO cpature errors
-        manager.update()?;
+        manager
+            .update()
+            .map_err(|err| warn!("error while updating addrman: {:#?}", err))
+            .ok();
 
         #[cfg(feature = "electrum")]
         electrum.notify();
