@@ -4,13 +4,15 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate log;
-extern crate stderrlog;
 #[macro_use]
 extern crate failure;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate structopt;
 
 pub mod addrman;
+pub mod config;
 pub mod error;
 pub mod hd;
 pub mod json;
@@ -19,6 +21,7 @@ pub mod query;
 pub mod util;
 
 pub use addrman::AddrManager;
+pub use config::Config;
 pub use error::{Error, Result};
 pub use hd::{HDWallet, HDWatcher};
 pub use query::Query;

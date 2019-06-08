@@ -8,7 +8,7 @@ use hex;
 use secp256k1::Secp256k1;
 use serde_json::Value;
 
-use crate::error::Result;
+use crate::error::{Result, ResultExt};
 
 const LABEL_PREFIX: &str = "pxt";
 
@@ -137,6 +137,17 @@ impl HDWallet {
                 creation_time,
             ),
         ])
+    }
+
+    pub fn from_xpubs(xpubs: &[(String, Option<u32>)]) -> Result<Vec<Self>> {
+        let mut wallets = vec![];
+        for (xpub, creation_time) in xpubs {
+            wallets.append(
+                &mut Self::from_xpub(xpub, *creation_time)
+                    .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
+            );
+        }
+        Ok(wallets)
     }
 
     fn derive(&self, index: u32) -> ExtendedPubKey {
