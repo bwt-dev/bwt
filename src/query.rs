@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use bitcoin_hashes::{hex::ToHex, sha256, sha256d};
 use bitcoincore_rpc::json::EstimateSmartFeeResult;
@@ -10,11 +10,11 @@ use crate::error::{OptionExt, Result};
 
 pub struct Query {
     rpc: Arc<RpcClient>,
-    addrman: Arc<AddrManager>,
+    addrman: Arc<RwLock<AddrManager>>,
 }
 
 impl Query {
-    pub fn new(rpc: Arc<RpcClient>, addrman: Arc<AddrManager>) -> Self {
+    pub fn new(rpc: Arc<RpcClient>, addrman: Arc<RwLock<AddrManager>>) -> Self {
         Query { rpc, addrman }
     }
 
@@ -75,20 +75,24 @@ impl Query {
     }
 
     pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<Tx>> {
-        Ok(self.addrman.get_history(scripthash)?)
+        Ok(self.addrman.read().unwrap().get_history(scripthash)?)
     }
 
     pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: u32) -> Result<Vec<Utxo>> {
-        Ok(self.addrman.list_unspent(scripthash, min_conf)?)
+        Ok(self
+            .addrman
+            .read()
+            .unwrap()
+            .list_unspent(scripthash, min_conf)?)
     }
 
     #[cfg(feature = "electrum")]
     pub fn status_hash(&self, scripthash: &sha256::Hash) -> Option<sha256::Hash> {
-        self.addrman.status_hash(scripthash)
+        self.addrman.read().unwrap().status_hash(scripthash)
     }
 
     pub fn get_balance(&self, scripthash: &sha256::Hash) -> Result<(u64, u64)> {
-        Ok(self.addrman.get_balance(scripthash)?)
+        Ok(self.addrman.read().unwrap().get_balance(scripthash)?)
     }
 
     pub fn get_transaction_hex(&self, txid: &sha256d::Hash) -> Result<String> {

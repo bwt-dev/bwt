@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use bitcoin::Address;
 use bitcoin_hashes::{sha256, sha256d};
@@ -17,8 +17,8 @@ use crate::electrum::get_status_hash;
 
 pub struct AddrManager {
     rpc: Arc<RpcClient>,
-    watcher: RwLock<HDWatcher>,
-    index: RwLock<Index>,
+    watcher: HDWatcher,
+    index: Index,
 }
 
 #[derive(Debug)]
@@ -74,25 +74,24 @@ impl AddrManager {
     pub fn new(rpc: Arc<RpcClient>, watcher: HDWatcher) -> Self {
         AddrManager {
             rpc,
-            watcher: RwLock::new(watcher),
-            index: RwLock::new(Index::new()),
+            watcher: watcher,
+            index: Index::new(),
         }
     }
-    pub fn update(&self) -> Result<()> {
+    pub fn update(&mut self) -> Result<()> {
         self.update_transactions()?;
 
-        self.watcher.write().unwrap().do_imports(&self.rpc)?;
+        self.watcher.do_imports(&self.rpc)?;
 
         Ok(())
     }
 
-    fn update_transactions(&self) -> Result<()> {
-        let mut index = self.index.write().unwrap();
-        let mut watcher = self.watcher.write().unwrap();
-
+    fn update_transactions(&mut self) -> Result<()> {
+        let index = &mut self.index;
+        let watcher = &mut self.watcher;
         load_transactions_since(&self.rpc, 25, 0, &mut |chunk, tip_height| {
             for ltx in chunk {
-                index.process_ltx(ltx, tip_height, &mut watcher);
+                index.process_ltx(ltx, tip_height, watcher);
             }
         })?;
 
@@ -104,8 +103,7 @@ impl AddrManager {
     }
 
     pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<Tx>> {
-        let index = self.index.read().unwrap();
-        index
+        self.index
             .get_history(scripthash)
             .cloned()
             .unwrap_or_else(|| BTreeSet::new())
@@ -113,7 +111,7 @@ impl AddrManager {
             .map(|hist| {
                 Ok(Tx {
                     txid: hist.txid,
-                    entry: index.get_tx(&hist.txid).or_err("missing tx")?.clone(),
+                    entry: self.index.get_tx(&hist.txid).or_err("missing tx")?.clone(),
                 })
             })
             .collect::<Result<Vec<Tx>>>()
@@ -121,19 +119,16 @@ impl AddrManager {
 
     #[cfg(feature = "electrum")]
     pub fn status_hash(&self, scripthash: &sha256::Hash) -> Option<sha256::Hash> {
-        let index = self.index.read().unwrap();
-        index.get_history(scripthash).map(get_status_hash)
+        self.index.get_history(scripthash).map(get_status_hash)
     }
 
     /// Get the unspent utxos owned by scripthash
     pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: u32) -> Result<Vec<Utxo>> {
-        let address = {
-            let index = self.index.read().unwrap();
-            index
-                .get_address(scripthash)
-                .or_err("unknown scripthash")?
-                .to_string()
-        };
+        let address = self
+            .index
+            .get_address(scripthash)
+            .or_err("unknown scripthash")?
+            .to_string();
 
         loop {
             let tip_height = self.rpc.get_block_count()? as u32;
@@ -163,6 +158,7 @@ impl AddrManager {
     }
 
     /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)
+    // TODO move to Query
     pub fn get_balance(&self, scripthash: &sha256::Hash) -> Result<(u64, u64)> {
         let utxos = self.list_unspent(scripthash, 0)?;
         let (confirmed, unconfirmed): (Vec<Utxo>, Vec<Utxo>) = utxos

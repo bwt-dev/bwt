@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::thread;
 
 use bitcoincore_rpc::Client as RpcClient;
@@ -20,10 +20,10 @@ fn main() -> Result<()> {
     let watcher = HDWatcher::new(wallets);
 
     let rpc = Arc::new(RpcClient::new(config.bitcoind_url, config.bitcoind_auth)?);
-    let manager = Arc::new(AddrManager::new(Arc::clone(&rpc), watcher));
+    let manager = Arc::new(RwLock::new(AddrManager::new(Arc::clone(&rpc), watcher)));
     let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&manager)));
 
-    manager.update()?;
+    manager.write().unwrap().update()?;
 
     #[cfg(feature = "electrum")]
     let electrum = ElectrumServer::start(
@@ -33,6 +33,8 @@ fn main() -> Result<()> {
 
     loop {
         manager
+            .write()
+            .unwrap()
             .update()
             .map_err(|err| warn!("error while updating addrman: {:#?}", err))
             .ok();
