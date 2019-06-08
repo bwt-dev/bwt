@@ -5,8 +5,9 @@ use bitcoincore_rpc::json::EstimateSmartFeeResult;
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use serde_json::Value;
 
-use crate::addrman::{AddrManager, Tx, Utxo};
+use crate::addrman::AddrManager;
 use crate::error::{OptionExt, Result};
+use crate::types::{Tx, Utxo};
 
 pub struct Query {
     rpc: Arc<RpcClient>,

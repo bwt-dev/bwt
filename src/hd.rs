@@ -9,6 +9,7 @@ use secp256k1::Secp256k1;
 use serde_json::Value;
 
 use crate::error::{Result, ResultExt};
+use crate::types::KeyRescan;
 
 const LABEL_PREFIX: &str = "pxt";
 
@@ -252,22 +253,5 @@ impl DerivationInfo {
             ),
             _ => DerivationInfo::Standalone,
         })
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum KeyRescan {
-    None,
-    All,
-    Since(u32),
-}
-
-impl KeyRescan {
-    pub fn rpc_arg(&self) -> Value {
-        match self {
-            KeyRescan::None => json!("now"),
-            KeyRescan::All => json!(0),
-            KeyRescan::Since(epoch) => json!(epoch),
-        }
     }
 }

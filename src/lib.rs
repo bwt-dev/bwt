@@ -18,12 +18,13 @@ pub mod hd;
 pub mod json;
 pub mod mempool;
 pub mod query;
+pub mod types;
 pub mod util;
 
 pub use addrman::AddrManager;
 pub use config::Config;
 pub use error::{Error, Result};
-pub use hd::{HDWallet, HDWatcher, KeyRescan};
+pub use hd::{HDWallet, HDWatcher};
 pub use query::Query;
 
 #[cfg(feature = "electrum")]

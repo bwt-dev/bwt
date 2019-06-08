@@ -7,7 +7,7 @@ use dirs::home_dir;
 use structopt::StructOpt;
 
 use crate::error::{OptionExt, Result, ResultExt};
-use crate::KeyRescan;
+use crate::types::KeyRescan;
 
 #[derive(Debug)]
 pub struct Config {
