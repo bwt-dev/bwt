@@ -158,21 +158,6 @@ impl AddrManager {
                 .collect());
         }
     }
-
-    /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)
-    // TODO move to Query
-    pub fn get_balance(&self, scripthash: &sha256::Hash) -> Result<(u64, u64)> {
-        let utxos = self.list_unspent(scripthash, 0)?;
-        let (confirmed, unconfirmed): (Vec<Utxo>, Vec<Utxo>) = utxos
-            .into_iter()
-            .filter(|utxo| utxo.status.is_viable())
-            .partition(|utxo| utxo.status.is_confirmed());
-
-        Ok((
-            confirmed.iter().map(|u| u.value).sum(),
-            unconfirmed.iter().map(|u| u.value).sum(),
-        ))
-    }
 }
 
 impl Index {
@@ -451,7 +436,7 @@ impl TxStatus {
         }
     }
 
-    fn is_viable(&self) -> bool {
+    pub fn is_viable(&self) -> bool {
         match self {
             TxStatus::Confirmed(_) | TxStatus::Unconfirmed => true,
             TxStatus::Conflicted => false,

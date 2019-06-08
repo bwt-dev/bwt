@@ -91,8 +91,19 @@ impl Query {
         self.addrman.read().unwrap().status_hash(scripthash)
     }
 
+    /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)
     pub fn get_balance(&self, scripthash: &sha256::Hash) -> Result<(u64, u64)> {
-        Ok(self.addrman.read().unwrap().get_balance(scripthash)?)
+        let utxos = self.list_unspent(scripthash, 0)?;
+
+        let (confirmed, unconfirmed): (Vec<Utxo>, Vec<Utxo>) = utxos
+            .into_iter()
+            .filter(|utxo| utxo.status.is_viable())
+            .partition(|utxo| utxo.status.is_confirmed());
+
+        Ok((
+            confirmed.iter().map(|u| u.value).sum(),
+            unconfirmed.iter().map(|u| u.value).sum(),
+        ))
     }
 
     pub fn get_transaction_hex(&self, txid: &sha256d::Hash) -> Result<String> {
