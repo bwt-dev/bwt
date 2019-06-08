@@ -89,7 +89,7 @@ pub struct CliConfig {
     #[structopt(
         short,
         long = "xpub",
-        help = "xpubs to scan and since when (<xpub>, <xpub>:now, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
+        help = "xpubs to scan and since when (<xpub>, <xpub>:all, <xpub>:none, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
         parse(try_from_str = "parse_xpub")
     )]
     xpubs: Vec<(String, KeyRescan)>,
@@ -211,15 +211,17 @@ fn parse_xpub(s: &str) -> Result<(String, KeyRescan)> {
 }
 
 fn parse_rescan(s: &str) -> Result<KeyRescan> {
-    Ok(if s == "now" {
-        KeyRescan::None
-    } else {
-        // try as a unix timestamp first, then as a datetime string
-        KeyRescan::Since(
-            s.parse::<u32>()
-                .or_else(|_| parse_yyyymmdd(s))
-                .context("invalid rescan value")?,
-        )
+    Ok(match s {
+        "none" => KeyRescan::None,
+        "all" => KeyRescan::All,
+        s => {
+            // try as a unix timestamp first, then as a datetime string
+            KeyRescan::Since(
+                s.parse::<u32>()
+                    .or_else(|_| parse_yyyymmdd(s))
+                    .context("invalid rescan value")?,
+            )
+        }
     })
 }
 
