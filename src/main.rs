@@ -14,7 +14,10 @@ use pxt::ElectrumServer;
 fn main() -> Result<()> {
     let config = Config::from_args();
 
-    stderrlog::new().verbosity(2 + config.verbose).init()?;
+    stderrlog::new()
+        .module(module_path!())
+        .verbosity(2 + config.verbose)
+        .init()?;
 
     let wallets = HDWallet::from_xpubs(&config.xpubs[..])?;
     let watcher = HDWatcher::new(wallets);
