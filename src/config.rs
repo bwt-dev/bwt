@@ -20,9 +20,9 @@ pub struct Config {
     pub bitcoind_auth: RpcAuth,
 
     #[cfg(feature = "electrum")]
-    pub electrum_rpc_addr: Option<net::SocketAddr>,
+    pub electrum_rpc_addr: net::SocketAddr,
     #[cfg(feature = "http")]
-    pub http_server_addr: Option<net::SocketAddr>,
+    pub http_server_addr: net::SocketAddr,
 }
 
 #[derive(StructOpt)]
@@ -110,7 +110,7 @@ pub struct CliConfig {
         long = "electrum-rpc-addr",
         help = "address to bind the electrum rpc server (host:port)"
     )]
-    electrum_rpc_addr: Option<net::SocketAddr>,
+    electrum_rpc_addr: net::SocketAddr,
 
     #[cfg(feature = "http")]
     #[structopt(
@@ -118,7 +118,7 @@ pub struct CliConfig {
         long = "http-server-addr",
         help = "address to bind the http rest server (host:port)"
     )]
-    http_server_addr: Option<net::SocketAddr>,
+    http_server_addr: net::SocketAddr,
 }
 
 impl Config {

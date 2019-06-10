@@ -26,10 +26,7 @@ fn main() -> Result<()> {
     manager.write().unwrap().update()?;
 
     #[cfg(feature = "electrum")]
-    let electrum = ElectrumServer::start(
-        config.electrum_rpc_addr.expect("missing electrum-rpc-addr"),
-        Arc::clone(&query),
-    );
+    let electrum = ElectrumServer::start(config.electrum_rpc_addr, Arc::clone(&query));
 
     loop {
         manager
