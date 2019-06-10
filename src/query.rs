@@ -5,18 +5,18 @@ use bitcoincore_rpc::json::EstimateSmartFeeResult;
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use serde_json::Value;
 
-use crate::addrman::AddrManager;
 use crate::error::{OptionExt, Result};
 use crate::types::{Tx, Utxo};
+use crate::Indexer;
 
 pub struct Query {
     rpc: Arc<RpcClient>,
-    addrman: Arc<RwLock<AddrManager>>,
+    indexer: Arc<RwLock<Indexer>>,
 }
 
 impl Query {
-    pub fn new(rpc: Arc<RpcClient>, addrman: Arc<RwLock<AddrManager>>) -> Self {
-        Query { rpc, addrman }
+    pub fn new(rpc: Arc<RpcClient>, indexer: Arc<RwLock<Indexer>>) -> Self {
+        Query { rpc, indexer }
     }
 
     pub fn get_tip(&self) -> Result<(u32, sha256d::Hash)> {
@@ -76,12 +76,12 @@ impl Query {
     }
 
     pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<Tx>> {
-        Ok(self.addrman.read().unwrap().get_history(scripthash)?)
+        Ok(self.indexer.read().unwrap().get_history(scripthash)?)
     }
 
     pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: u32) -> Result<Vec<Utxo>> {
         Ok(self
-            .addrman
+            .indexer
             .read()
             .unwrap()
             .list_unspent(scripthash, min_conf)?)
@@ -89,7 +89,7 @@ impl Query {
 
     #[cfg(feature = "electrum")]
     pub fn status_hash(&self, scripthash: &sha256::Hash) -> Option<sha256::Hash> {
-        self.addrman.read().unwrap().status_hash(scripthash)
+        self.indexer.read().unwrap().status_hash(scripthash)
     }
 
     /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)

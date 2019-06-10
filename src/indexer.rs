@@ -16,14 +16,14 @@ use crate::util::address_to_scripthash;
 #[cfg(feature = "electrum")]
 use crate::electrum::get_status_hash;
 
-pub struct AddrManager {
+pub struct Indexer {
     rpc: Arc<RpcClient>,
     watcher: HDWatcher,
-    index: Index,
+    index: MemoryIndex,
 }
 
 #[derive(Debug)]
-struct Index {
+struct MemoryIndex {
     scripthashes: HashMap<sha256::Hash, ScriptEntry>,
     transactions: HashMap<sha256d::Hash, TxEntry>,
 }
@@ -33,6 +33,8 @@ struct ScriptEntry {
     address: Address,
     derivation_info: DerivationInfo,
     history: BTreeSet<HistoryEntry>,
+    //#[cfg(feature = "electrum")]
+    //electrum_status_hash: Option<sha256::Hash>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -41,12 +43,12 @@ pub struct HistoryEntry {
     pub status: TxStatus,
 }
 
-impl AddrManager {
+impl Indexer {
     pub fn new(rpc: Arc<RpcClient>, watcher: HDWatcher) -> Self {
-        AddrManager {
+        Indexer {
             rpc,
             watcher: watcher,
-            index: Index::new(),
+            index: MemoryIndex::new(),
         }
     }
     pub fn update(&mut self) -> Result<()> {
@@ -131,9 +133,9 @@ impl AddrManager {
     }
 }
 
-impl Index {
+impl MemoryIndex {
     fn new() -> Self {
-        Index {
+        MemoryIndex {
             scripthashes: HashMap::new(),
             transactions: HashMap::new(),
         }

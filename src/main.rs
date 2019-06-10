@@ -6,7 +6,7 @@ use std::thread;
 
 use bitcoincore_rpc::Client as RpcClient;
 
-use pxt::{AddrManager, Config, HDWallet, HDWatcher, Query, Result};
+use pxt::{Config, HDWallet, HDWatcher, Indexer, Query, Result};
 
 #[cfg(feature = "electrum")]
 use pxt::ElectrumServer;
@@ -23,20 +23,20 @@ fn main() -> Result<()> {
     let watcher = HDWatcher::new(wallets);
 
     let rpc = Arc::new(RpcClient::new(config.bitcoind_url, config.bitcoind_auth)?);
-    let manager = Arc::new(RwLock::new(AddrManager::new(Arc::clone(&rpc), watcher)));
-    let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&manager)));
+    let indexer = Arc::new(RwLock::new(Indexer::new(Arc::clone(&rpc), watcher)));
+    let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&indexer)));
 
-    manager.write().unwrap().update()?;
+    indexer.write().unwrap().update()?;
 
     #[cfg(feature = "electrum")]
     let electrum = ElectrumServer::start(config.electrum_rpc_addr, Arc::clone(&query));
 
     loop {
-        manager
+        indexer
             .write()
             .unwrap()
             .update()
-            .map_err(|err| warn!("error while updating addrman: {:#?}", err))
+            .map_err(|err| warn!("error while updating index: {:#?}", err))
             .ok();
 
         #[cfg(feature = "electrum")]

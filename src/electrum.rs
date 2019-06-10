@@ -9,8 +9,8 @@ use std::thread;
 use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, sha256d, Hash};
 use serde_json::{from_str, from_value, Value};
 
-use crate::addrman::HistoryEntry;
 use crate::error::{fmt_error_chain, Result, ResultExt};
+use crate::indexer::HistoryEntry;
 use crate::mempool::get_fee_histogram;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;

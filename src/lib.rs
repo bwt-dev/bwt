@@ -11,20 +11,20 @@ extern crate lazy_static;
 #[macro_use]
 extern crate structopt;
 
-pub mod addrman;
 pub mod config;
 pub mod error;
 pub mod hd;
+pub mod indexer;
 pub mod json;
 pub mod mempool;
 pub mod query;
 pub mod types;
 pub mod util;
 
-pub use addrman::AddrManager;
 pub use config::Config;
 pub use error::{Error, Result};
 pub use hd::{HDWallet, HDWatcher};
+pub use indexer::Indexer;
 pub use query::Query;
 
 #[cfg(feature = "electrum")]
