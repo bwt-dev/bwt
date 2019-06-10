@@ -146,6 +146,9 @@ impl Index {
         tip_height: u32,
         watcher: &mut HDWatcher,
     ) {
+        debug!("process ltx: {:?}", ltx);
+
+        // XXX stop early if we're familiar with this txid and its long confirmed?
         if !ltx.category.should_process() {
             return;
         }
@@ -169,6 +172,7 @@ impl Index {
         self.index_address_history(ltx.address, &ltx.label, txhist, watcher);
     }
 
+    /*
     /// Process a transaction entry retrieved from "gettransaction"
     pub fn process_gtx(
         &mut self,
@@ -201,9 +205,12 @@ impl Index {
             self.index_address_history(detail.address, &detail.label, txhist.clone(), watcher);
         }
     }
+    */
 
     /// Index transaction entry
     fn index_tx_entry(&mut self, txid: &sha256d::Hash, txentry: TxEntry) {
+        info!("index tx entry {:?}: {:?}", txid, txentry);
+
         assert!(
             txentry.status.is_viable(),
             "should not index non-viable tx entries"
@@ -242,6 +249,10 @@ impl Index {
         txhist: HistoryEntry,
         watcher: &mut HDWatcher,
     ) {
+        debug!(
+            "index address history {:?} {}: {:?}",
+            address, label, txhist
+        );
         let scripthash = address_to_scripthash(&address);
 
         let added = self
@@ -395,23 +406,26 @@ fn load_transactions_since(
 
         // make sure we didn't miss any transactions by comparing the first entry of this page with
         // the last entry of the last page. note that the entry used for comprasion is popped off
-        if oldest_seen.is_some() && chunk.pop().map(|ltx| (ltx.txid, ltx.address)) != oldest_seen {
-            warn!("transaction set changed while fetching transactions, retrying...");
-            return load_transactions_since(rpc, per_page, start_height, chunk_handler);
+        if let Some(ref oldest_seen) = oldest_seen {
+            let marker = chunk.pop().or_err("missing market tx")?;
+
+            if oldest_seen != &(marker.txid, marker.address) {
+                warn!("transaction set changed while fetching transactions, retrying...");
+                return load_transactions_since(rpc, per_page, start_height, chunk_handler);
+            }
         }
 
         // process entries (if any)
-        if let Some(last) = chunk.last() {
-            oldest_seen = Some((last.txid.clone(), last.address.clone()));
+        if let Some(oldest) = chunk.first() {
+            oldest_seen = Some((oldest.txid.clone(), oldest.address.clone()));
 
             exhausted = exhausted
-                || (last.confirmations > 0
-                    && tip_height - last.confirmations as u32 + 1 < start_height);
+                || (oldest.confirmations > 0
+                    && tip_height - oldest.confirmations as u32 + 1 < start_height);
 
             chunk_handler(chunk, tip_height);
         }
-
-        exhausted
+        !exhausted
     } {
         // -1 so we'll get the last entry of this page as the first of the next, as a marker for sanity check
         start_index = start_index + per_page - 1;
