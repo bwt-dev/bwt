@@ -173,7 +173,7 @@ impl HDWallet {
         end_index: u32,
         rescan: KeyRescan,
     ) -> Vec<(Address, KeyRescan, DerivationInfo)> {
-        (start_index..end_index)
+        (start_index..=end_index)
             .map(|index| {
                 let key = self.derive(index);
                 let address = to_address(&key);
