@@ -234,7 +234,7 @@ fn batch_import(
     )?)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum DerivationInfo {
     Derived(Fingerprint, u32),
     Standalone,
@@ -253,18 +253,15 @@ impl DerivationInfo {
         }
     }
 
-    pub fn from_label(s: &str) -> Self {
-        Self::try_from_label(s).unwrap_or(DerivationInfo::Standalone)
-    }
-
-    fn try_from_label(s: &str) -> Result<Self> {
+    pub fn from_label(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.splitn(3, "/").collect();
-        Ok(match (parts.get(0), parts.get(1), parts.get(2)) {
-            (Some(&LABEL_PREFIX), Some(parent), Some(index)) => DerivationInfo::Derived(
-                Fingerprint::from(&hex::decode(parent)?[..]),
-                index.parse()?,
-            ),
-            _ => DerivationInfo::Standalone,
-        })
+        match (parts.get(0), parts.get(1), parts.get(2)) {
+            (Some(&LABEL_PREFIX), Some(parent), Some(index)) => Some(DerivationInfo::Derived(
+                Fingerprint::from(&hex::decode(parent).ok()?[..]),
+                index.parse().ok()?,
+            )),
+            (Some(&LABEL_PREFIX), None, None) => Some(DerivationInfo::Standalone),
+            _ => None,
+        }
     }
 }

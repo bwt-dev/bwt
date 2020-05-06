@@ -30,7 +30,7 @@ pub enum ScriptType {
     P2shP2wpkh,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Copy)]
+#[derive(Clone, Eq, PartialEq, Debug, Copy, Hash)]
 pub enum TxStatus {
     Conflicted, // aka double spent
     Unconfirmed,

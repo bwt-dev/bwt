@@ -11,6 +11,7 @@ use pxt::{Config, HDWallet, HDWatcher, Indexer, Query, Result};
 #[cfg(feature = "electrum")]
 use pxt::ElectrumServer;
 
+#[allow(unreachable_code)]
 fn main() -> Result<()> {
     let config = Config::from_args();
 
@@ -39,6 +40,7 @@ fn main() -> Result<()> {
             .map_err(|err| warn!("error while updating index: {:#?}", err))
             .ok();
         // XXX fatal?
+        indexer.read().unwrap().dump();
 
         #[cfg(feature = "electrum")]
         electrum.notify();

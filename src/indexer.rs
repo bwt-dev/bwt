@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use bitcoin::{Address, SignedAmount, Txid};
+use bitcoin::{Address, OutPoint, SignedAmount, Txid};
 use bitcoin_hashes::sha256;
 use bitcoincore_rpc::json::{
     GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
@@ -38,17 +38,35 @@ struct ScriptEntry {
     //electrum_status_hash: Option<sha256::Hash>,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub struct HistoryEntry {
     pub txid: Txid,
     pub status: TxStatus,
+}
+
+impl HistoryEntry {
+    fn new(txid: Txid, status: TxStatus) -> Self {
+        HistoryEntry { txid, status }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct TxEntry {
     pub status: TxStatus,
     pub fee: Option<u64>,
-    //pub scripthashes: HashSet<sha256::Hash>,
+    pub funding: HashMap<u32, sha256::Hash>,
+    pub spending: HashMap<u32, sha256::Hash>,
+}
+
+impl TxEntry {
+    fn new(status: TxStatus, fee: Option<u64>) -> Self {
+        TxEntry {
+            status,
+            fee,
+            funding: HashMap::new(),
+            spending: HashMap::new(),
+        }
+    }
 }
 
 pub struct Tx {
@@ -64,6 +82,11 @@ impl Indexer {
             index: MemoryIndex::new(),
         }
     }
+
+    pub fn dump(&self) {
+        debug!("{:#?}", self.index);
+    }
+
     pub fn update(&mut self) -> Result<()> {
         self.update_transactions()?;
 
@@ -73,17 +96,94 @@ impl Indexer {
     }
 
     fn update_transactions(&mut self) -> Result<()> {
-        let index = &mut self.index;
-        let watcher = &mut self.watcher;
-        load_transactions_since(&self.rpc, 25, 0, &mut |chunk, tip_height| {
+        let mut pending_outgoing: HashMap<Txid, TxEntry> = HashMap::new();
+        let rpc = Arc::clone(&self.rpc);
+
+        load_transactions_since(&rpc, 25, 0, &mut |chunk, tip_height| {
             for ltx in chunk {
-                index.process_ltx(ltx, tip_height, watcher);
+                match ltx.detail.category {
+                    TxCategory::Receive => {
+                        self.process_incoming(ltx, tip_height);
+                    }
+                    TxCategory::Send => {
+                        pending_outgoing.entry(ltx.info.txid).or_insert_with(|| {
+                            let status = TxStatus::new(ltx.info.confirmations, tip_height);
+                            TxEntry::new(status, parse_fee(ltx.detail.fee))
+                        });
+                    }
+                    TxCategory::Generate | TxCategory::Immature => (),
+                };
             }
         })?;
+
+        for (txid, txentry) in pending_outgoing {
+            self.process_outgoing(txid, txentry)
+                .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
+                .ok();
+        }
 
         // TODO: keep track of last known tip
         // TODO: keep track of how many new txs are returned on avg
         // TODO: remove confliced txids from index
+
+        Ok(())
+    }
+
+    fn process_incoming(&mut self, ltx: ListTransactionResult, tip_height: u32) {
+        // XXX stop early if we're familiar with this txid and its long confirmed
+
+        let derivation_info = match ltx
+            .detail
+            .label
+            .as_ref()
+            .and_then(|l| DerivationInfo::from_label(l))
+        {
+            Some(derivation_info) => derivation_info,
+            None => return,
+        };
+        let status = TxStatus::new(ltx.info.confirmations, tip_height);
+
+        debug!(
+            "process incoming tx for {:?} origin {:?} with status {:?}: {:?}",
+            ltx.detail.address, derivation_info, status, ltx
+        );
+
+        if !status.is_viable() {
+            debug!("purge {}", ltx.info.txid);
+            return self.index.purge_tx(&ltx.info.txid);
+        }
+
+        let mut txentry = TxEntry::new(status, None);
+        txentry
+            .funding
+            .insert(ltx.detail.vout, address_to_scripthash(&ltx.detail.address));
+
+        self.index.index_tx_entry(&ltx.info.txid, txentry);
+
+        self.index.index_incoming(
+            &ltx.detail.address,
+            &derivation_info,
+            HistoryEntry::new(ltx.info.txid, status),
+        );
+
+        self.watcher.mark_address(&derivation_info, true);
+    }
+
+    fn process_outgoing(&mut self, txid: Txid, mut txentry: TxEntry) -> Result<()> {
+        let tx = self.rpc.get_transaction(&txid, Some(true))?.transaction()?;
+
+        for (vin, input) in tx.input.iter().enumerate() {
+            if let Some(scripthash) = self.index.get_funded_scripthash(&input.previous_output) {
+                txentry.spending.insert(vin as u32, scripthash);
+
+                self.index
+                    .index_outgoing(&scripthash, HistoryEntry::new(txid, txentry.status));
+            }
+        }
+
+        if !txentry.spending.is_empty() {
+            self.index.index_tx_entry(&txid, txentry);
+        }
 
         Ok(())
     }
@@ -152,44 +252,6 @@ impl MemoryIndex {
         }
     }
 
-    /// Process a transaction entry retrieved from "listtransactions"
-    pub fn process_ltx(
-        &mut self,
-        ltx: ListTransactionResult,
-        tip_height: u32,
-        watcher: &mut HDWatcher,
-    ) {
-        debug!("process ltx: {:?}", ltx);
-
-        // XXX stop early if we're familiar with this txid and its long confirmed?
-        if !should_process(&ltx) {
-            return;
-        }
-
-        let status = TxStatus::new(ltx.info.confirmations, tip_height);
-
-        if !status.is_viable() {
-            return self.purge_tx(&ltx.info.txid);
-        }
-
-        let txentry = TxEntry {
-            status: status,
-            fee: parse_fee(ltx.detail.fee),
-        };
-        self.index_tx_entry(&ltx.info.txid, txentry);
-
-        let txhist = HistoryEntry {
-            status,
-            txid: ltx.info.txid,
-        };
-        self.index_address_history(
-            ltx.detail.address,
-            &ltx.detail.label.unwrap_or("".into()),
-            txhist,
-            watcher,
-        );
-    }
-
     /*
     /// Process a transaction entry retrieved from "gettransaction"
     pub fn process_gtx(
@@ -244,6 +306,9 @@ impl MemoryIndex {
                     curr_entry.fee = txentry.fee;
                 }
 
+                curr_entry.funding.extend(&txentry.funding);
+                curr_entry.spending.extend(&txentry.spending);
+
                 if &curr_entry.status != &txentry.status {
                     changed_from = Some(curr_entry.status);
                     curr_entry.status = new_status;
@@ -259,42 +324,54 @@ impl MemoryIndex {
         }
     }
 
-    /// Index address history entry
-    fn index_address_history(
+    /// Index an incoming transaction
+    /// Creates the corresponding script entry if none exists
+    fn index_incoming(
         &mut self,
-        address: Address,
-        label: &str,
+        address: &Address,
+        derivation_info: &DerivationInfo,
         txhist: HistoryEntry,
-        watcher: &mut HDWatcher,
     ) {
+        let scripthash = address_to_scripthash(address);
+
         debug!(
-            "index address history {:?} {}: {:?}",
-            address, label, txhist
+            "index incoming address history {:?} {:?} {:?}: {:?}",
+            address, derivation_info, scripthash, txhist
         );
-        let scripthash = address_to_scripthash(&address);
 
         let added = self
             .scripthashes
             .entry(scripthash)
-            .or_insert_with(|| {
-                let derivation_info = DerivationInfo::from_label(label);
-                info!(
-                    "new address {:?} ({:?}), marking as used",
-                    address, derivation_info
-                );
-                watcher.mark_address(&derivation_info, true);
-
-                ScriptEntry {
-                    address,
-                    derivation_info,
-                    history: BTreeSet::new(),
-                }
+            .or_insert_with(|| ScriptEntry {
+                address: address.clone(),
+                derivation_info: derivation_info.clone(),
+                history: BTreeSet::new(),
             })
             .history
             .insert(txhist);
 
         if added {
-            info!("new history entry for {}", label)
+            info!("new incoming history entry for {:?}", scripthash)
+        }
+    }
+
+    /// Index an outgoing transaction
+    /// Expects the corresponding script entry to already exists (from the incoming tx)
+    fn index_outgoing(&mut self, scripthash: &sha256::Hash, txhist: HistoryEntry) {
+        debug!(
+            "index outgoing address history {:?}: {:?}",
+            scripthash, txhist
+        );
+
+        let added = self
+            .scripthashes
+            .get_mut(scripthash)
+            .expect("missing scripthash entry for outgoing payment")
+            .history
+            .insert(txhist);
+
+        if added {
+            info!("new outgoing history entry for {:?}", scripthash)
         }
     }
 
@@ -309,15 +386,29 @@ impl MemoryIndex {
             txid, old_status, new_status
         );
 
-        let old_txhist = HistoryEntry {
-            status: old_status,
-            txid: *txid,
-        };
+        let old_txhist = HistoryEntry::new(*txid, old_status);
+        let new_txhist = HistoryEntry::new(*txid, new_status);
 
-        let new_txhist = HistoryEntry {
-            status: new_status,
-            txid: *txid,
-        };
+        /*
+        let txentry = self
+            .transactions
+            .get(txid)
+            .expect("missing expected tx entry");
+        let affected_scripthashes = txentry
+            .funding
+            .iter()
+            .map(|(_, scripthash)| scripthash)
+            .chain(txentry.spending.iter().map(|(_, scripthash)| scripthash));
+
+        for scripthash in affected_scripthashes {
+            let scriptentry = self
+                .scripthashes
+                .get(scripthash)
+                .expect("missing expected script entry");
+            assert!(scriptentry.history.remove(&old_txhist));
+            assert!(scriptentry.history.insert(new_txhist.clone()));
+        }
+        */
 
         // TODO optimize, keep txid->scripthashes map
         for (_scripthash, ScriptEntry { history, .. }) in &mut self.scripthashes {
@@ -345,6 +436,13 @@ impl MemoryIndex {
         }
     }
 
+    fn get_funded_scripthash(&self, outpoint: &OutPoint) -> Option<sha256::Hash> {
+        self.transactions
+            .get(&outpoint.txid)
+            .and_then(|txentry| txentry.funding.get(&outpoint.vout))
+            .copied()
+    }
+
     pub fn get_history(&self, scripthash: &sha256::Hash) -> Option<&BTreeSet<HistoryEntry>> {
         Some(&self.scripthashes.get(scripthash)?.history)
     }
@@ -363,13 +461,19 @@ impl MemoryIndex {
 
 impl Ord for HistoryEntry {
     fn cmp(&self, other: &HistoryEntry) -> Ordering {
-        self.status.cmp(&other.status)
+        self.status
+            .cmp(&other.status)
+            .then_with(|| self.txid.cmp(&other.txid))
     }
 }
 
 impl PartialOrd for HistoryEntry {
     fn partial_cmp(&self, other: &HistoryEntry) -> Option<Ordering> {
-        Some(self.status.cmp(&other.status))
+        Some(
+            self.status
+                .cmp(&other.status)
+                .then_with(|| self.txid.cmp(&other.txid)),
+        )
     }
 }
 
@@ -416,7 +520,7 @@ fn load_transactions_since(
         // make sure we didn't miss any transactions by comparing the first entry of this page with
         // the last entry of the last page. note that the entry used for comprasion is popped off
         if let Some(ref oldest_seen) = oldest_seen {
-            let marker = chunk.pop().or_err("missing market tx")?;
+            let marker = chunk.pop().or_err("missing marker tx")?;
 
             if oldest_seen != &(marker.info.txid, marker.detail.address) {
                 warn!("transaction set changed while fetching transactions, retrying...");
@@ -442,11 +546,4 @@ fn load_transactions_since(
     }
 
     Ok(())
-}
-
-fn should_process(ltx: &ListTransactionResult) -> bool {
-    match ltx.detail.category {
-        TxCategory::Send | TxCategory::Receive => true,
-        TxCategory::Generate | TxCategory::Immature /*| TxCategory::Orphan*/ => false,
-    }
 }
