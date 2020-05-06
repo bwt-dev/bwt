@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint, ScriptType};
+use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
 use bitcoin::Address;
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use hex;
@@ -9,7 +9,7 @@ use secp256k1::Secp256k1;
 use serde_json::Value;
 
 use crate::error::{Result, ResultExt};
-use crate::types::KeyRescan;
+use crate::types::{KeyRescan, ScriptType};
 
 const LABEL_PREFIX: &str = "pxt";
 
@@ -95,6 +95,7 @@ impl HDWatcher {
 #[derive(Debug)]
 pub struct HDWallet {
     master: ExtendedPubKey,
+    script_type: ScriptType,
     initial_rescan: KeyRescan,
     buffer_size: u32,
     initial_buffer_size: u32,
@@ -108,9 +109,10 @@ pub struct HDWallet {
 // or using getaddressesbylabel and a binary search (lots of requests)
 
 impl HDWallet {
-    pub fn new(master: ExtendedPubKey, initial_rescan: KeyRescan) -> Self {
+    pub fn new(master: ExtendedPubKey, script_type: ScriptType, initial_rescan: KeyRescan) -> Self {
         Self {
             master,
+            script_type,
             initial_rescan,
             buffer_size: 20,          // TODO configurable
             initial_buffer_size: 100, // TODO configurable
@@ -123,16 +125,19 @@ impl HDWallet {
     pub fn from_xpub(s: &str, initial_rescan: KeyRescan) -> Result<Vec<Self>> {
         let key = ExtendedPubKey::from_str(s)?;
         // XXX verify key network type
+        let script_type = ScriptType::P2pkh; // TODO
 
         Ok(vec![
             // external chain (receive)
             Self::new(
                 key.derive_pub(&*EC, &[ChildNumber::from(0)])?,
+                script_type,
                 initial_rescan,
             ),
             // internal chain (change)
             Self::new(
                 key.derive_pub(&*EC, &[ChildNumber::from(1)])?,
+                script_type,
                 initial_rescan,
             ),
         ])
@@ -176,7 +181,7 @@ impl HDWallet {
         (start_index..=end_index)
             .map(|index| {
                 let key = self.derive(index);
-                let address = to_address(&key);
+                let address = to_address(&key, self.script_type);
                 let deriviation = DerivationInfo::Derived(key.parent_fingerprint, index);
                 (address, rescan, deriviation)
             })
@@ -184,8 +189,8 @@ impl HDWallet {
     }
 }
 
-fn to_address(key: &ExtendedPubKey) -> Address {
-    match key.script_type {
+fn to_address(key: &ExtendedPubKey, script_type: ScriptType) -> Address {
+    match script_type {
         ScriptType::P2pkh => Address::p2pkh(&key.public_key, key.network),
         ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, key.network),
         ScriptType::P2shP2wpkh => Address::p2shwpkh(&key.public_key, key.network),

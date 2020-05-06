@@ -28,6 +28,3 @@ structopt = "0.2.17"
 jsonrpc-core = { optional = true, version = "11.0.0" }
 jsonrpc-tcp-server = { optional = true, version = "11.0.0" }
 jsonrpc-pubsub = { optional = true, version = "11.0.0" }
-
-[patch.crates-io]
-bitcoin = { path = "/home/nadav/workspace/bitcoin/rust-bitcoin" }

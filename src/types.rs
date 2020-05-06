@@ -35,6 +35,13 @@ impl Utxo {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum ScriptType {
+    P2pkh,
+    P2wpkh,
+    P2shP2wpkh,
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Copy)]
 pub enum TxStatus {
     Conflicted, // aka double spent
