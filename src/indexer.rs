@@ -119,7 +119,7 @@ impl Indexer {
         let mut pending_outgoing: HashMap<Txid, TxEntry> = HashMap::new();
 
         let synced_tip =
-            load_transactions_since(&rpc, 25, start_height, &mut |chunk, tip_height| {
+            load_transactions_since(&rpc, start_height, None, &mut |chunk, tip_height| {
                 for ltx in chunk {
                     match ltx.detail.category {
                         TxCategory::Receive => {
@@ -143,8 +143,6 @@ impl Indexer {
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
         }
-
-        // TODO: remove confliced txids from index
 
         Ok(synced_tip)
     }
@@ -462,14 +460,17 @@ fn parse_fee(fee: Option<SignedAmount>) -> Option<u64> {
     fee.map(|fee| fee.abs().as_sat() as u64)
 }
 
+const INIT_TX_PER_PAGE: usize = 25;
+const MAX_TX_PER_PAGE: usize = 250;
+
 // Fetch all unconfirmed transactions + transactions confirmed at or after start_height
 fn load_transactions_since(
     rpc: &RpcClient,
-    init_per_page: usize,
     start_height: u32,
+    init_per_page: Option<usize>,
     chunk_handler: &mut dyn FnMut(Vec<ListTransactionResult>, u32),
 ) -> Result<BlockId> {
-    let mut per_page = init_per_page;
+    let mut per_page = init_per_page.unwrap_or(INIT_TX_PER_PAGE);
     let mut start_index = 0;
     let mut oldest_seen = None;
 
@@ -498,7 +499,7 @@ fn load_transactions_since(
         // from the number of confirmations
         if tip_hash != rpc.get_best_block_hash()? {
             warn!("tip changed while fetching transactions, retrying...");
-            return load_transactions_since(rpc, per_page, start_height, chunk_handler);
+            return load_transactions_since(rpc, start_height, Some(per_page), chunk_handler);
         }
 
         // make sure we didn't miss any transactions by comparing the first entry of this page with
@@ -508,7 +509,7 @@ fn load_transactions_since(
 
             if oldest_seen != &(marker.info.txid, marker.detail.vout) {
                 warn!("transaction set changed while fetching transactions, retrying...");
-                return load_transactions_since(rpc, per_page, start_height, chunk_handler);
+                return load_transactions_since(rpc, start_height, Some(per_page), chunk_handler);
             }
         }
 
@@ -525,7 +526,7 @@ fn load_transactions_since(
     } {
         // -1 so we'll get the last entry of this page as the first of the next, as a marker for sanity check
         start_index = start_index + per_page - 1;
-        per_page = per_page * 2;
+        per_page = MAX_TX_PER_PAGE.min(per_page * 2);
     }
 
     Ok(BlockId(tip_height, tip_hash))
