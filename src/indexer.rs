@@ -320,7 +320,7 @@ impl MemoryIndex {
             });
 
         if let Some(old_status) = changed_from {
-            self.update_tx_status(txid, old_status, new_status)
+            self.status_tx_changed(txid, old_status, new_status)
         }
     }
 
@@ -376,7 +376,7 @@ impl MemoryIndex {
     }
 
     /// Update the scripthash history index to reflect the new tx status
-    fn update_tx_status(&mut self, txid: &Txid, old_status: TxStatus, new_status: TxStatus) {
+    fn status_tx_changed(&mut self, txid: &Txid, old_status: TxStatus, new_status: TxStatus) {
         if old_status == new_status {
             return;
         }
