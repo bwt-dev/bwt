@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::{Arc, RwLock};
 
 use bitcoin::{BlockHash, Txid};
@@ -6,11 +7,8 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use serde_json::Value;
 
 use crate::error::{OptionExt, Result};
-use crate::indexer::{Indexer, Tx};
+use crate::indexer::{HistoryEntry, Indexer, Tx};
 use crate::types::{ScriptHash, Utxo};
-
-#[cfg(feature = "electrum")]
-use crate::types::StatusHash;
 
 pub struct Query {
     rpc: Arc<RpcClient>,
@@ -89,9 +87,17 @@ impl Query {
             .list_unspent(scripthash, min_conf)?)
     }
 
-    #[cfg(feature = "electrum")]
-    pub fn status_hash(&self, scripthash: &ScriptHash) -> Option<StatusHash> {
-        self.indexer.read().unwrap().status_hash(scripthash)
+    // avoid unnecessary copies by directly operating on the history entry reference
+    pub fn with_history_ref<T>(
+        &self,
+        scripthash: &ScriptHash,
+        f: fn(&BTreeSet<HistoryEntry>) -> T,
+    ) -> Option<T> {
+        self.indexer
+            .read()
+            .unwrap()
+            .raw_history_ref(scripthash)
+            .map(f)
     }
 
     /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)

@@ -13,9 +13,6 @@ use crate::hd::{DerivationInfo, HDWatcher};
 use crate::types::{ScriptHash, TxStatus, Utxo};
 use crate::util::address_to_scripthash;
 
-#[cfg(feature = "electrum")]
-use crate::{electrum::get_status_hash, types::StatusHash};
-
 pub struct Indexer {
     rpc: Arc<RpcClient>,
     watcher: HDWatcher,
@@ -204,9 +201,8 @@ impl Indexer {
             .unwrap_or_else(|| Ok(vec![]))
     }
 
-    #[cfg(feature = "electrum")]
-    pub fn status_hash(&self, scripthash: &ScriptHash) -> Option<StatusHash> {
-        self.index.get_history(scripthash).map(get_status_hash)
+    pub fn raw_history_ref(&self, scripthash: &ScriptHash) -> Option<&BTreeSet<HistoryEntry>> {
+        self.index.get_history(scripthash)
     }
 
     /// Get the unspent utxos owned by scripthash

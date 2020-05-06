@@ -1,5 +1,5 @@
 use std::cmp;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySendError};
@@ -11,7 +11,6 @@ use bitcoin_hashes::{hex::FromHex, hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
 use crate::error::{fmt_error_chain, Result, ResultExt};
-use crate::indexer::HistoryEntry;
 use crate::mempool::get_fee_histogram;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
@@ -140,7 +139,7 @@ impl Connection {
         let (script_hash,): (String,) = from_value(params)?;
         let script_hash = decode_script_hash(&script_hash)?;
 
-        let status_hash = self.query.status_hash(&script_hash);
+        let status_hash = get_status_hash(&self.query, &script_hash);
         self.status_hashes.insert(script_hash, status_hash.clone());
 
         Ok(json!(status_hash))
@@ -297,7 +296,7 @@ impl Connection {
             }
         }
         for (script_hash, status_hash) in self.status_hashes.iter_mut() {
-            let new_status_hash = self.query.status_hash(&script_hash);
+            let new_status_hash = get_status_hash(&self.query, &script_hash);
             if new_status_hash == *status_hash {
                 continue;
             }
@@ -412,13 +411,14 @@ where
     items.into_iter().map(|item| item.to_string()).collect()
 }
 
-pub fn get_status_hash(entries: &BTreeSet<HistoryEntry>) -> StatusHash {
-    let p = entries
-        .iter()
-        .map(|hist| format!("{}:{}:", hist.txid, hist.status.electrum_height()))
-        .collect::<Vec<String>>();
-
-    StatusHash::hash(&p.join("").into_bytes())
+pub fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
+    query.with_history_ref(scripthash, |entries| {
+        let p = entries
+            .iter()
+            .map(|hist| format!("{}:{}:", hist.txid, hist.status.electrum_height()))
+            .collect::<Vec<String>>();
+        StatusHash::hash(&p.join("").into_bytes())
+    })
 }
 
 fn encode_script_hash(hash: &ScriptHash) -> String {

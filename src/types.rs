@@ -7,12 +7,7 @@ use serde_json::Value;
 
 hash_newtype!(ScriptHash, sha256::Hash, 32, doc = "The hash of an spk.");
 #[cfg(feature = "electrum")]
-hash_newtype!(
-    StatusHash,
-    sha256::Hash,
-    32,
-    doc = "The status hash of the script history."
-);
+hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
 
 #[derive(Debug)]
 pub struct Utxo {
