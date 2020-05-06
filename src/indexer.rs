@@ -372,7 +372,7 @@ fn load_transactions_since(
     rpc: &RpcClient,
     init_per_page: usize,
     start_height: u32,
-    chunk_handler: &mut FnMut(Vec<ListTransactionsResult>, u32),
+    chunk_handler: &mut dyn FnMut(Vec<ListTransactionsResult>, u32),
 ) -> Result<()> {
     let mut per_page = init_per_page;
     let mut start_index = 0;
