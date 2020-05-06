@@ -212,7 +212,7 @@ impl Connection {
         let verbose = verbose.unwrap_or(false);
 
         Ok(if verbose {
-            json!(self.query.get_transaction_decoded(&txid)?)
+            json!(self.query.get_transaction_json(&txid)?)
         } else {
             json!(self.query.get_transaction_hex(&txid)?)
         })

@@ -115,13 +115,12 @@ impl Query {
         ))
     }
 
+    // TODO query for tx with its blockhash
     pub fn get_transaction_hex(&self, txid: &Txid) -> Result<String> {
-        Ok(self
-            .rpc
-            .call("getrawtransaction", &[txid.to_hex().into(), false.into()])?)
+        Ok(self.rpc.get_raw_transaction_hex(txid, None)?)
     }
 
-    pub fn get_transaction_decoded(&self, txid: &Txid) -> Result<Value> {
+    pub fn get_transaction_json(&self, txid: &Txid) -> Result<Value> {
         Ok(self
             .rpc
             .call("getrawtransaction", &[txid.to_hex().into(), true.into()])?)
