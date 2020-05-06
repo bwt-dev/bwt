@@ -2,9 +2,11 @@ use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use bitcoin::{Address, Txid, SignedAmount};
+use bitcoin::{Address, SignedAmount, Txid};
 use bitcoin_hashes::sha256;
-use bitcoincore_rpc::json::{ListTransactionResult, GetTransactionResultDetailCategory as TxCategory};
+use bitcoincore_rpc::json::{
+    GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
+};
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
@@ -108,7 +110,13 @@ impl Indexer {
             let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
             // XXX include unsafe?
-            let unspents = self.rpc.list_unspent(Some(min_conf), None, Some(&[&address]), Some(false), None)?;
+            let unspents = self.rpc.list_unspent(
+                Some(min_conf),
+                None,
+                Some(&[&address]),
+                Some(false),
+                None,
+            )?;
 
             if tip_hash != self.rpc.get_best_block_hash()? {
                 warn!("tip changed while fetching unspents, retrying...");
@@ -162,7 +170,12 @@ impl MemoryIndex {
             status,
             txid: ltx.info.txid,
         };
-        self.index_address_history(ltx.detail.address, &ltx.detail.label.unwrap_or("".into()), txhist, watcher);
+        self.index_address_history(
+            ltx.detail.address,
+            &ltx.detail.label.unwrap_or("".into()),
+            txhist,
+            watcher,
+        );
     }
 
     /*
@@ -274,12 +287,7 @@ impl MemoryIndex {
     }
 
     /// Update the scripthash history index to reflect the new tx status
-    fn update_tx_status(
-        &mut self,
-        txid: &Txid,
-        old_status: TxStatus,
-        new_status: TxStatus,
-    ) {
+    fn update_tx_status(&mut self, txid: &Txid, old_status: TxStatus, new_status: TxStatus) {
         if old_status == new_status {
             return;
         }
@@ -381,7 +389,8 @@ fn load_transactions_since(
             per_page, start_index
         );
 
-        let mut chunk = rpc.list_transactions(None, Some(per_page), Some(start_index), Some(true))?;
+        let mut chunk =
+            rpc.list_transactions(None, Some(per_page), Some(start_index), Some(true))?;
 
         let mut exhausted = chunk.len() < per_page;
 
