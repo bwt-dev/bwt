@@ -147,8 +147,8 @@ impl Indexer {
         );
 
         if !status.is_viable() {
-            debug!("purge {}", ltx.info.txid);
-            return self.index.purge_tx(&ltx.info.txid);
+            self.index.purge_tx(&ltx.info.txid);
+            return;
         }
 
         let scripthash = address_to_scripthash(&ltx.detail.address);
@@ -168,6 +168,16 @@ impl Indexer {
     }
 
     fn process_outgoing(&mut self, txid: Txid, mut txentry: TxEntry) -> Result<()> {
+        debug!(
+            "processing outgoing tx {:?} with status {:?}",
+            txid, txentry.status
+        );
+
+        if !txentry.status.is_viable() {
+            self.index.purge_tx(&txid);
+            return Ok(());
+        }
+
         let tx = self.rpc.get_transaction(&txid, Some(true))?.transaction()?;
 
         for (vin, input) in tx.input.iter().enumerate() {
