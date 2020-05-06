@@ -9,7 +9,7 @@ use bitcoincore_rpc::json::{
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
-use crate::hd::{DerivationInfo, HDWatcher};
+use crate::hd::{HDWatcher, KeyOrigin};
 use crate::types::{ScriptHash, TxStatus, Utxo};
 use crate::util::address_to_scripthash;
 
@@ -28,7 +28,7 @@ struct MemoryIndex {
 #[derive(Debug)]
 struct ScriptEntry {
     address: Address,
-    derivation_info: DerivationInfo,
+    origin: KeyOrigin,
     history: BTreeSet<HistoryEntry>,
     //#[cfg(feature = "electrum")]
     //electrum_status_hash: Option<StatusHash>,
@@ -86,7 +86,7 @@ impl Indexer {
     pub fn update(&mut self) -> Result<()> {
         self.update_transactions()?;
 
-        self.watcher.do_imports(&self.rpc)?;
+        self.watcher.watch(&self.rpc)?;
 
         Ok(())
     }
@@ -128,20 +128,20 @@ impl Indexer {
     fn process_incoming(&mut self, ltx: ListTransactionResult, tip_height: u32) {
         // XXX stop early if we're familiar with this txid and its long confirmed
 
-        let derivation_info = match ltx
+        let origin = match ltx
             .detail
             .label
             .as_ref()
-            .and_then(|l| DerivationInfo::from_label(l))
+            .and_then(|l| KeyOrigin::from_label(l))
         {
-            Some(derivation_info) => derivation_info,
+            Some(origin) => origin,
             None => return,
         };
         let status = TxStatus::new(ltx.info.confirmations, tip_height);
 
         debug!(
             "process incoming tx for {:?} origin {:?} with status {:?}: {:?}",
-            ltx.detail.address, derivation_info, status, ltx
+            ltx.detail.address, origin, status, ltx
         );
 
         if !status.is_viable() {
@@ -149,20 +149,20 @@ impl Indexer {
             return self.index.purge_tx(&ltx.info.txid);
         }
 
+        let scripthash = address_to_scripthash(&ltx.detail.address);
+
         let mut txentry = TxEntry::new(status, None);
-        txentry
-            .funding
-            .insert(ltx.detail.vout, address_to_scripthash(&ltx.detail.address));
+        txentry.funding.insert(ltx.detail.vout, scripthash);
 
         self.index.index_tx_entry(&ltx.info.txid, txentry);
 
-        self.index.index_incoming(
-            &ltx.detail.address,
-            &derivation_info,
-            HistoryEntry::new(ltx.info.txid, status),
-        );
+        self.index
+            .track_scripthash(&scripthash, &origin, &ltx.detail.address);
 
-        self.watcher.mark_address(&derivation_info, true);
+        self.index
+            .index_history_entry(&scripthash, HistoryEntry::new(ltx.info.txid, status));
+
+        self.watcher.mark_funded(&origin);
     }
 
     fn process_outgoing(&mut self, txid: Txid, mut txentry: TxEntry) -> Result<()> {
@@ -173,7 +173,7 @@ impl Indexer {
                 txentry.spending.insert(vin as u32, scripthash);
 
                 self.index
-                    .index_outgoing(&scripthash, HistoryEntry::new(txid, txentry.status));
+                    .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status));
             }
         }
 
@@ -206,6 +206,7 @@ impl Indexer {
     }
 
     /// Get the unspent utxos owned by scripthash
+    // XXX Move to Query?
     pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
         let address = self
             .index
@@ -282,7 +283,25 @@ impl MemoryIndex {
     }
     */
 
-    /// Index transaction entry
+    fn track_scripthash(&mut self, scripthash: &ScriptHash, origin: &KeyOrigin, address: &Address) {
+        debug!("tracking {:?} {:?} {:?}", origin, scripthash, address);
+
+        self.scripthashes
+            .entry(*scripthash)
+            .and_modify(|curr_entry| {
+                assert_eq!(
+                    curr_entry.origin, *origin,
+                    "unexpected stored origin for {:?}",
+                    scripthash
+                )
+            })
+            .or_insert_with(|| ScriptEntry {
+                address: address.clone(),
+                origin: origin.clone(),
+                history: BTreeSet::new(),
+            });
+    }
+
     fn index_tx_entry(&mut self, txid: &Txid, txentry: TxEntry) {
         info!("index tx entry {:?}: {:?}", txid, txentry);
 
@@ -319,54 +338,21 @@ impl MemoryIndex {
         }
     }
 
-    /// Index an incoming transaction
-    /// Creates the corresponding script entry if none exists
-    fn index_incoming(
-        &mut self,
-        address: &Address,
-        derivation_info: &DerivationInfo,
-        txhist: HistoryEntry,
-    ) {
-        let scripthash = address_to_scripthash(address);
-
+    fn index_history_entry(&mut self, scripthash: &ScriptHash, txhist: HistoryEntry) {
         debug!(
-            "index incoming address history {:?} {:?} {:?}: {:?}",
-            address, derivation_info, scripthash, txhist
-        );
-
-        let added = self
-            .scripthashes
-            .entry(scripthash)
-            .or_insert_with(|| ScriptEntry {
-                address: address.clone(),
-                derivation_info: derivation_info.clone(),
-                history: BTreeSet::new(),
-            })
-            .history
-            .insert(txhist);
-
-        if added {
-            info!("new incoming history entry for {:?}", scripthash)
-        }
-    }
-
-    /// Index an outgoing transaction
-    /// Expects the corresponding script entry to already exists (from the incoming tx)
-    fn index_outgoing(&mut self, scripthash: &ScriptHash, txhist: HistoryEntry) {
-        debug!(
-            "index outgoing address history {:?}: {:?}",
+            "index scripthash history for {:?}: {:?}",
             scripthash, txhist
         );
 
         let added = self
             .scripthashes
             .get_mut(scripthash)
-            .expect("missing scripthash entry for outgoing payment")
+            .expect("missing expected scripthash entry")
             .history
             .insert(txhist);
 
         if added {
-            info!("new outgoing history entry for {:?}", scripthash)
+            info!("new history entry added for {:?}", scripthash)
         }
     }
 

@@ -123,7 +123,7 @@ pub enum KeyRescan {
 }
 
 impl KeyRescan {
-    pub fn rpc_arg(&self) -> Value {
+    pub fn as_rpc_timestamp(&self) -> Value {
         match self {
             KeyRescan::None => json!("now"),
             KeyRescan::All => json!(0),

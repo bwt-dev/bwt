@@ -33,30 +33,27 @@ impl HDWatcher {
     }
 
     /// Mark an address as imported and optionally used
-    pub fn mark_address(&mut self, derivation: &DerivationInfo, is_used: bool) {
-        if let DerivationInfo::Derived(parent_fingerprint, index) = derivation {
+    pub fn mark_funded(&mut self, origin: &KeyOrigin) {
+        if let KeyOrigin::Derived(parent_fingerprint, index) = origin {
             if let Some(wallet) = self.wallets.get_mut(parent_fingerprint) {
                 if wallet.max_imported_index.map_or(true, |max| *index > max) {
                     wallet.max_imported_index = Some(*index);
                 }
 
-                if is_used && wallet.max_used_index.map_or(true, |max| *index > max) {
+                if wallet.max_used_index.map_or(true, |max| *index > max) {
                     wallet.max_used_index = Some(*index);
                 }
             }
         }
     }
 
-    pub fn do_imports(&mut self, rpc: &RpcClient) -> Result<()> {
+    pub fn watch(&mut self, rpc: &RpcClient) -> Result<()> {
         let mut import_reqs = vec![];
         let mut pending_updates = vec![];
 
         for (_, wallet) in self.wallets.iter_mut() {
             let watch_index = wallet.watch_index();
-            if wallet
-                .max_imported_index
-                .map_or(true, |max_imported| watch_index > max_imported)
-            {
+            if watch_index > wallet.max_imported_index.unwrap_or(0) {
                 let start_index = wallet
                     .max_imported_index
                     .map_or(0, |max_imported| max_imported + 1);
@@ -186,12 +183,12 @@ impl HDWallet {
         start_index: u32,
         end_index: u32,
         rescan: KeyRescan,
-    ) -> Vec<(Address, KeyRescan, DerivationInfo)> {
+    ) -> Vec<(Address, KeyRescan, KeyOrigin)> {
         (start_index..=end_index)
             .map(|index| {
                 let key = self.derive(index);
                 let address = self.to_address(&key);
-                let deriviation = DerivationInfo::Derived(key.parent_fingerprint, index);
+                let deriviation = KeyOrigin::Derived(key.parent_fingerprint, index);
                 (address, rescan, deriviation)
             })
             .collect()
@@ -207,7 +204,7 @@ impl HDWallet {
 }
 fn batch_import(
     rpc: &RpcClient,
-    import_reqs: Vec<(Address, KeyRescan, DerivationInfo)>,
+    import_reqs: Vec<(Address, KeyRescan, KeyOrigin)>,
 ) -> Result<Vec<Value>> {
     debug!("importing {} addresses", import_reqs.len());
 
@@ -216,8 +213,8 @@ fn batch_import(
         "importmulti",
         &[json!(import_reqs
             .into_iter()
-            .map(|(address, rescan, derivation)| {
-                let label = derivation.to_label();
+            .map(|(address, rescan, origin)| {
+                let label = origin.to_label();
 
                 info!(
                     "importing {} as {} with rescan {:?}",
@@ -226,7 +223,7 @@ fn batch_import(
 
                 json!({
                   "scriptPubKey": { "address": address },
-                  "timestamp": rescan.rpc_arg(),
+                  "timestamp": rescan.as_rpc_timestamp(),
                   "label": label,
                 })
             })
@@ -234,33 +231,33 @@ fn batch_import(
     )?)
 }
 
-#[derive(Debug, Clone)]
-pub enum DerivationInfo {
+#[derive(Debug, Clone, PartialEq)]
+pub enum KeyOrigin {
     Derived(Fingerprint, u32),
     Standalone,
 }
 
-impl DerivationInfo {
+impl KeyOrigin {
     pub fn to_label(&self) -> String {
         match self {
-            DerivationInfo::Derived(parent_fingerprint, index) => format!(
+            KeyOrigin::Derived(parent_fingerprint, index) => format!(
                 "{}/{}/{}",
                 LABEL_PREFIX,
                 hex::encode(parent_fingerprint.as_bytes()),
                 index
             ),
-            DerivationInfo::Standalone => LABEL_PREFIX.into(),
+            KeyOrigin::Standalone => LABEL_PREFIX.into(),
         }
     }
 
     pub fn from_label(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.splitn(3, "/").collect();
         match (parts.get(0), parts.get(1), parts.get(2)) {
-            (Some(&LABEL_PREFIX), Some(parent), Some(index)) => Some(DerivationInfo::Derived(
+            (Some(&LABEL_PREFIX), Some(parent), Some(index)) => Some(KeyOrigin::Derived(
                 Fingerprint::from(&hex::decode(parent).ok()?[..]),
                 index.parse().ok()?,
             )),
-            (Some(&LABEL_PREFIX), None, None) => Some(DerivationInfo::Standalone),
+            (Some(&LABEL_PREFIX), None, None) => Some(KeyOrigin::Standalone),
             _ => None,
         }
     }
