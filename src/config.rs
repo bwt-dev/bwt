@@ -176,6 +176,7 @@ impl Config {
                 if cookie.exists() {
                     Some(cookie)
                 } else {
+                    warn!("cookie file not found in {:?}", cookie);
                     None
                 }
             })

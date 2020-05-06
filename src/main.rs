@@ -38,6 +38,7 @@ fn main() -> Result<()> {
             .update()
             .map_err(|err| warn!("error while updating index: {:#?}", err))
             .ok();
+        // XXX fatal?
 
         #[cfg(feature = "electrum")]
         electrum.notify();
