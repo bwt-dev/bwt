@@ -10,13 +10,14 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWatcher, KeyOrigin};
-use crate::types::{ScriptHash, TxStatus, Utxo};
+use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
 use crate::util::address_to_scripthash;
 
 pub struct Indexer {
     rpc: Arc<RpcClient>,
     watcher: HDWatcher,
     index: MemoryIndex,
+    tip: Option<BlockId>,
 }
 
 #[derive(Debug)]
@@ -76,6 +77,7 @@ impl Indexer {
             rpc,
             watcher: watcher,
             index: MemoryIndex::new(),
+            tip: None,
         }
     }
 
@@ -83,36 +85,58 @@ impl Indexer {
         debug!("{:#?}", self.index);
     }
 
-    pub fn update(&mut self) -> Result<()> {
-        self.update_transactions()?;
+    pub fn sync(&mut self) -> Result<()> {
+        // Detect reorgs and start syncing history from scratch when they happen
+        if let Some(BlockId(tip_height, tip_hash)) = self.tip {
+            let best_chain_hash = self.rpc.get_block_hash(tip_height as u64)?;
+            if best_chain_hash != tip_hash {
+                warn!(
+                    "reorg detected, block height {} was {} and now is {}. fetching history from scratch...",
+                    tip_height, tip_hash, best_chain_hash
+                );
+                self.tip = None;
+            }
+        }
+
+        let synced_tip = self.sync_transactions()?;
 
         self.watcher.watch(&self.rpc)?;
+
+        info!("synced up to {:?}", synced_tip);
+        self.tip = Some(synced_tip);
 
         Ok(())
     }
 
-    fn update_transactions(&mut self) -> Result<()> {
-        let mut pending_outgoing: HashMap<Txid, TxEntry> = HashMap::new();
+    fn sync_transactions(&mut self) -> Result<BlockId> {
         let rpc = Arc::clone(&self.rpc);
 
-        load_transactions_since(&rpc, 25, 0, &mut |chunk, tip_height| {
-            for ltx in chunk {
-                match ltx.detail.category {
-                    TxCategory::Receive => {
-                        self.process_incoming(ltx, tip_height);
-                    }
-                    TxCategory::Send => {
-                        // outgoing payments are buffered and processed later so that the
-                        // parent funding transaction is guaranteed to get indexed first
-                        pending_outgoing.entry(ltx.info.txid).or_insert_with(|| {
-                            let status = TxStatus::new(ltx.info.confirmations, tip_height);
-                            TxEntry::new(status, parse_fee(ltx.detail.fee))
-                        });
-                    }
-                    TxCategory::Generate | TxCategory::Immature => (),
-                };
-            }
-        })?;
+        let start_height = self
+            .tip
+            .as_ref()
+            .map_or(0, |BlockId(tip_height, _)| tip_height + 1);
+
+        let mut pending_outgoing: HashMap<Txid, TxEntry> = HashMap::new();
+
+        let synced_tip =
+            load_transactions_since(&rpc, 25, start_height, &mut |chunk, tip_height| {
+                for ltx in chunk {
+                    match ltx.detail.category {
+                        TxCategory::Receive => {
+                            self.process_incoming(ltx, tip_height);
+                        }
+                        TxCategory::Send => {
+                            // outgoing payments are buffered and processed later so that the
+                            // parent funding transaction is guaranteed to get indexed first
+                            pending_outgoing.entry(ltx.info.txid).or_insert_with(|| {
+                                let status = TxStatus::new(ltx.info.confirmations, tip_height);
+                                TxEntry::new(status, parse_fee(ltx.detail.fee))
+                            });
+                        }
+                        TxCategory::Generate | TxCategory::Immature => (),
+                    };
+                }
+            })?;
 
         for (txid, txentry) in pending_outgoing {
             self.process_outgoing(txid, txentry)
@@ -120,11 +144,9 @@ impl Indexer {
                 .ok();
         }
 
-        // TODO: keep track of last known tip
-        // TODO: keep track of how many new txs are returned on avg
         // TODO: remove confliced txids from index
 
-        Ok(())
+        Ok(synced_tip)
     }
 
     fn process_incoming(&mut self, ltx: ListTransactionResult, tip_height: u32) {
@@ -346,7 +368,7 @@ impl MemoryIndex {
             });
 
         if let Some(old_status) = changed_from {
-            self.status_tx_changed(txid, old_status, new_status)
+            self.tx_status_changed(txid, old_status, new_status)
         }
     }
 
@@ -369,7 +391,7 @@ impl MemoryIndex {
     }
 
     /// Update the scripthash history index to reflect the new tx status
-    fn status_tx_changed(&mut self, txid: &Txid, old_status: TxStatus, new_status: TxStatus) {
+    fn tx_status_changed(&mut self, txid: &Txid, old_status: TxStatus, new_status: TxStatus) {
         if old_status == new_status {
             return;
         }
@@ -481,13 +503,16 @@ fn load_transactions_since(
     init_per_page: usize,
     start_height: u32,
     chunk_handler: &mut dyn FnMut(Vec<ListTransactionResult>, u32),
-) -> Result<()> {
+) -> Result<BlockId> {
     let mut per_page = init_per_page;
     let mut start_index = 0;
     let mut oldest_seen = None;
 
     let tip_height = rpc.get_block_count()? as u32;
     let tip_hash = rpc.get_block_hash(tip_height as u64)?;
+
+    assert!(start_height <= tip_height + 1, "start_height too far");
+    let max_confirmations = (tip_height + 1 - start_height) as i32;
 
     // TODO: if the newest entry has the exact same (txid,address,height) as the previous newest,
     // skip processing the entries entirely
@@ -526,9 +551,8 @@ fn load_transactions_since(
         if let Some(oldest) = chunk.first() {
             oldest_seen = Some((oldest.info.txid.clone(), oldest.detail.vout));
 
-            exhausted = exhausted
-                || (oldest.info.confirmations > 0
-                    && tip_height - oldest.info.confirmations as u32 + 1 < start_height);
+            chunk.retain(|ltx| ltx.info.confirmations <= max_confirmations);
+            exhausted = exhausted || chunk.is_empty();
 
             chunk_handler(chunk, tip_height);
         }
@@ -539,5 +563,5 @@ fn load_transactions_since(
         per_page = per_page * 2;
     }
 
-    Ok(())
+    Ok(BlockId(tip_height, tip_hash))
 }

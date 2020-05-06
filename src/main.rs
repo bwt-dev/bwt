@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     let indexer = Arc::new(RwLock::new(Indexer::new(Arc::clone(&rpc), watcher)));
     let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&indexer)));
 
-    indexer.write().unwrap().update()?;
+    indexer.write().unwrap().sync()?;
 
     #[cfg(feature = "electrum")]
     let electrum = ElectrumServer::start(config.electrum_rpc_addr, Arc::clone(&query));
@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         indexer
             .write()
             .unwrap()
-            .update()
+            .sync()
             .map_err(|err| warn!("error while updating index: {:#?}", err))
             .ok();
         // XXX fatal?

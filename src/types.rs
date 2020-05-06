@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use bitcoin::Txid;
+use bitcoin::{BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
 use bitcoincore_rpc::json::ListUnspentResultEntry;
 use serde_json::Value;
@@ -8,6 +8,9 @@ use serde_json::Value;
 hash_newtype!(ScriptHash, sha256::Hash, 32, doc = "The hash of an spk.");
 #[cfg(feature = "electrum")]
 hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
+
+#[derive(Debug)]
+pub struct BlockId(pub u32, pub BlockHash);
 
 #[derive(Debug)]
 pub struct Utxo {
