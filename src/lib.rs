@@ -1,4 +1,3 @@
-#[macro_use]
 extern crate serde;
 #[macro_use]
 extern crate serde_json;
@@ -8,14 +7,12 @@ extern crate log;
 extern crate failure;
 #[macro_use]
 extern crate lazy_static;
-#[macro_use]
 extern crate structopt;
 
 pub mod config;
 pub mod error;
 pub mod hd;
 pub mod indexer;
-pub mod json;
 pub mod mempool;
 pub mod query;
 pub mod types;

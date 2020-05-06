@@ -2,14 +2,13 @@ use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use bitcoin::Address;
-use bitcoin_hashes::{sha256, sha256d};
-use bitcoincore_rpc::{json::ListUnspentResult, Client as RpcClient, RpcApi};
-use serde_json::Value;
+use bitcoin::{Address, Txid, SignedAmount};
+use bitcoin_hashes::sha256;
+use bitcoincore_rpc::json::{ListTransactionResult, GetTransactionResultDetailCategory as TxCategory};
+use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{DerivationInfo, HDWatcher};
-use crate::json::{GetTransactionResult, ListTransactionsResult, TxCategory};
 use crate::types::{Tx, TxEntry, TxStatus, Utxo};
 use crate::util::address_to_scripthash;
 
@@ -25,7 +24,7 @@ pub struct Indexer {
 #[derive(Debug)]
 struct MemoryIndex {
     scripthashes: HashMap<sha256::Hash, ScriptEntry>,
-    transactions: HashMap<sha256d::Hash, TxEntry>,
+    transactions: HashMap<Txid, TxEntry>,
 }
 
 #[derive(Debug)]
@@ -39,7 +38,7 @@ struct ScriptEntry {
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct HistoryEntry {
-    pub txid: sha256d::Hash,
+    pub txid: Txid,
     pub status: TxStatus,
 }
 
@@ -98,26 +97,18 @@ impl Indexer {
     }
 
     /// Get the unspent utxos owned by scripthash
-    pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: u32) -> Result<Vec<Utxo>> {
+    pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: usize) -> Result<Vec<Utxo>> {
         let address = self
             .index
             .get_address(scripthash)
-            .or_err("unknown scripthash")?
-            .to_string();
+            .or_err("unknown scripthash")?;
 
         loop {
             let tip_height = self.rpc.get_block_count()? as u32;
             let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
-            let unspents: Vec<ListUnspentResult> = self.rpc.call(
-                "listunspent",
-                &[
-                    min_conf.into(),
-                    9999999.into(),
-                    vec![address.as_str()].into(),
-                    false.into(),
-                ],
-            )?;
+            // XXX include unsafe?
+            let unspents = self.rpc.list_unspent(Some(min_conf), None, Some(&[&address]), Some(false), None)?;
 
             if tip_hash != self.rpc.get_best_block_hash()? {
                 warn!("tip changed while fetching unspents, retrying...");
@@ -144,34 +135,34 @@ impl MemoryIndex {
     /// Process a transaction entry retrieved from "listtransactions"
     pub fn process_ltx(
         &mut self,
-        ltx: ListTransactionsResult,
+        ltx: ListTransactionResult,
         tip_height: u32,
         watcher: &mut HDWatcher,
     ) {
         debug!("process ltx: {:?}", ltx);
 
         // XXX stop early if we're familiar with this txid and its long confirmed?
-        if !ltx.category.should_process() {
+        if !should_process(&ltx) {
             return;
         }
 
-        let status = TxStatus::new(ltx.confirmations, tip_height);
+        let status = TxStatus::new(ltx.info.confirmations, tip_height);
 
         if !status.is_viable() {
-            return self.purge_tx(&ltx.txid);
+            return self.purge_tx(&ltx.info.txid);
         }
 
         let txentry = TxEntry {
             status: status,
-            fee: parse_fee(ltx.fee),
+            fee: parse_fee(ltx.detail.fee),
         };
-        self.index_tx_entry(&ltx.txid, txentry);
+        self.index_tx_entry(&ltx.info.txid, txentry);
 
         let txhist = HistoryEntry {
             status,
-            txid: ltx.txid,
+            txid: ltx.info.txid,
         };
-        self.index_address_history(ltx.address, &ltx.label, txhist, watcher);
+        self.index_address_history(ltx.detail.address, &ltx.detail.label.unwrap_or("".into()), txhist, watcher);
     }
 
     /*
@@ -210,7 +201,7 @@ impl MemoryIndex {
     */
 
     /// Index transaction entry
-    fn index_tx_entry(&mut self, txid: &sha256d::Hash, txentry: TxEntry) {
+    fn index_tx_entry(&mut self, txid: &Txid, txentry: TxEntry) {
         info!("index tx entry {:?}: {:?}", txid, txentry);
 
         assert!(
@@ -285,7 +276,7 @@ impl MemoryIndex {
     /// Update the scripthash history index to reflect the new tx status
     fn update_tx_status(
         &mut self,
-        txid: &sha256d::Hash,
+        txid: &Txid,
         old_status: TxStatus,
         new_status: TxStatus,
     ) {
@@ -316,7 +307,7 @@ impl MemoryIndex {
         }
     }
 
-    fn purge_tx(&mut self, txid: &sha256d::Hash) {
+    fn purge_tx(&mut self, txid: &Txid) {
         info!("purge tx {:?}", txid);
 
         if let Some(old_entry) = self.transactions.remove(txid) {
@@ -345,7 +336,7 @@ impl MemoryIndex {
             .map(|entry| &entry.address)
     }
 
-    pub fn get_tx(&self, txid: &sha256d::Hash) -> Option<&TxEntry> {
+    pub fn get_tx(&self, txid: &Txid) -> Option<&TxEntry> {
         self.transactions.get(txid)
     }
 }
@@ -362,9 +353,9 @@ impl PartialOrd for HistoryEntry {
     }
 }
 
-// convert from a negative float to a positive satoshi amount
-fn parse_fee(fee: Option<f64>) -> Option<u64> {
-    fee.map(|fee| (fee * -1.0 * 100_000_000.0) as u64)
+// convert to a positive satoshi amount
+fn parse_fee(fee: Option<SignedAmount>) -> Option<u64> {
+    fee.map(|fee| fee.abs().as_sat() as u64)
 }
 
 // Fetch all unconfirmed transactions + transactions confirmed at or after start_height
@@ -372,7 +363,7 @@ fn load_transactions_since(
     rpc: &RpcClient,
     init_per_page: usize,
     start_height: u32,
-    chunk_handler: &mut dyn FnMut(Vec<ListTransactionsResult>, u32),
+    chunk_handler: &mut dyn FnMut(Vec<ListTransactionResult>, u32),
 ) -> Result<()> {
     let mut per_page = init_per_page;
     let mut start_index = 0;
@@ -381,21 +372,16 @@ fn load_transactions_since(
     let tip_height = rpc.get_block_count()? as u32;
     let tip_hash = rpc.get_block_hash(tip_height as u64)?;
 
-    let mut args = ["*".into(), Value::Null, Value::Null, true.into()];
-
     // TODO: if the newest entry has the exact same (txid,address,height) as the previous newest,
     // skip processing the entries entirely
 
     while {
-        args[1] = per_page.into();
-        args[2] = start_index.into();
-
         info!(
             "reading {} transactions starting at index {}",
             per_page, start_index
         );
 
-        let mut chunk: Vec<ListTransactionsResult> = rpc.call("listtransactions", &args)?;
+        let mut chunk = rpc.list_transactions(None, Some(per_page), Some(start_index), Some(true))?;
 
         let mut exhausted = chunk.len() < per_page;
 
@@ -411,7 +397,7 @@ fn load_transactions_since(
         if let Some(ref oldest_seen) = oldest_seen {
             let marker = chunk.pop().or_err("missing market tx")?;
 
-            if oldest_seen != &(marker.txid, marker.address) {
+            if oldest_seen != &(marker.info.txid, marker.detail.address) {
                 warn!("transaction set changed while fetching transactions, retrying...");
                 return load_transactions_since(rpc, per_page, start_height, chunk_handler);
             }
@@ -419,11 +405,11 @@ fn load_transactions_since(
 
         // process entries (if any)
         if let Some(oldest) = chunk.first() {
-            oldest_seen = Some((oldest.txid.clone(), oldest.address.clone()));
+            oldest_seen = Some((oldest.info.txid.clone(), oldest.detail.address.clone()));
 
             exhausted = exhausted
-                || (oldest.confirmations > 0
-                    && tip_height - oldest.confirmations as u32 + 1 < start_height);
+                || (oldest.info.confirmations > 0
+                    && tip_height - oldest.info.confirmations as u32 + 1 < start_height);
 
             chunk_handler(chunk, tip_height);
         }
@@ -435,4 +421,11 @@ fn load_transactions_since(
     }
 
     Ok(())
+}
+
+fn should_process(ltx: &ListTransactionResult) -> bool {
+    match ltx.detail.category {
+        TxCategory::Send | TxCategory::Receive => true,
+        TxCategory::Generate | TxCategory::Immature /*| TxCategory::Orphan*/ => false,
+    }
 }

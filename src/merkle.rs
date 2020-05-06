@@ -1,3 +1,4 @@
+use bitcoin::Txid;
 use bitcoin_hashes::{sha256d, Hash};
 
 use crate::error::{OptionExt, Result};
@@ -5,7 +6,7 @@ use crate::query::Query;
 
 pub fn get_merkle_proof(
     query: &Query,
-    txid: &sha256d::Hash,
+    txid: &Txid,
     height: u32,
 ) -> Result<(Vec<sha256d::Hash>, usize)> {
     let block_hash = query.get_block_hash(height)?;
@@ -14,7 +15,9 @@ pub fn get_merkle_proof(
         .iter()
         .position(|c_txid| c_txid == txid)
         .or_err("missing tx")?;
-    let (branch, _root) = create_merkle_branch_and_root(txids, pos);
+
+    let hashes = txids.into_iter().map(sha256d::Hash::from).collect();
+    let (branch, _root) = create_merkle_branch_and_root(hashes, pos);
     Ok((branch, pos))
 }
 
@@ -39,7 +42,7 @@ pub fn get_header_merkle_proof(
     let heights: Vec<u32> = (0..=cp_height).collect();
     let header_hashes = heights
         .into_iter()
-        .map(|height| query.get_block_hash(height))
+        .map(|height| query.get_block_hash(height).map(sha256d::Hash::from))
         .collect::<Result<Vec<sha256d::Hash>>>()?;
 
     Ok(create_merkle_branch_and_root(
@@ -53,7 +56,7 @@ pub fn get_id_from_pos(
     height: u32,
     tx_pos: usize,
     want_merkle: bool,
-) -> Result<(sha256d::Hash, Vec<sha256d::Hash>)> {
+) -> Result<(Txid, Vec<sha256d::Hash>)> {
     let block_hash = query.get_block_hash(height)?;
     let txids = query.get_block_txids(&block_hash)?;
     let txid = txids
@@ -65,7 +68,8 @@ pub fn get_id_from_pos(
         .clone();
 
     let branch = if want_merkle {
-        create_merkle_branch_and_root(txids, tx_pos).0
+        let hashes = txids.into_iter().map(sha256d::Hash::from).collect();
+        create_merkle_branch_and_root(hashes, tx_pos).0
     } else {
         vec![]
     };

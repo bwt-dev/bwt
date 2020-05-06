@@ -52,7 +52,7 @@ pub struct CliConfig {
         long = "poll-interval",
         help = "interval for checking new blocks/txs (in seconds)",
         default_value = "5",
-        parse(try_from_str = "parse_duration")
+        parse(try_from_str = parse_duration)
     )]
     poll_interval: time::Duration,
 
@@ -90,7 +90,7 @@ pub struct CliConfig {
         short,
         long = "xpub",
         help = "xpubs to scan and since when (<xpub>, <xpub>:all, <xpub>:none, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
-        parse(try_from_str = "parse_xpub")
+        parse(try_from_str = parse_xpub)
     )]
     xpubs: Vec<(String, KeyRescan)>,
 

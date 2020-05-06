@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
-use bitcoin_hashes::sha256d;
-use bitcoincore_rpc::json::ListUnspentResult;
+use bitcoin::Txid;
+use bitcoincore_rpc::json::ListUnspentResultEntry;
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
@@ -12,25 +12,25 @@ pub struct TxEntry {
 }
 
 pub struct Tx {
-    pub txid: sha256d::Hash,
+    pub txid: Txid,
     pub entry: TxEntry,
 }
 
 #[derive(Debug)]
 pub struct Utxo {
     pub status: TxStatus,
-    pub txid: sha256d::Hash,
+    pub txid: Txid,
     pub vout: u32,
     pub value: u64,
 }
 
 impl Utxo {
-    pub fn from_unspent(unspent: ListUnspentResult, tip_height: u32) -> Self {
+    pub fn from_unspent(unspent: ListUnspentResultEntry, tip_height: u32) -> Self {
         Self {
             status: TxStatus::new(unspent.confirmations as i32, tip_height),
             txid: unspent.txid,
             vout: unspent.vout,
-            value: unspent.amount.into_inner() as u64,
+            value: unspent.amount.as_sat(),
         }
     }
 }

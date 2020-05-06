@@ -6,7 +6,8 @@ use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySe
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, sha256d, Hash};
+use bitcoin::{BlockHash, Txid};
+use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, Hash};
 use serde_json::{from_str, from_value, Value};
 
 use crate::error::{fmt_error_chain, Result, ResultExt};
@@ -24,7 +25,7 @@ const MAX_HEADERS: u32 = 2016;
 
 struct Connection {
     query: Arc<Query>,
-    tip: Option<(u32, sha256d::Hash)>,
+    tip: Option<(u32, BlockHash)>,
     status_hashes: HashMap<sha256::Hash, Option<sha256::Hash>>, // ScriptHash -> StatusHash
     stream: TcpStream,
     addr: SocketAddr,
@@ -125,13 +126,13 @@ impl Connection {
         let fee_rate = self.query.estimate_fee(target)?;
 
         // format for electrum: from sat/b to BTC/kB, -1 to indicate no estimate is available
-        Ok(json!(fee_rate.map_or(-1.0, |rate| rate / 100_000f32)))
+        Ok(json!(fee_rate.map_or(-1.0, |rate| rate / 100_000f64)))
     }
 
     fn blockchain_relayfee(&self) -> Result<Value> {
         let fee_rate = self.query.relay_fee()?;
         // sat/b to BTC/kB
-        Ok(json!(fee_rate / 100_000f32))
+        Ok(json!(fee_rate / 100_000f64))
     }
 
     fn blockchain_scripthash_subscribe(&mut self, params: Value) -> Result<Value> {
@@ -206,7 +207,7 @@ impl Connection {
     }
 
     fn blockchain_transaction_get(&self, params: Value) -> Result<Value> {
-        let (txid, verbose): (sha256d::Hash, Option<bool>) = from_value(pad_params(params, 2))?;
+        let (txid, verbose): (Txid, Option<bool>) = from_value(pad_params(params, 2))?;
         let verbose = verbose.unwrap_or(false);
 
         Ok(if verbose {
@@ -217,7 +218,7 @@ impl Connection {
     }
 
     fn blockchain_transaction_get_merkle(&self, params: Value) -> Result<Value> {
-        let (txid, height): (sha256d::Hash, u32) = from_value(params)?;
+        let (txid, height): (Txid, u32) = from_value(params)?;
 
         let (merkle, pos) = get_merkle_proof(&self.query, &txid, height)?;
 
