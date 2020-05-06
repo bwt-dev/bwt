@@ -11,7 +11,7 @@ pub fn get_fee_histogram(query: &Query) -> Result<Vec<(f32, u32)>> {
         .or_err("invalid getrawmempool reply")?
         .values()
         .filter_map(|entry| {
-            let size = entry["size"].as_u64()?; // XXX is this vsize?
+            let size = entry["size"].as_u64()?;
             let fee = entry["fee"].as_f64()?;
             let feerate = fee as f32 / size as f32 * 100_000_000f32;
             Some((size as u32, feerate))
