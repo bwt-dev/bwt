@@ -10,6 +10,7 @@ use serde_json::Value;
 
 use crate::error::{Result, ResultExt};
 use crate::types::{KeyRescan, ScriptType};
+use crate::util::XyzPubKey;
 
 const LABEL_PREFIX: &str = "pxt";
 
@@ -129,9 +130,21 @@ impl HDWallet {
     }
 
     pub fn from_xpub(s: &str, network: Network, initial_rescan: KeyRescan) -> Result<Vec<Self>> {
-        let key = ExtendedPubKey::from_str(s)?;
-        // XXX verify key network type
-        let script_type = ScriptType::P2wpkh; // TODO
+        let xyzpub = XyzPubKey::from_str(s)?;
+
+        ensure!(
+            xyzpub.matches_network(network),
+            "xpub network mismatch, {} is {} and not {}",
+            s,
+            xyzpub.network,
+            network
+        );
+
+        let XyzPubKey {
+            extended_pubkey: key,
+            script_type,
+            ..
+        } = xyzpub;
 
         Ok(vec![
             // external chain (receive)
