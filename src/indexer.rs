@@ -102,6 +102,8 @@ impl Indexer {
                         self.process_incoming(ltx, tip_height);
                     }
                     TxCategory::Send => {
+                        // outgoing payments are buffered and processed later so that the
+                        // parent funding transaction is guaranteed to get indexed first
                         pending_outgoing.entry(ltx.info.txid).or_insert_with(|| {
                             let status = TxStatus::new(ltx.info.confirmations, tip_height);
                             TxEntry::new(status, parse_fee(ltx.detail.fee))
@@ -503,7 +505,7 @@ fn load_transactions_since(
         if let Some(ref oldest_seen) = oldest_seen {
             let marker = chunk.pop().or_err("missing marker tx")?;
 
-            if oldest_seen != &(marker.info.txid, marker.detail.address) {
+            if oldest_seen != &(marker.info.txid, marker.detail.vout) {
                 warn!("transaction set changed while fetching transactions, retrying...");
                 return load_transactions_since(rpc, per_page, start_height, chunk_handler);
             }
@@ -511,7 +513,7 @@ fn load_transactions_since(
 
         // process entries (if any)
         if let Some(oldest) = chunk.first() {
-            oldest_seen = Some((oldest.info.txid.clone(), oldest.detail.address.clone()));
+            oldest_seen = Some((oldest.info.txid.clone(), oldest.detail.vout));
 
             exhausted = exhausted
                 || (oldest.info.confirmations > 0
