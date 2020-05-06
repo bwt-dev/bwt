@@ -19,7 +19,7 @@ fn main() -> Result<()> {
         .verbosity(2 + config.verbose)
         .init()?;
 
-    let wallets = HDWallet::from_xpubs(&config.xpubs[..])?;
+    let wallets = HDWallet::from_xpubs(&config.xpubs[..], config.network)?;
     let watcher = HDWatcher::new(wallets);
 
     let rpc = Arc::new(RpcClient::new(config.bitcoind_url, config.bitcoind_auth)?);

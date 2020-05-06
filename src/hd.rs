@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
-use bitcoin::Address;
+use bitcoin::{Address, Network};
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use hex;
 use secp256k1::Secp256k1;
@@ -95,6 +95,7 @@ impl HDWatcher {
 #[derive(Debug)]
 pub struct HDWallet {
     master: ExtendedPubKey,
+    network: Network,
     script_type: ScriptType,
     initial_rescan: KeyRescan,
     buffer_size: u32,
@@ -109,45 +110,53 @@ pub struct HDWallet {
 // or using getaddressesbylabel and a binary search (lots of requests)
 
 impl HDWallet {
-    pub fn new(master: ExtendedPubKey, script_type: ScriptType, initial_rescan: KeyRescan) -> Self {
+    pub fn new(
+        master: ExtendedPubKey,
+        network: Network,
+        script_type: ScriptType,
+        initial_rescan: KeyRescan,
+    ) -> Self {
         Self {
             master,
+            network,
             script_type,
             initial_rescan,
-            buffer_size: 20,          // TODO configurable
-            initial_buffer_size: 100, // TODO configurable
+            buffer_size: 5,          // TODO configurable
+            initial_buffer_size: 10, // TODO configurable
             done_initial_import: false,
             max_used_index: None,
             max_imported_index: None,
         }
     }
 
-    pub fn from_xpub(s: &str, initial_rescan: KeyRescan) -> Result<Vec<Self>> {
+    pub fn from_xpub(s: &str, network: Network, initial_rescan: KeyRescan) -> Result<Vec<Self>> {
         let key = ExtendedPubKey::from_str(s)?;
         // XXX verify key network type
-        let script_type = ScriptType::P2pkh; // TODO
+        let script_type = ScriptType::P2wpkh; // TODO
 
         Ok(vec![
             // external chain (receive)
             Self::new(
                 key.derive_pub(&*EC, &[ChildNumber::from(0)])?,
+                network,
                 script_type,
                 initial_rescan,
             ),
             // internal chain (change)
             Self::new(
                 key.derive_pub(&*EC, &[ChildNumber::from(1)])?,
+                network,
                 script_type,
                 initial_rescan,
             ),
         ])
     }
 
-    pub fn from_xpubs(xpubs: &[(String, KeyRescan)]) -> Result<Vec<Self>> {
+    pub fn from_xpubs(xpubs: &[(String, KeyRescan)], network: Network) -> Result<Vec<Self>> {
         let mut wallets = vec![];
         for (xpub, rescan) in xpubs {
             wallets.append(
-                &mut Self::from_xpub(xpub, *rescan)
+                &mut Self::from_xpub(xpub, network, *rescan)
                     .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
             );
         }
@@ -181,22 +190,21 @@ impl HDWallet {
         (start_index..=end_index)
             .map(|index| {
                 let key = self.derive(index);
-                let address = to_address(&key, self.script_type);
+                let address = self.to_address(&key);
                 let deriviation = DerivationInfo::Derived(key.parent_fingerprint, index);
                 (address, rescan, deriviation)
             })
             .collect()
     }
-}
 
-fn to_address(key: &ExtendedPubKey, script_type: ScriptType) -> Address {
-    match script_type {
-        ScriptType::P2pkh => Address::p2pkh(&key.public_key, key.network),
-        ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, key.network),
-        ScriptType::P2shP2wpkh => Address::p2shwpkh(&key.public_key, key.network),
+    fn to_address(&self, key: &ExtendedPubKey) -> Address {
+        match self.script_type {
+            ScriptType::P2pkh => Address::p2pkh(&key.public_key, self.network),
+            ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, self.network),
+            ScriptType::P2shP2wpkh => Address::p2shwpkh(&key.public_key, self.network),
+        }
     }
 }
-
 fn batch_import(
     rpc: &RpcClient,
     import_reqs: Vec<(Address, KeyRescan, DerivationInfo)>,
