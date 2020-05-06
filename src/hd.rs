@@ -78,7 +78,9 @@ impl HDWatcher {
             }
         }
 
-        batch_import(rpc, import_reqs)?;
+        if !import_reqs.is_empty() {
+            batch_import(rpc, import_reqs)?;
+        }
 
         for (wallet, watched_index) in pending_updates {
             info!("imported hd key {} up to {}", wallet.master, watched_index);
@@ -206,7 +208,7 @@ fn batch_import(
     rpc: &RpcClient,
     import_reqs: Vec<(Address, KeyRescan, KeyOrigin)>,
 ) -> Result<Vec<Value>> {
-    debug!("importing {} addresses", import_reqs.len());
+    info!("importing {} addresses", import_reqs.len());
 
     // TODO: parse result, detect errors
     Ok(rpc.call(
