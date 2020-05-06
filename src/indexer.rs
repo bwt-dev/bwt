@@ -315,7 +315,7 @@ impl MemoryIndex {
     }
 
     fn index_tx_entry(&mut self, txid: &Txid, txentry: TxEntry) {
-        info!("index tx entry {:?}: {:?}", txid, txentry);
+        debug!("index tx entry {:?}: {:?}", txid, txentry);
 
         assert!(
             txentry.status.is_viable(),
@@ -341,7 +341,7 @@ impl MemoryIndex {
                 }
             })
             .or_insert_with(|| {
-                info!("new tx: {:?}", txid);
+                info!("new tx entry: {:?}", txid);
                 txentry
             });
 
@@ -492,8 +492,9 @@ fn load_transactions_since(
     // TODO: if the newest entry has the exact same (txid,address,height) as the previous newest,
     // skip processing the entries entirely
 
+    info!("syncing transactions {}..{}", start_height, tip_height,);
     while {
-        info!(
+        debug!(
             "reading {} transactions starting at index {}",
             per_page, start_index
         );
