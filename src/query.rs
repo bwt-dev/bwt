@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, RwLock};
 
 use bitcoin::{BlockHash, Txid};
-use bitcoin_hashes::hex::ToHex;
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use serde_json::Value;
 
@@ -115,15 +114,15 @@ impl Query {
         ))
     }
 
-    // TODO query for tx with its blockhash
-    pub fn get_transaction_hex(&self, txid: &Txid) -> Result<String> {
-        Ok(self.rpc.get_raw_transaction_hex(txid, None)?)
+    pub fn get_transaction_raw(&self, txid: &Txid) -> Result<Vec<u8>> {
+        Ok(self.rpc.get_transaction(txid, Some(true))?.hex)
     }
 
     pub fn get_transaction_json(&self, txid: &Txid) -> Result<Value> {
+        let blockhash = self.indexer.read().unwrap().get_tx_blockhash(txid)?;
         Ok(self
             .rpc
-            .call("getrawtransaction", &[txid.to_hex().into(), true.into()])?)
+            .call("getrawtransaction", &[json!(blockhash), true.into()])?)
     }
 
     pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {

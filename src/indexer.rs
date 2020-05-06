@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-use bitcoin::{Address, OutPoint, SignedAmount, Txid};
+use bitcoin::{Address, BlockHash, OutPoint, SignedAmount, Txid};
 use bitcoincore_rpc::json::{
     GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
 };
@@ -269,6 +269,14 @@ impl Indexer {
                 .filter(|utxo| utxo.status.is_viable())
                 .collect());
         }
+    }
+
+    pub fn get_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
+        let txentry = self.index.get_tx(txid).or_err("tx not found")?;
+        Ok(match txentry.status {
+            TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
+            _ => None,
+        })
     }
 }
 

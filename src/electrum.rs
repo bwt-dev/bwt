@@ -217,7 +217,8 @@ impl Connection {
         Ok(if verbose {
             json!(self.query.get_transaction_json(&txid)?)
         } else {
-            json!(self.query.get_transaction_hex(&txid)?)
+            let raw = self.query.get_transaction_raw(&txid)?;
+            json!(hex::encode(&raw))
         })
     }
 
