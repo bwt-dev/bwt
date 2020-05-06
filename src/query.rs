@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::error::{OptionExt, Result};
 use crate::indexer::{HistoryEntry, Indexer, Tx};
-use crate::types::{ScriptHash, Utxo};
+use crate::types::{BlockId, ScriptHash, Utxo};
 
 pub struct Query {
     rpc: Arc<RpcClient>,
@@ -20,10 +20,10 @@ impl Query {
         Query { rpc, indexer }
     }
 
-    pub fn get_tip(&self) -> Result<(u32, BlockHash)> {
+    pub fn get_tip(&self) -> Result<BlockId> {
         let tip_height = self.get_tip_height()?;
         let tip_hash = self.get_block_hash(tip_height)?;
-        Ok((tip_height, tip_hash))
+        Ok(BlockId(tip_height, tip_hash))
     }
 
     pub fn get_tip_height(&self) -> Result<u32> {

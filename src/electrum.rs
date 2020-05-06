@@ -6,7 +6,7 @@ use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySe
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use bitcoin::{BlockHash, Txid};
+use bitcoin::Txid;
 use bitcoin_hashes::{hex::FromHex, hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
@@ -14,7 +14,7 @@ use crate::error::{fmt_error_chain, Result, ResultExt};
 use crate::mempool::get_fee_histogram;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
-use crate::types::{ScriptHash, StatusHash};
+use crate::types::{BlockId, ScriptHash, StatusHash};
 
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
 // released under the MIT license. https://github.com/romanz/electrs
@@ -25,7 +25,7 @@ const MAX_HEADERS: u32 = 2016;
 
 struct Connection {
     query: Arc<Query>,
-    tip: Option<(u32, BlockHash)>,
+    tip: Option<BlockId>,
     status_hashes: HashMap<ScriptHash, Option<StatusHash>>,
     stream: TcpStream,
     addr: SocketAddr,
@@ -45,9 +45,10 @@ impl Connection {
     }
 
     fn blockchain_headers_subscribe(&mut self) -> Result<Value> {
-        let (tip_height, tip_hash) = self.query.get_tip()?;
-        let tip_hex = self.query.get_header_by_hash(&tip_hash)?;
-        self.tip = Some((tip_height, tip_hash));
+        let tip = self.query.get_tip()?;
+        let tip_height = tip.0;
+        let tip_hex = self.query.get_header_by_hash(&tip.1)?;
+        self.tip = Some(tip);
         Ok(json!({ "height": tip_height, "hex": tip_hex }))
     }
 
@@ -286,9 +287,9 @@ impl Connection {
         if let Some(ref mut last_tip) = self.tip {
             let tip = self.query.get_tip()?;
             if *last_tip != tip {
-                *last_tip = tip;
                 let hex_header = self.query.get_header_by_hash(&tip.1)?;
                 let header = json!({"hex": hex_header, "height": tip.0 });
+                *last_tip = tip;
                 result.push(json!({
                     "jsonrpc": "2.0",
                     "method": "blockchain.headers.subscribe",
