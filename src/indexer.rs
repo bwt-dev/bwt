@@ -11,7 +11,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{DerivationInfo, HDWatcher};
-use crate::types::{Tx, TxEntry, TxStatus, Utxo};
+use crate::types::{TxStatus, Utxo};
 use crate::util::address_to_scripthash;
 
 #[cfg(feature = "electrum")]
@@ -42,6 +42,18 @@ struct ScriptEntry {
 pub struct HistoryEntry {
     pub txid: Txid,
     pub status: TxStatus,
+}
+
+#[derive(Debug, Clone)]
+pub struct TxEntry {
+    pub status: TxStatus,
+    pub fee: Option<u64>,
+    //pub scripthashes: HashSet<sha256::Hash>,
+}
+
+pub struct Tx {
+    pub txid: Txid,
+    pub entry: TxEntry,
 }
 
 impl Indexer {

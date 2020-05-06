@@ -4,18 +4,6 @@ use bitcoin::Txid;
 use bitcoincore_rpc::json::ListUnspentResultEntry;
 use serde_json::Value;
 
-#[derive(Debug, Clone)]
-pub struct TxEntry {
-    pub status: TxStatus,
-    pub fee: Option<u64>,
-    //pub scripthashes: HashSet<sha256::Hash>,
-}
-
-pub struct Tx {
-    pub txid: Txid,
-    pub entry: TxEntry,
-}
-
 #[derive(Debug)]
 pub struct Utxo {
     pub status: TxStatus,

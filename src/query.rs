@@ -6,8 +6,8 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use serde_json::Value;
 
 use crate::error::{OptionExt, Result};
-use crate::types::{Tx, Utxo};
-use crate::Indexer;
+use crate::indexer::{Indexer, Tx};
+use crate::types::Utxo;
 
 pub struct Query {
     rpc: Arc<RpcClient>,
