@@ -6,7 +6,7 @@ edition = "2018"
 
 [features]
 default = [ "electrum" ]
-electrum = [ "jsonrpc-core", "jsonrpc-tcp-server", "jsonrpc-pubsub" ]
+electrum = [  ]
 
 [dependencies]
 bitcoin = "0.18"
@@ -24,7 +24,3 @@ failure = "0.1"
 log = "0.4"
 stderrlog = "0.4"
 structopt = "0.2.17"
-
-jsonrpc-core = { optional = true, version = "11.0.0" }
-jsonrpc-tcp-server = { optional = true, version = "11.0.0" }
-jsonrpc-pubsub = { optional = true, version = "11.0.0" }
