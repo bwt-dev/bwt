@@ -1,13 +1,16 @@
 use std::sync::{Arc, RwLock};
 
 use bitcoin::{BlockHash, Txid};
-use bitcoin_hashes::{hex::ToHex, sha256};
+use bitcoin_hashes::hex::ToHex;
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use serde_json::Value;
 
 use crate::error::{OptionExt, Result};
 use crate::indexer::{Indexer, Tx};
-use crate::types::Utxo;
+use crate::types::{ScriptHash, Utxo};
+
+#[cfg(feature = "electrum")]
+use crate::types::StatusHash;
 
 pub struct Query {
     rpc: Arc<RpcClient>,
@@ -74,11 +77,11 @@ impl Query {
         Ok((feerate * 100_000f64) as f64)
     }
 
-    pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<Tx>> {
+    pub fn get_history(&self, scripthash: &ScriptHash) -> Result<Vec<Tx>> {
         Ok(self.indexer.read().unwrap().get_history(scripthash)?)
     }
 
-    pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: usize) -> Result<Vec<Utxo>> {
+    pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
         Ok(self
             .indexer
             .read()
@@ -87,12 +90,12 @@ impl Query {
     }
 
     #[cfg(feature = "electrum")]
-    pub fn status_hash(&self, scripthash: &sha256::Hash) -> Option<sha256::Hash> {
+    pub fn status_hash(&self, scripthash: &ScriptHash) -> Option<StatusHash> {
         self.indexer.read().unwrap().status_hash(scripthash)
     }
 
     /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)
-    pub fn get_balance(&self, scripthash: &sha256::Hash) -> Result<(u64, u64)> {
+    pub fn get_balance(&self, scripthash: &ScriptHash) -> Result<(u64, u64)> {
         let utxos = self.list_unspent(scripthash, 0)?;
 
         let (confirmed, unconfirmed): (Vec<Utxo>, Vec<Utxo>) = utxos

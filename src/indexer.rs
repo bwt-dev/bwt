@@ -3,7 +3,6 @@ use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use bitcoin::{Address, OutPoint, SignedAmount, Txid};
-use bitcoin_hashes::sha256;
 use bitcoincore_rpc::json::{
     GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
 };
@@ -11,11 +10,11 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{DerivationInfo, HDWatcher};
-use crate::types::{TxStatus, Utxo};
+use crate::types::{ScriptHash, TxStatus, Utxo};
 use crate::util::address_to_scripthash;
 
 #[cfg(feature = "electrum")]
-use crate::electrum::get_status_hash;
+use crate::{electrum::get_status_hash, types::StatusHash};
 
 pub struct Indexer {
     rpc: Arc<RpcClient>,
@@ -25,7 +24,7 @@ pub struct Indexer {
 
 #[derive(Debug)]
 struct MemoryIndex {
-    scripthashes: HashMap<sha256::Hash, ScriptEntry>,
+    scripthashes: HashMap<ScriptHash, ScriptEntry>,
     transactions: HashMap<Txid, TxEntry>,
 }
 
@@ -35,7 +34,7 @@ struct ScriptEntry {
     derivation_info: DerivationInfo,
     history: BTreeSet<HistoryEntry>,
     //#[cfg(feature = "electrum")]
-    //electrum_status_hash: Option<sha256::Hash>,
+    //electrum_status_hash: Option<StatusHash>,
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
@@ -54,8 +53,8 @@ impl HistoryEntry {
 pub struct TxEntry {
     pub status: TxStatus,
     pub fee: Option<u64>,
-    pub funding: HashMap<u32, sha256::Hash>,
-    pub spending: HashMap<u32, sha256::Hash>,
+    pub funding: HashMap<u32, ScriptHash>,
+    pub spending: HashMap<u32, ScriptHash>,
 }
 
 impl TxEntry {
@@ -188,7 +187,7 @@ impl Indexer {
         Ok(())
     }
 
-    pub fn get_history(&self, scripthash: &sha256::Hash) -> Result<Vec<Tx>> {
+    pub fn get_history(&self, scripthash: &ScriptHash) -> Result<Vec<Tx>> {
         self.index
             .get_history(scripthash)
             .map(|entries| {
@@ -206,12 +205,12 @@ impl Indexer {
     }
 
     #[cfg(feature = "electrum")]
-    pub fn status_hash(&self, scripthash: &sha256::Hash) -> Option<sha256::Hash> {
+    pub fn status_hash(&self, scripthash: &ScriptHash) -> Option<StatusHash> {
         self.index.get_history(scripthash).map(get_status_hash)
     }
 
     /// Get the unspent utxos owned by scripthash
-    pub fn list_unspent(&self, scripthash: &sha256::Hash, min_conf: usize) -> Result<Vec<Utxo>> {
+    pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
         let address = self
             .index
             .get_address(scripthash)
@@ -357,7 +356,7 @@ impl MemoryIndex {
 
     /// Index an outgoing transaction
     /// Expects the corresponding script entry to already exists (from the incoming tx)
-    fn index_outgoing(&mut self, scripthash: &sha256::Hash, txhist: HistoryEntry) {
+    fn index_outgoing(&mut self, scripthash: &ScriptHash, txhist: HistoryEntry) {
         debug!(
             "index outgoing address history {:?}: {:?}",
             scripthash, txhist
@@ -436,19 +435,19 @@ impl MemoryIndex {
         }
     }
 
-    fn get_funded_scripthash(&self, outpoint: &OutPoint) -> Option<sha256::Hash> {
+    fn get_funded_scripthash(&self, outpoint: &OutPoint) -> Option<ScriptHash> {
         self.transactions
             .get(&outpoint.txid)
             .and_then(|txentry| txentry.funding.get(&outpoint.vout))
             .copied()
     }
 
-    pub fn get_history(&self, scripthash: &sha256::Hash) -> Option<&BTreeSet<HistoryEntry>> {
+    pub fn get_history(&self, scripthash: &ScriptHash) -> Option<&BTreeSet<HistoryEntry>> {
         Some(&self.scripthashes.get(scripthash)?.history)
     }
 
     // get the address of a scripthash
-    pub fn get_address(&self, scripthash: &sha256::Hash) -> Option<&Address> {
+    pub fn get_address(&self, scripthash: &ScriptHash) -> Option<&Address> {
         self.scripthashes
             .get(scripthash)
             .map(|entry| &entry.address)

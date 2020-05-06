@@ -8,6 +8,8 @@ extern crate failure;
 #[macro_use]
 extern crate lazy_static;
 extern crate structopt;
+#[macro_use]
+pub extern crate bitcoin_hashes;
 
 pub mod config;
 pub mod error;

@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use bitcoin::{BlockHash, Txid};
-use bitcoin_hashes::{hex::FromHex, hex::ToHex, sha256, Hash};
+use bitcoin_hashes::{hex::FromHex, hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
 use crate::error::{fmt_error_chain, Result, ResultExt};
@@ -15,6 +15,7 @@ use crate::indexer::HistoryEntry;
 use crate::mempool::get_fee_histogram;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
+use crate::types::{ScriptHash, StatusHash};
 
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
 // released under the MIT license. https://github.com/romanz/electrs
@@ -26,7 +27,7 @@ const MAX_HEADERS: u32 = 2016;
 struct Connection {
     query: Arc<Query>,
     tip: Option<(u32, BlockHash)>,
-    status_hashes: HashMap<sha256::Hash, Option<sha256::Hash>>, // ScriptHash -> StatusHash
+    status_hashes: HashMap<ScriptHash, Option<StatusHash>>,
     stream: TcpStream,
     addr: SocketAddr,
     chan: SyncChannel<Message>,
@@ -411,29 +412,29 @@ where
     items.into_iter().map(|item| item.to_string()).collect()
 }
 
-pub fn get_status_hash(entries: &BTreeSet<HistoryEntry>) -> sha256::Hash {
+pub fn get_status_hash(entries: &BTreeSet<HistoryEntry>) -> StatusHash {
     let p = entries
         .iter()
         .map(|hist| format!("{}:{}:", hist.txid, hist.status.electrum_height()))
         .collect::<Vec<String>>();
 
-    sha256::Hash::hash(&p.join("").into_bytes())
+    StatusHash::hash(&p.join("").into_bytes())
 }
 
-fn encode_script_hash(hash: &sha256::Hash) -> String {
+fn encode_script_hash(hash: &ScriptHash) -> String {
     reverse_hash(*hash).to_hex()
 }
 
-fn decode_script_hash(s: &str) -> Result<sha256::Hash> {
+fn decode_script_hash(s: &str) -> Result<ScriptHash> {
     Ok(reverse_hash(
-        sha256::Hash::from_hex(s).context("invalid script hash")?,
+        ScriptHash::from_hex(s).context("invalid script hash")?,
     ))
 }
 
-fn reverse_hash(hash: sha256::Hash) -> sha256::Hash {
+fn reverse_hash(hash: ScriptHash) -> ScriptHash {
     let mut inner = hash.into_inner();
     inner.reverse();
-    sha256::Hash::from_slice(&inner).unwrap()
+    ScriptHash::from_slice(&inner).unwrap()
 }
 
 #[derive(Debug)]
