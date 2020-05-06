@@ -282,41 +282,6 @@ impl MemoryIndex {
         }
     }
 
-    /*
-    /// Process a transaction entry retrieved from "gettransaction"
-    pub fn process_gtx(
-        &mut self,
-        gtx: GetTransactionResult,
-        tip_height: u32,
-        watcher: &mut HDWatcher,
-    ) {
-        let status = TxStatus::new(gtx.confirmations, tip_height);
-
-        if !status.is_viable() {
-            return self.purge_tx(&gtx.txid);
-        }
-
-        let txentry = TxEntry {
-            status,
-            fee: parse_fee(gtx.fee),
-        };
-        self.index_tx_entry(&gtx.txid, txentry);
-
-        let txhist = HistoryEntry {
-            status,
-            txid: gtx.txid,
-        };
-        for detail in gtx.details {
-            let category = TxCategory::from(detail.category); // XXX
-            if !category.should_process() {
-                continue;
-            }
-
-            self.index_address_history(detail.address, &detail.label, txhist.clone(), watcher);
-        }
-    }
-    */
-
     fn track_scripthash(&mut self, scripthash: &ScriptHash, origin: &KeyOrigin, address: &Address) {
         debug!("tracking {:?} {:?} {:?}", origin, scripthash, address);
 
