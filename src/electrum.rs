@@ -97,10 +97,13 @@ impl Connection {
             from_value(pad_params(params, 3))?;
 
         let count = cmp::min(count, MAX_HEADERS);
-        let heights: Vec<u32> = (start_height..(start_height + count)).collect();
 
-        // TODO: "If the chain has not extended sufficiently far, only the available headers will
-        // be returned. If more headers than max were requested at most max will be returned."
+        // drop unknown heights (from the specs: "If the chain has not extended sufficiently far,
+        // only the available headers will be returned. If more headers than max were requested at
+        // most max will be returned.")
+        let max_height = cmp::min(start_height + count, self.query.get_tip_height()?);
+        let heights: Vec<u32> = (start_height..max_height).collect();
+
         let headers = self.query.get_headers(&heights)?;
 
         let mut result = json!({
