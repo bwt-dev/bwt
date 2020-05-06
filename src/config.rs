@@ -129,12 +129,6 @@ impl Config {
     }
 
     fn from_cli(config: CliConfig) -> Result<Self> {
-        #[cfg(feature = "electrum")]
-        let electrum_rpc_addr = config.electrum_rpc_addr;
-
-        #[cfg(feature = "http")]
-        let http_server_addr = config.http_server_addr;
-
         let CliConfig {
             network,
             verbose,
@@ -144,7 +138,10 @@ impl Config {
             bitcoind_cred,
             bitcoind_cookie,
             xpubs,
-            ..
+            #[cfg(feature = "electrum")]
+            electrum_rpc_addr,
+            #[cfg(feature = "http")]
+            http_server_addr,
         } = config;
 
         let bitcoind_url = bitcoind_url.unwrap_or_else(|| {
@@ -159,15 +156,13 @@ impl Config {
         });
 
         let get_dir = || {
-            bitcoind_dir.or_else(|| {
-                let mut dir = home_dir()?.join(".bitcoin");
-                match network {
-                    Network::Bitcoin => (),
-                    Network::Testnet => dir.push("testnet3"),
-                    Network::Regtest => dir.push("regtest"),
-                }
-                Some(dir)
-            })
+            let mut dir = bitcoind_dir.or_else(|| Some(home_dir()?.join(".bitcoin")))?;
+            match network {
+                Network::Bitcoin => (),
+                Network::Testnet => dir.push("testnet3"),
+                Network::Regtest => dir.push("regtest"),
+            }
+            Some(dir)
         };
 
         let get_cookie = || {
@@ -176,7 +171,7 @@ impl Config {
                 if cookie.exists() {
                     Some(cookie)
                 } else {
-                    warn!("cookie file not found in {:?}", cookie);
+                    println!("cookie file not found in {:?}", cookie);
                     None
                 }
             })
