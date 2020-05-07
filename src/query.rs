@@ -119,11 +119,11 @@ impl Query {
         ))
     }
 
-    pub fn get_transaction_raw(&self, txid: &Txid) -> Result<Vec<u8>> {
+    pub fn get_tx_raw(&self, txid: &Txid) -> Result<Vec<u8>> {
         Ok(self.rpc.get_transaction(txid, Some(true))?.hex)
     }
 
-    pub fn get_transaction_json(&self, txid: &Txid) -> Result<Value> {
+    pub fn get_tx_json(&self, txid: &Txid) -> Result<Value> {
         let blockhash = self.indexer.read().unwrap().find_tx_blockhash(txid)?;
         Ok(self
             .rpc

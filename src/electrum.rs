@@ -215,9 +215,9 @@ impl Connection {
         let verbose = verbose.unwrap_or(false);
 
         Ok(if verbose {
-            json!(self.query.get_transaction_json(&txid)?)
+            json!(self.query.get_tx_json(&txid)?)
         } else {
-            let raw = self.query.get_transaction_raw(&txid)?;
+            let raw = self.query.get_tx_raw(&txid)?;
             json!(hex::encode(&raw))
         })
     }

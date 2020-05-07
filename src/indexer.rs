@@ -227,9 +227,11 @@ impl Indexer {
                 entries
                     .into_iter()
                     .map(|hist| {
+                        let tx_entry =
+                            self.index.get_tx_entry(&hist.txid).or_err("tx not found")?;
                         Ok(Tx {
                             txid: hist.txid,
-                            entry: self.index.get_tx(&hist.txid).or_err("missing tx")?.clone(),
+                            entry: tx_entry.clone(),
                         })
                     })
                     .collect::<Result<Vec<Tx>>>()
@@ -281,7 +283,7 @@ impl Indexer {
     }
 
     pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
-        let txentry = self.index.get_tx(txid).or_err("tx not found")?;
+        let txentry = self.index.get_tx_entry(txid).or_err("tx not found")?;
         Ok(match txentry.status {
             TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
             _ => None,
@@ -451,7 +453,7 @@ impl MemoryIndex {
         Some(&self.scripthashes.get(scripthash)?.address)
     }
 
-    fn get_tx(&self, txid: &Txid) -> Option<&TxEntry> {
+    fn get_tx_entry(&self, txid: &Txid) -> Option<&TxEntry> {
         self.transactions.get(txid)
     }
 }
