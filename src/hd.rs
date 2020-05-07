@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
+use serde::Serialize;
+use serde_json::Value;
+
 use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
 use bitcoin::{Address, Network};
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
-use hex;
 use secp256k1::Secp256k1;
-use serde_json::Value;
 
 use crate::error::{Result, ResultExt};
 use crate::types::{KeyRescan, ScriptType};
@@ -231,7 +232,7 @@ fn batch_import(
             .map(|(address, rescan, origin)| {
                 let label = origin.to_label();
 
-                info!(
+                debug!(
                     "importing {} as {} with rescan {:?}",
                     address, label, rescan
                 );
@@ -246,7 +247,7 @@ fn batch_import(
     )?)
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum KeyOrigin {
     Derived(Fingerprint, u32),
     Standalone,

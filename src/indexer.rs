@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
+use serde::Serialize;
+
 use bitcoin::{Address, BlockHash, OutPoint, SignedAmount, Txid};
 use bitcoincore_rpc::json::{
     GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
@@ -47,7 +49,7 @@ impl HistoryEntry {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TxEntry {
     pub status: TxStatus,
     pub fee: Option<u64>,
@@ -66,8 +68,10 @@ impl TxEntry {
     }
 }
 
+#[derive(Debug, Serialize)]
 pub struct Tx {
     pub txid: Txid,
+    #[serde(flatten)]
     pub entry: TxEntry,
 }
 

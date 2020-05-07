@@ -1,11 +1,14 @@
 use std::cmp::Ordering;
 
+use serde::Serialize;
+use serde_json::Value;
+
 use bitcoin::{BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
 use bitcoincore_rpc::json::ListUnspentResultEntry;
-use serde_json::Value;
 
 hash_newtype!(ScriptHash, sha256::Hash, 32, doc = "The hash of an spk.");
+
 #[cfg(feature = "electrum")]
 hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
 
@@ -38,7 +41,7 @@ pub enum ScriptType {
     P2shP2wpkh,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Copy, Hash)]
+#[derive(Clone, Eq, PartialEq, Debug, Copy, Hash, Serialize)]
 pub enum TxStatus {
     Conflicted, // aka double spent
     Unconfirmed,
