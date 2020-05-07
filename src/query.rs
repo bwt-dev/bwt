@@ -7,7 +7,7 @@ use bitcoin::{BlockHash, Txid};
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
-use crate::indexer::{HistoryEntry, Indexer, ScriptInfo, Tx};
+use crate::indexer::{HistoryEntry, Indexer, ScriptInfo, Tx, TxEntry};
 use crate::types::{BlockId, ScriptHash, Utxo};
 
 pub struct Query {
@@ -130,6 +130,15 @@ impl Query {
             "getrawtransaction",
             &[json!(txid), true.into(), json!(blockhash)],
         )?)
+    }
+
+    pub fn get_tx_entry(&self, txid: &Txid) -> Result<TxEntry> {
+        Ok(self
+            .indexer
+            .read()
+            .unwrap()
+            .get_tx_entry(txid)
+            .or_err("tx not found")?)
     }
 
     pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {

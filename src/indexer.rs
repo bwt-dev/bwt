@@ -248,6 +248,10 @@ impl Indexer {
         Some(ScriptInfo::new(scripthash, script_entry))
     }
 
+    pub fn get_tx_entry(&self, txid: &Txid) -> Option<TxEntry> {
+        self.index.get_tx_entry(txid).cloned()
+    }
+
     /// Get the unspent utxos owned by scripthash
     // XXX Move to Query?
     pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
