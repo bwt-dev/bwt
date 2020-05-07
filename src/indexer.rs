@@ -486,7 +486,6 @@ pub struct ScriptInfo {
     scripthash: ScriptHash,
     address: Address,
     origin: KeyOrigin,
-    tx_count: usize,
 }
 
 impl ScriptInfo {
@@ -495,7 +494,6 @@ impl ScriptInfo {
             scripthash: *scripthash,
             address: script_entry.address.clone(),
             origin: script_entry.origin.clone(),
-            tx_count: script_entry.history.len(),
         }
     }
 }
