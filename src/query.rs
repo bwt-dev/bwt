@@ -125,9 +125,11 @@ impl Query {
 
     pub fn get_tx_json(&self, txid: &Txid) -> Result<Value> {
         let blockhash = self.indexer.read().unwrap().find_tx_blockhash(txid)?;
-        Ok(self
-            .rpc
-            .call("getrawtransaction", &[json!(blockhash), true.into()])?)
+
+        Ok(self.rpc.call(
+            "getrawtransaction",
+            &[json!(txid), true.into(), json!(blockhash)],
+        )?)
     }
 
     pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {
