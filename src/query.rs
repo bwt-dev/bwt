@@ -119,7 +119,7 @@ impl Query {
     }
 
     pub fn get_transaction_json(&self, txid: &Txid) -> Result<Value> {
-        let blockhash = self.indexer.read().unwrap().get_tx_blockhash(txid)?;
+        let blockhash = self.indexer.read().unwrap().find_tx_blockhash(txid)?;
         Ok(self
             .rpc
             .call("getrawtransaction", &[json!(blockhash), true.into()])?)

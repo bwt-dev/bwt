@@ -205,7 +205,7 @@ impl Indexer {
         let tx = self.rpc.get_transaction(&txid, Some(true))?.transaction()?;
 
         for (vin, input) in tx.input.iter().enumerate() {
-            if let Some(scripthash) = self.index.get_funded_scripthash(&input.previous_output) {
+            if let Some(scripthash) = self.index.find_funded_scripthash(&input.previous_output) {
                 txentry.spending.insert(vin as u32, scripthash);
 
                 self.index
@@ -275,7 +275,7 @@ impl Indexer {
         }
     }
 
-    pub fn get_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
+    pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
         let txentry = self.index.get_tx(txid).or_err("tx not found")?;
         Ok(match txentry.status {
             TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
@@ -426,7 +426,7 @@ impl MemoryIndex {
         }
     }
 
-    fn get_funded_scripthash(&self, outpoint: &OutPoint) -> Option<ScriptHash> {
+    fn find_funded_scripthash(&self, outpoint: &OutPoint) -> Option<ScriptHash> {
         self.transactions
             .get(&outpoint.txid)
             .and_then(|txentry| txentry.funding.get(&outpoint.vout))
