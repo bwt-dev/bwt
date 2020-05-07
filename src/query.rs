@@ -1,12 +1,13 @@
 use std::collections::BTreeSet;
 use std::sync::{Arc, RwLock};
 
-use bitcoin::{BlockHash, Txid};
-use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use serde_json::Value;
 
+use bitcoin::{BlockHash, Txid};
+use bitcoincore_rpc::{Client as RpcClient, RpcApi};
+
 use crate::error::{OptionExt, Result};
-use crate::indexer::{HistoryEntry, Indexer, Tx};
+use crate::indexer::{HistoryEntry, Indexer, ScriptInfo, Tx};
 use crate::types::{BlockId, ScriptHash, Utxo};
 
 pub struct Query {
@@ -97,6 +98,10 @@ impl Query {
             .unwrap()
             .raw_history_ref(scripthash)
             .map(f)
+    }
+
+    pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
+        self.indexer.read().unwrap().get_script_info(scripthash)
     }
 
     /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)

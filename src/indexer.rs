@@ -241,6 +241,11 @@ impl Indexer {
         self.index.get_history(scripthash)
     }
 
+    pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
+        let script_entry = self.index.get_script_entry(scripthash)?;
+        Some(ScriptInfo::new(scripthash, script_entry))
+    }
+
     /// Get the unspent utxos owned by scripthash
     // XXX Move to Query?
     pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
@@ -433,18 +438,20 @@ impl MemoryIndex {
             .copied()
     }
 
-    pub fn get_history(&self, scripthash: &ScriptHash) -> Option<&BTreeSet<HistoryEntry>> {
+    fn get_script_entry(&self, scripthash: &ScriptHash) -> Option<&ScriptEntry> {
+        self.scripthashes.get(scripthash)
+    }
+
+    fn get_history(&self, scripthash: &ScriptHash) -> Option<&BTreeSet<HistoryEntry>> {
         Some(&self.scripthashes.get(scripthash)?.history)
     }
 
     // get the address of a scripthash
-    pub fn get_address(&self, scripthash: &ScriptHash) -> Option<&Address> {
-        self.scripthashes
-            .get(scripthash)
-            .map(|entry| &entry.address)
+    fn get_address(&self, scripthash: &ScriptHash) -> Option<&Address> {
+        Some(&self.scripthashes.get(scripthash)?.address)
     }
 
-    pub fn get_tx(&self, txid: &Txid) -> Option<&TxEntry> {
+    fn get_tx(&self, txid: &Txid) -> Option<&TxEntry> {
         self.transactions.get(txid)
     }
 }
@@ -464,6 +471,26 @@ impl PartialOrd for HistoryEntry {
                 .cmp(&other.status)
                 .then_with(|| self.txid.cmp(&other.txid)),
         )
+    }
+}
+
+// Base spk info. Unlike ScriptEntry, this doesn't include the full history, but does include the scripthashV
+#[derive(Serialize)]
+pub struct ScriptInfo {
+    scripthash: ScriptHash,
+    address: Address,
+    origin: KeyOrigin,
+    tx_count: usize,
+}
+
+impl ScriptInfo {
+    fn new(scripthash: &ScriptHash, script_entry: &ScriptEntry) -> Self {
+        ScriptInfo {
+            scripthash: *scripthash,
+            address: script_entry.address.clone(),
+            origin: script_entry.origin.clone(),
+            tx_count: script_entry.history.len(),
+        }
     }
 }
 
