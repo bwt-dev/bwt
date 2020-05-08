@@ -5,8 +5,9 @@ authors = ["Nadav Ivgi <nadav@shesek.info>"]
 edition = "2018"
 
 [features]
-default = [ "electrum" ]
-electrum = [  ]
+default = [ "electrum", "index-txo-spends" ]
+electrum = []
+index-txo-spends = []
 
 [dependencies]
 bitcoin = "0.23.0"

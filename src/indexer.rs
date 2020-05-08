@@ -12,8 +12,11 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWatcher, KeyOrigin};
-use crate::types::{BlockId, ScriptHash, TxInput, TxStatus, Utxo};
-use crate::util::{address_to_scripthash, remove_if};
+use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
+use crate::util::address_to_scripthash;
+
+#[cfg(feature = "index-txo-spends")]
+use crate::{types::TxInput, util::remove_if};
 
 pub struct Indexer {
     rpc: Arc<RpcClient>,
@@ -26,6 +29,7 @@ pub struct Indexer {
 struct MemoryIndex {
     scripthashes: HashMap<ScriptHash, ScriptEntry>,
     transactions: HashMap<Txid, TxEntry>,
+    #[cfg(feature = "index-txo-spends")]
     txo_spends: HashMap<OutPoint, TxInput>,
 }
 
@@ -217,16 +221,17 @@ impl Indexer {
             if let Some(FundingInfo(scripthash, amount)) =
                 self.index.lookup_txo_fund(&input.previous_output)
             {
-                self.index
-                    .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status));
-
-                self.index
-                    .index_txo_spend(input.previous_output, TxInput::new(txid, vin as u32));
-
                 // we could keep just the previous_output and lookup the scripthash and amount
                 // from the corrospanding FundingInfo, but we keep it here anyway for quick access
                 let spending_info = SpendingInfo(scripthash, input.previous_output, amount);
                 txentry.spending.insert(vin as u32, spending_info);
+
+                self.index
+                    .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status));
+
+                #[cfg(feature = "index-txo-spends")]
+                self.index
+                    .index_txo_spend(input.previous_output, TxInput::new(txid, vin as u32));
             }
         }
 
@@ -311,6 +316,7 @@ impl Indexer {
         })
     }
 
+    #[cfg(feature = "index-txo-spends")]
     pub fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<TxInput> {
         self.index.lookup_txo_spend(outpoint)
     }
@@ -321,6 +327,7 @@ impl MemoryIndex {
         MemoryIndex {
             scripthashes: HashMap::new(),
             transactions: HashMap::new(),
+            #[cfg(feature = "index-txo-spends")]
             txo_spends: HashMap::new(),
         }
     }
@@ -398,6 +405,7 @@ impl MemoryIndex {
         }
     }
 
+    #[cfg(feature = "index-txo-spends")]
     fn index_txo_spend(&mut self, spent_prevout: OutPoint, spending_input: TxInput) {
         debug!(
             "index txo spend: {:?} by {:?}",
@@ -460,6 +468,7 @@ impl MemoryIndex {
 
             for (_, SpendingInfo(scripthash, prevout, _)) in old_entry.spending {
                 // remove prevout spending edge, but only if it still references the purged tx
+                #[cfg(feature = "index-txo-spends")]
                 remove_if(&mut self.txo_spends, prevout, |spending_input| {
                     spending_input.txid == *txid
                 });
@@ -487,6 +496,7 @@ impl MemoryIndex {
             .cloned()
     }
 
+    #[cfg(feature = "index-txo-spends")]
     fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<TxInput> {
         // XXX don't return non-viabla (double-spent) spends?
         self.txo_spends.get(outpoint).copied()

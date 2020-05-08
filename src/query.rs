@@ -9,7 +9,10 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::indexer::{FundingInfo, HistoryEntry, Indexer, ScriptInfo, SpendingInfo, Tx, TxEntry};
-use crate::types::{BlockId, ScriptHash, TxInput, TxStatus, Utxo};
+use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
+
+#[cfg(feature = "index-txo-spends")]
+use crate::types::TxInput;
 
 pub struct Query {
     rpc: Arc<RpcClient>,
@@ -161,6 +164,7 @@ impl Query {
                 TxInfoFunding {
                     vout: *vout,
                     script_info: index.get_script_info(scripthash).unwrap(), // must exists
+                    #[cfg(feature = "index-txo-spends")]
                     spent_by: index.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
                     amount: *amount,
                 }
@@ -212,7 +216,7 @@ struct TxInfoFunding {
     #[serde(flatten)]
     script_info: ScriptInfo, // scripthash, address & origin
     amount: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg(feature = "index-txo-spends")]
     spent_by: Option<TxInput>,
 }
 
