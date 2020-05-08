@@ -187,7 +187,7 @@ impl Query {
                 .collect::<Vec<TxInfoSpending>>();
 
             #[cfg(feature = "track-spends")]
-            let balance = {
+            let balance_change = {
                 let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
                 let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
                 funding_sum as i64 - spending_sum as i64
@@ -201,7 +201,7 @@ impl Query {
                 #[cfg(feature = "track-spends")]
                 spending: spending,
                 #[cfg(feature = "track-spends")]
-                balance: balance,
+                balance_change: balance_change,
             }
         })
     }
@@ -217,7 +217,7 @@ pub struct TxInfo {
     #[cfg(feature = "track-spends")]
     spending: Vec<TxInfoSpending>,
     #[cfg(feature = "track-spends")]
-    balance: i64,
+    balance_change: i64,
 }
 
 #[derive(Serialize, Debug)]
