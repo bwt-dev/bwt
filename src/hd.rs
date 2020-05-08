@@ -248,6 +248,7 @@ fn batch_import(
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(untagged, rename_all = "lowercase")]
 pub enum KeyOrigin {
     Derived(Fingerprint, u32),
     Standalone,
@@ -275,6 +276,13 @@ impl KeyOrigin {
             )),
             (Some(&LABEL_PREFIX), None, None) => Some(KeyOrigin::Standalone),
             _ => None,
+        }
+    }
+
+    pub fn is_standalone(origin: &KeyOrigin) -> bool {
+        match origin {
+            KeyOrigin::Standalone => true,
+            KeyOrigin::Derived(..) => false,
         }
     }
 }

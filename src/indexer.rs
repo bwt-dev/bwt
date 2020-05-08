@@ -12,8 +12,8 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWatcher, KeyOrigin};
-use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
-use crate::util::address_to_scripthash;
+use crate::types::{BlockId, ScriptHash, TxInput, TxStatus, Utxo};
+use crate::util::{address_to_scripthash, remove_if};
 
 pub struct Indexer {
     rpc: Arc<RpcClient>,
@@ -26,6 +26,7 @@ pub struct Indexer {
 struct MemoryIndex {
     scripthashes: HashMap<ScriptHash, ScriptEntry>,
     transactions: HashMap<Txid, TxEntry>,
+    txo_spends: HashMap<OutPoint, TxInput>,
 }
 
 #[derive(Debug)]
@@ -53,9 +54,15 @@ impl HistoryEntry {
 pub struct TxEntry {
     pub status: TxStatus,
     pub fee: Option<u64>,
-    pub funding: HashMap<u32, ScriptHash>,
-    pub spending: HashMap<u32, ScriptHash>,
+    pub funding: HashMap<u32, FundingInfo>,
+    pub spending: HashMap<u32, SpendingInfo>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FundingInfo(pub ScriptHash, pub u64);
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SpendingInfo(pub ScriptHash, pub OutPoint, pub u64);
 
 impl TxEntry {
     fn new(status: TxStatus, fee: Option<u64>) -> Self {
@@ -176,9 +183,11 @@ impl Indexer {
         }
 
         let scripthash = address_to_scripthash(&ltx.detail.address);
+        let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts
+        let funding_info = FundingInfo(scripthash, amount);
 
         let mut txentry = TxEntry::new(status, None);
-        txentry.funding.insert(ltx.detail.vout, scripthash);
+        txentry.funding.insert(ltx.detail.vout, funding_info);
 
         self.index.index_tx_entry(&ltx.info.txid, txentry);
 
@@ -205,11 +214,19 @@ impl Indexer {
         let tx = self.rpc.get_transaction(&txid, Some(true))?.transaction()?;
 
         for (vin, input) in tx.input.iter().enumerate() {
-            if let Some(scripthash) = self.index.find_funded_scripthash(&input.previous_output) {
-                txentry.spending.insert(vin as u32, scripthash);
-
+            if let Some(FundingInfo(scripthash, amount)) =
+                self.index.lookup_txo_fund(&input.previous_output)
+            {
                 self.index
                     .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status));
+
+                self.index
+                    .index_txo_spend(input.previous_output, TxInput::new(txid, vin as u32));
+
+                // we could keep just the previous_output and lookup the scripthash and amount
+                // from the corrospanding FundingInfo, but we keep it here anyway for quick access
+                let spending_info = SpendingInfo(scripthash, input.previous_output, amount);
+                txentry.spending.insert(vin as u32, spending_info);
             }
         }
 
@@ -293,6 +310,10 @@ impl Indexer {
             _ => None,
         })
     }
+
+    pub fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<TxInput> {
+        self.index.lookup_txo_spend(outpoint)
+    }
 }
 
 impl MemoryIndex {
@@ -300,6 +321,7 @@ impl MemoryIndex {
         MemoryIndex {
             scripthashes: HashMap::new(),
             transactions: HashMap::new(),
+            txo_spends: HashMap::new(),
         }
     }
 
@@ -322,7 +344,7 @@ impl MemoryIndex {
             });
     }
 
-    fn index_tx_entry(&mut self, txid: &Txid, txentry: TxEntry) {
+    fn index_tx_entry(&mut self, txid: &Txid, mut txentry: TxEntry) {
         debug!("index tx entry {:?}: {:?}", txid, txentry);
 
         assert!(
@@ -340,8 +362,8 @@ impl MemoryIndex {
                     curr_entry.fee = txentry.fee;
                 }
 
-                curr_entry.funding.extend(&txentry.funding);
-                curr_entry.spending.extend(&txentry.spending);
+                curr_entry.funding.extend(txentry.funding.drain());
+                curr_entry.spending.extend(txentry.spending.drain());
 
                 if &curr_entry.status != &txentry.status {
                     changed_from = Some(curr_entry.status);
@@ -374,6 +396,14 @@ impl MemoryIndex {
         if added {
             info!("new history entry added for {:?}", scripthash)
         }
+    }
+
+    fn index_txo_spend(&mut self, spent_prevout: OutPoint, spending_input: TxInput) {
+        debug!(
+            "index txo spend: {:?} by {:?}",
+            spent_prevout, spending_input
+        );
+        self.txo_spends.insert(spent_prevout, spending_input);
     }
 
     /// Update the scripthash history index to reflect the new tx status
@@ -428,20 +458,38 @@ impl MemoryIndex {
                 txid: *txid,
             };
 
-            // TODO optimize
-            self.scripthashes
-                .retain(|_scripthash, ScriptEntry { history, .. }| {
-                    history.remove(&old_txhist);
-                    history.len() > 0
-                })
+            for (_, SpendingInfo(scripthash, prevout, _)) in old_entry.spending {
+                // remove prevout spending edge, but only if it still references the purged tx
+                remove_if(&mut self.txo_spends, prevout, |spending_input| {
+                    spending_input.txid == *txid
+                });
+
+                self.scripthashes
+                    .get_mut(&scripthash)
+                    .map(|s| s.history.remove(&old_txhist));
+            }
+
+            for (_, FundingInfo(scripthash, _)) in old_entry.funding {
+                self.scripthashes
+                    .get_mut(&scripthash)
+                    .map(|s| s.history.remove(&old_txhist));
+            }
+
+            // TODO remove the scripthashes entirely if have no more history entries
         }
     }
 
-    fn find_funded_scripthash(&self, outpoint: &OutPoint) -> Option<ScriptHash> {
+    fn lookup_txo_fund(&self, outpoint: &OutPoint) -> Option<FundingInfo> {
         self.transactions
-            .get(&outpoint.txid)
-            .and_then(|txentry| txentry.funding.get(&outpoint.vout))
-            .copied()
+            .get(&outpoint.txid)?
+            .funding
+            .get(&outpoint.vout)
+            .cloned()
+    }
+
+    fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<TxInput> {
+        // XXX don't return non-viabla (double-spent) spends?
+        self.txo_spends.get(outpoint).copied()
     }
 
     fn get_script_entry(&self, scripthash: &ScriptHash) -> Option<&ScriptEntry> {
@@ -480,11 +528,11 @@ impl PartialOrd for HistoryEntry {
     }
 }
 
-// Base spk info. Unlike ScriptEntry, this doesn't include the full history, but does include the scripthashV
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct ScriptInfo {
     scripthash: ScriptHash,
     address: Address,
+    #[serde(skip_serializing_if = "KeyOrigin::is_standalone")]
     origin: KeyOrigin,
 }
 

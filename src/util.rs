@@ -1,3 +1,4 @@
+use std::collections::hash_map::{Entry, HashMap};
 use std::str::FromStr;
 
 use bitcoin::util::{base58, bip32::ExtendedPubKey};
@@ -8,6 +9,17 @@ use crate::types::{ScriptHash, ScriptType};
 
 pub fn address_to_scripthash(address: &Address) -> ScriptHash {
     ScriptHash::hash(&address.script_pubkey().into_bytes())
+}
+
+pub fn remove_if<K, V>(hm: &mut HashMap<K, V>, key: K, predicate: impl Fn(&V) -> bool)
+where
+    K: Eq + std::hash::Hash,
+{
+    if let Entry::Occupied(entry) = hm.entry(key) {
+        if predicate(entry.get()) {
+            entry.remove_entry();
+        }
+    }
 }
 
 pub struct XyzPubKey {

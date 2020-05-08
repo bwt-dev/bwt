@@ -1,14 +1,15 @@
 use std::collections::BTreeSet;
 use std::sync::{Arc, RwLock};
 
+use serde::Serialize;
 use serde_json::Value;
 
-use bitcoin::{BlockHash, Txid};
+use bitcoin::{BlockHash, OutPoint, Txid};
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
-use crate::indexer::{HistoryEntry, Indexer, ScriptInfo, Tx, TxEntry};
-use crate::types::{BlockId, ScriptHash, Utxo};
+use crate::indexer::{FundingInfo, HistoryEntry, Indexer, ScriptInfo, SpendingInfo, Tx, TxEntry};
+use crate::types::{BlockId, ScriptHash, TxInput, TxStatus, Utxo};
 
 pub struct Query {
     rpc: Arc<RpcClient>,
@@ -148,4 +149,78 @@ impl Query {
     pub fn get_raw_mempool(&self) -> Result<Value> {
         Ok(self.rpc.call("getrawmempool", &[json!(true)])?)
     }
+
+    pub fn get_tx_info(&self, txid: &Txid) -> Option<TxInfo> {
+        let index = self.indexer.read().unwrap();
+        let tx_entry = index.get_tx_entry(txid)?;
+
+        let funding = tx_entry
+            .funding
+            .iter()
+            .map(|(vout, FundingInfo(scripthash, amount))| {
+                TxInfoFunding {
+                    vout: *vout,
+                    script_info: index.get_script_info(scripthash).unwrap(), // must exists
+                    spent_by: index.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
+                    amount: *amount,
+                }
+            })
+            .collect::<Vec<TxInfoFunding>>();
+
+        let spending = tx_entry
+            .spending
+            .iter()
+            .map(|(vin, SpendingInfo(scripthash, prevout, amount))| {
+                TxInfoSpending {
+                    vin: *vin,
+                    script_info: index.get_script_info(scripthash).unwrap(), // must exists
+                    amount: *amount,
+                    prevout: *prevout,
+                }
+            })
+            .collect::<Vec<TxInfoSpending>>();
+
+        let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
+        let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
+        let balance = funding_sum as i64 - spending_sum as i64;
+
+        Some(TxInfo {
+            txid: *txid,
+            status: tx_entry.status,
+            fee: tx_entry.fee,
+            funding: funding,
+            spending: spending,
+            balance: balance,
+        })
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct TxInfo {
+    txid: Txid,
+    #[serde(flatten)]
+    status: TxStatus,
+    fee: Option<u64>,
+    funding: Vec<TxInfoFunding>,
+    spending: Vec<TxInfoSpending>,
+    balance: i64,
+}
+
+#[derive(Serialize, Debug)]
+struct TxInfoFunding {
+    vout: u32,
+    #[serde(flatten)]
+    script_info: ScriptInfo, // scripthash, address & origin
+    amount: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    spent_by: Option<TxInput>,
+}
+
+#[derive(Serialize, Debug)]
+struct TxInfoSpending {
+    vin: u32,
+    #[serde(flatten)]
+    script_info: ScriptInfo, // scripthash, address & origin
+    amount: u64,
+    prevout: OutPoint,
 }

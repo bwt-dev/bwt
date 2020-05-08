@@ -34,6 +34,18 @@ impl Utxo {
     }
 }
 
+#[derive(Debug, Copy, Clone, Serialize)]
+pub struct TxInput {
+    pub txid: Txid,
+    pub vin: u32,
+}
+
+impl TxInput {
+    pub fn new(txid: Txid, vin: u32) -> Self {
+        TxInput { txid, vin }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum ScriptType {
     P2pkh,
@@ -42,6 +54,7 @@ pub enum ScriptType {
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Copy, Hash, Serialize)]
+#[serde(tag = "status", content = "block_height", rename_all = "lowercase")]
 pub enum TxStatus {
     Conflicted, // aka double spent
     Unconfirmed,
