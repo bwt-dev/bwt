@@ -314,10 +314,11 @@ impl Indexer {
         &self,
         scripthash: &ScriptHash,
         f: impl Fn(&HistoryEntry) -> T,
-    ) -> Option<Vec<T>> {
+    ) -> Vec<T> {
         self.index
             .get_history(scripthash)
             .map(|history| history.into_iter().map(f).collect())
+            .unwrap_or_else(|| vec![])
     }
 
     pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {

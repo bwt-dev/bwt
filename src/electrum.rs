@@ -174,8 +174,7 @@ impl Connection {
                     "tx_hash": txhist.txid,
                     "fee": fee,
                 })
-            })
-            .unwrap_or_else(|| vec![]);
+            });
         Ok(json!(txs))
     }
 
@@ -418,11 +417,16 @@ where
 pub fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
     let p = query.with_history(scripthash, |hist| {
         format!("{}:{}:", hist.txid, hist.status.electrum_height())
-    })?;
+    });
 
-    Some(StatusHash::hash(&p.join("").into_bytes()))
+    if !p.is_empty() {
+        Some(StatusHash::hash(&p.join("").into_bytes()))
+    } else {
+        None
+    }
 }
 
+// TODO use bitcoin-hashes's new reverse encoding option
 fn encode_script_hash(hash: &ScriptHash) -> String {
     reverse_hash(*hash).to_hex()
 }
