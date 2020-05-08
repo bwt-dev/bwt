@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use serde::Serialize;
 use serde_json::Value;
 
 use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
@@ -253,6 +252,13 @@ pub enum KeyOrigin {
     Standalone,
 }
 
+serde_string_serializer_impl!(KeyOrigin, |origin: &KeyOrigin| match origin {
+    KeyOrigin::Standalone => "standalone".into(),
+    KeyOrigin::Derived(parent_fingerprint, index) => {
+        format!("{}:{}", parent_fingerprint, index)
+    }
+});
+
 impl KeyOrigin {
     pub fn to_label(&self) -> String {
         match self {
@@ -283,28 +289,5 @@ impl KeyOrigin {
             KeyOrigin::Standalone => true,
             KeyOrigin::Derived(..) => false,
         }
-    }
-}
-
-use serde::Serializer;
-use std::fmt;
-
-impl fmt::Display for KeyOrigin {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            KeyOrigin::Standalone => write!(f, "standalone"),
-            KeyOrigin::Derived(parent_fingerprint, index) => {
-                write!(f, "{}:{}", parent_fingerprint, index)
-            }
-        }
-    }
-}
-
-impl Serialize for KeyOrigin {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.collect_str(self)
     }
 }

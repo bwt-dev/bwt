@@ -11,6 +11,9 @@ extern crate structopt;
 #[macro_use]
 pub extern crate bitcoin_hashes;
 
+#[macro_use]
+mod macros;
+
 pub mod config;
 pub mod error;
 pub mod hd;

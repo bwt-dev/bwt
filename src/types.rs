@@ -34,11 +34,16 @@ impl Utxo {
     }
 }
 
-#[derive(Debug, Copy, Clone, Serialize)]
+#[derive(Debug, Copy, Clone)]
 pub struct TxInput {
     pub txid: Txid,
     pub vin: u32,
 }
+
+serde_string_serializer_impl!(TxInput, |input: &TxInput| format!(
+    "{}:{}",
+    input.txid, input.vin
+));
 
 impl TxInput {
     pub fn new(txid: Txid, vin: u32) -> Self {
