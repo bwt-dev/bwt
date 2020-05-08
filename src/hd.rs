@@ -252,12 +252,16 @@ pub enum KeyOrigin {
     Standalone,
 }
 
-serde_string_serializer_impl!(KeyOrigin, |origin: &KeyOrigin| match origin {
-    KeyOrigin::Standalone => "standalone".into(),
-    KeyOrigin::Derived(parent_fingerprint, index) => {
-        format!("{}:{}", parent_fingerprint, index)
+serde_string_serializer_impl!(
+    KeyOrigin,
+    origin,
+    match origin {
+        KeyOrigin::Standalone => "standalone".into(),
+        KeyOrigin::Derived(parent_fingerprint, index) => {
+            format!("{}:{}", parent_fingerprint, index)
+        }
     }
-});
+);
 
 impl KeyOrigin {
     pub fn to_label(&self) -> String {

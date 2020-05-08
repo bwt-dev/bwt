@@ -1,10 +1,11 @@
 // Implements both the Display and the Serialize trait
 // to use the provided closure function
 macro_rules! serde_string_serializer_impl {
-    ($name:ident, $closure:expr) => {
+    ($name:ident, $var:ident, $expr:expr) => {
         impl std::fmt::Display for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                f.write_str(&$closure(self))
+                let $var = self;
+                f.write_str(&$expr)
             }
         }
 
