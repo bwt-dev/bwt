@@ -11,7 +11,7 @@ use crate::error::{OptionExt, Result};
 use crate::indexer::{FundingInfo, HistoryEntry, Indexer, ScriptInfo, Tx, TxEntry};
 use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
 
-#[cfg(feature = "index-txo-spends")]
+#[cfg(feature = "track-spends")]
 use crate::{indexer::SpendingInfo, types::TxInput};
 
 pub struct Query {
@@ -164,14 +164,14 @@ impl Query {
                 TxInfoFunding {
                     vout: *vout,
                     script_info: index.get_script_info(scripthash).unwrap(), // must exists
-                    #[cfg(feature = "index-txo-spends")]
+                    #[cfg(feature = "track-spends")]
                     spent_by: index.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
                     amount: *amount,
                 }
             })
             .collect::<Vec<TxInfoFunding>>();
 
-        #[cfg(feature = "index-txo-spends")]
+        #[cfg(feature = "track-spends")]
         let spending = tx_entry
             .spending
             .iter()
@@ -185,7 +185,7 @@ impl Query {
             })
             .collect::<Vec<TxInfoSpending>>();
 
-        #[cfg(feature = "index-txo-spends")]
+        #[cfg(feature = "track-spends")]
         let balance = {
             let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
             let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
@@ -197,9 +197,9 @@ impl Query {
             status: tx_entry.status,
             fee: tx_entry.fee,
             funding: funding,
-            #[cfg(feature = "index-txo-spends")]
+            #[cfg(feature = "track-spends")]
             spending: spending,
-            #[cfg(feature = "index-txo-spends")]
+            #[cfg(feature = "track-spends")]
             balance: balance,
         })
     }
@@ -212,9 +212,9 @@ pub struct TxInfo {
     status: TxStatus,
     fee: Option<u64>,
     funding: Vec<TxInfoFunding>,
-    #[cfg(feature = "index-txo-spends")]
+    #[cfg(feature = "track-spends")]
     spending: Vec<TxInfoSpending>,
-    #[cfg(feature = "index-txo-spends")]
+    #[cfg(feature = "track-spends")]
     balance: i64,
 }
 
@@ -224,7 +224,7 @@ struct TxInfoFunding {
     #[serde(flatten)]
     script_info: ScriptInfo, // scripthash, address & origin
     amount: u64,
-    #[cfg(feature = "index-txo-spends")]
+    #[cfg(feature = "track-spends")]
     spent_by: Option<TxInput>,
 }
 
