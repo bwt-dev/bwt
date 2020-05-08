@@ -12,7 +12,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWatcher, KeyOrigin};
-use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
+use crate::types::{BlockId, ScriptHash, TxStatus};
 use crate::util::address_to_scripthash;
 
 #[cfg(feature = "track-spends")]
@@ -262,40 +262,6 @@ impl Indexer {
         self.index.get_tx_entry(txid).cloned()
     }
 
-    /// Get the unspent utxos owned by scripthash
-    // XXX Move to Query?
-    pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
-        let address = self
-            .index
-            .get_address(scripthash)
-            .or_err("unknown scripthash")?;
-
-        loop {
-            let tip_height = self.rpc.get_block_count()? as u32;
-            let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
-
-            // XXX include unsafe?
-            let unspents = self.rpc.list_unspent(
-                Some(min_conf),
-                None,
-                Some(&[&address]),
-                Some(false),
-                None,
-            )?;
-
-            if tip_hash != self.rpc.get_best_block_hash()? {
-                warn!("tip changed while fetching unspents, retrying...");
-                continue;
-            }
-
-            return Ok(unspents
-                .into_iter()
-                .map(|unspent| Utxo::from_unspent(unspent, tip_height))
-                .filter(|utxo| utxo.status.is_viable())
-                .collect());
-        }
-    }
-
     pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
         let txentry = self.index.get_tx_entry(txid).or_err("tx not found")?;
         Ok(match txentry.status {
@@ -323,6 +289,10 @@ impl Indexer {
 
     pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {
         self.index.get_tx_entry(txid).map(f)
+    }
+
+    pub fn get_address(&self, scripthash: &ScriptHash) -> Option<Address> {
+        Some(self.index.get_script_entry(scripthash)?.address.clone())
     }
 }
 
@@ -523,11 +493,6 @@ impl MemoryIndex {
 
     fn get_history(&self, scripthash: &ScriptHash) -> Option<&BTreeSet<HistoryEntry>> {
         Some(&self.scripthashes.get(scripthash)?.history)
-    }
-
-    // get the address of a scripthash
-    fn get_address(&self, scripthash: &ScriptHash) -> Option<&Address> {
-        Some(&self.scripthashes.get(scripthash)?.address)
     }
 
     fn get_tx_entry(&self, txid: &Txid) -> Option<&TxEntry> {

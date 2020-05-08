@@ -87,11 +87,37 @@ impl Query {
     }
 
     pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
-        Ok(self
+        let address = self
             .indexer
             .read()
             .unwrap()
-            .list_unspent(scripthash, min_conf)?)
+            .get_address(scripthash)
+            .or_err("unknown scripthash")?;
+
+        loop {
+            let tip_height = self.rpc.get_block_count()? as u32;
+            let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
+
+            // XXX include unsafe?
+            let unspents = self.rpc.list_unspent(
+                Some(min_conf),
+                None,
+                Some(&[&address]),
+                Some(false),
+                None,
+            )?;
+
+            if tip_hash != self.rpc.get_best_block_hash()? {
+                warn!("tip changed while fetching unspents, retrying...");
+                continue;
+            }
+
+            return Ok(unspents
+                .into_iter()
+                .map(|unspent| Utxo::from_unspent(unspent, tip_height))
+                .filter(|utxo| utxo.status.is_viable())
+                .collect());
+        }
     }
 
     pub fn with_history<T>(
