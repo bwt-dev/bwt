@@ -59,12 +59,14 @@ pub struct TxEntry {
     pub status: TxStatus,
     pub fee: Option<u64>,
     pub funding: HashMap<u32, FundingInfo>,
+    #[cfg(feature = "index-txo-spends")]
     pub spending: HashMap<u32, SpendingInfo>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FundingInfo(pub ScriptHash, pub u64);
 
+#[cfg(feature = "index-txo-spends")]
 #[derive(Debug, Clone, Serialize)]
 pub struct SpendingInfo(pub ScriptHash, pub OutPoint, pub u64);
 
@@ -74,6 +76,7 @@ impl TxEntry {
             status,
             fee,
             funding: HashMap::new(),
+            #[cfg(feature = "index-txo-spends")]
             spending: HashMap::new(),
         }
     }
@@ -204,6 +207,7 @@ impl Indexer {
         self.watcher.mark_funded(&origin);
     }
 
+    #[cfg_attr(not(feature = "index-txo-spends"), allow(unused_variables, unused_mut))]
     fn process_outgoing(&mut self, txid: Txid, mut txentry: TxEntry) -> Result<()> {
         debug!(
             "processing outgoing tx {:?} with status {:?}",
@@ -221,13 +225,16 @@ impl Indexer {
             if let Some(FundingInfo(scripthash, amount)) =
                 self.index.lookup_txo_fund(&input.previous_output)
             {
-                // we could keep just the previous_output and lookup the scripthash and amount
-                // from the corrospanding FundingInfo, but we keep it here anyway for quick access
-                let spending_info = SpendingInfo(scripthash, input.previous_output, amount);
-                txentry.spending.insert(vin as u32, spending_info);
-
                 self.index
                     .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status));
+
+                // we could keep just the previous_output and lookup the scripthash and amount
+                // from the corrospanding FundingInfo, but we keep it here anyway for quick access
+                #[cfg(feature = "index-txo-spends")]
+                txentry.spending.insert(
+                    vin as u32,
+                    SpendingInfo(scripthash, input.previous_output, amount),
+                );
 
                 #[cfg(feature = "index-txo-spends")]
                 self.index
@@ -235,8 +242,11 @@ impl Indexer {
             }
         }
 
-        if !txentry.spending.is_empty() {
-            self.index.index_tx_entry(&txid, txentry);
+        #[cfg(feature = "index-txo-spends")]
+        {
+            if !txentry.spending.is_empty() {
+                self.index.index_tx_entry(&txid, txentry);
+            }
         }
 
         Ok(())
@@ -370,6 +380,7 @@ impl MemoryIndex {
                 }
 
                 curr_entry.funding.extend(txentry.funding.drain());
+                #[cfg(feature = "index-txo-spends")]
                 curr_entry.spending.extend(txentry.spending.drain());
 
                 if &curr_entry.status != &txentry.status {
@@ -466,6 +477,7 @@ impl MemoryIndex {
                 txid: *txid,
             };
 
+            #[cfg(feature = "index-txo-spends")]
             for (_, SpendingInfo(scripthash, prevout, _)) in old_entry.spending {
                 // remove prevout spending edge, but only if it still references the purged tx
                 #[cfg(feature = "index-txo-spends")]
@@ -477,6 +489,15 @@ impl MemoryIndex {
                     .get_mut(&scripthash)
                     .map(|s| s.history.remove(&old_txhist));
             }
+
+            // if we don't track spends, we have to iterate over the entire scripthash set in order
+            // to purge history entries of transactions spending the removed tx.
+            #[cfg(not(feature = "index-txo-spends"))]
+            self.scripthashes
+                .retain(|_scripthash, ScriptEntry { history, .. }| {
+                    history.remove(&old_txhist);
+                    history.len() > 0
+                });
 
             for (_, FundingInfo(scripthash, _)) in old_entry.funding {
                 self.scripthashes

@@ -8,11 +8,11 @@ use bitcoin::{BlockHash, OutPoint, Txid};
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
-use crate::indexer::{FundingInfo, HistoryEntry, Indexer, ScriptInfo, SpendingInfo, Tx, TxEntry};
+use crate::indexer::{FundingInfo, HistoryEntry, Indexer, ScriptInfo, Tx, TxEntry};
 use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
 
 #[cfg(feature = "index-txo-spends")]
-use crate::types::TxInput;
+use crate::{indexer::SpendingInfo, types::TxInput};
 
 pub struct Query {
     rpc: Arc<RpcClient>,
@@ -171,6 +171,7 @@ impl Query {
             })
             .collect::<Vec<TxInfoFunding>>();
 
+        #[cfg(feature = "index-txo-spends")]
         let spending = tx_entry
             .spending
             .iter()
@@ -184,16 +185,21 @@ impl Query {
             })
             .collect::<Vec<TxInfoSpending>>();
 
-        let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
-        let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
-        let balance = funding_sum as i64 - spending_sum as i64;
+        #[cfg(feature = "index-txo-spends")]
+        let balance = {
+            let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
+            let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
+            funding_sum as i64 - spending_sum as i64
+        };
 
         Some(TxInfo {
             txid: *txid,
             status: tx_entry.status,
             fee: tx_entry.fee,
             funding: funding,
+            #[cfg(feature = "index-txo-spends")]
             spending: spending,
+            #[cfg(feature = "index-txo-spends")]
             balance: balance,
         })
     }
@@ -206,7 +212,9 @@ pub struct TxInfo {
     status: TxStatus,
     fee: Option<u64>,
     funding: Vec<TxInfoFunding>,
+    #[cfg(feature = "index-txo-spends")]
     spending: Vec<TxInfoSpending>,
+    #[cfg(feature = "index-txo-spends")]
     balance: i64,
 }
 
