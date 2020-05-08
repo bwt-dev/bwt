@@ -1,10 +1,8 @@
 use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use serde::Serialize;
-
-use bitcoin::{Address, BlockHash, OutPoint, SignedAmount, Txid};
+use bitcoin::{SignedAmount, Txid};
 use bitcoincore_rpc::json::{
     GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
 };
@@ -12,76 +10,18 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWatcher, KeyOrigin};
-use crate::types::{BlockId, ScriptHash, TxStatus};
+use crate::store::{FundingInfo, HistoryEntry, MemoryStore, TxEntry};
+use crate::types::{BlockId, TxStatus};
 use crate::util::address_to_scripthash;
 
 #[cfg(feature = "track-spends")]
-use crate::{types::TxInput, util::remove_if};
+use crate::{store::SpendingInfo, types::TxInput};
 
 pub struct Indexer {
     rpc: Arc<RpcClient>,
     watcher: HDWatcher,
-    index: MemoryIndex,
+    store: MemoryStore,
     tip: Option<BlockId>,
-}
-
-#[derive(Debug)]
-struct MemoryIndex {
-    scripthashes: HashMap<ScriptHash, ScriptEntry>,
-    transactions: HashMap<Txid, TxEntry>,
-    #[cfg(feature = "track-spends")]
-    txo_spends: HashMap<OutPoint, TxInput>,
-}
-
-#[derive(Debug)]
-struct ScriptEntry {
-    address: Address,
-    origin: KeyOrigin,
-    history: BTreeSet<HistoryEntry>,
-    //#[cfg(feature = "electrum")]
-    //electrum_status_hash: Option<StatusHash>,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug, Hash, Serialize)]
-pub struct HistoryEntry {
-    pub txid: Txid,
-    #[serde(flatten)]
-    pub status: TxStatus,
-}
-
-impl HistoryEntry {
-    fn new(txid: Txid, status: TxStatus) -> Self {
-        HistoryEntry { txid, status }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct TxEntry {
-    #[serde(flatten)]
-    pub status: TxStatus,
-    pub fee: Option<u64>,
-    pub funding: HashMap<u32, FundingInfo>,
-    #[cfg(feature = "track-spends")]
-    pub spending: HashMap<u32, SpendingInfo>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct FundingInfo(pub ScriptHash, pub u64);
-
-#[cfg(feature = "track-spends")]
-#[derive(Debug, Clone, Serialize)]
-pub struct SpendingInfo(pub ScriptHash, pub OutPoint, pub u64);
-
-impl TxEntry {
-    fn new(status: TxStatus, fee: Option<u64>) -> Self {
-        TxEntry {
-            status,
-            fee,
-            funding: HashMap::new(),
-            #[cfg(feature = "track-spends")]
-            spending: HashMap::new(),
-        }
-    }
 }
 
 impl Indexer {
@@ -89,13 +29,17 @@ impl Indexer {
         Indexer {
             rpc,
             watcher: watcher,
-            index: MemoryIndex::new(),
+            store: MemoryStore::new(),
             tip: None,
         }
     }
 
     pub fn dump(&self) {
-        debug!("{:#?}", self.index);
+        debug!("{:#?}", self.store);
+    }
+
+    pub fn store(&self) -> &MemoryStore {
+        &self.store
     }
 
     pub fn sync(&mut self) -> Result<()> {
@@ -107,6 +51,7 @@ impl Indexer {
                     "reorg detected, block height {} was {} and now is {}. fetching history from scratch...",
                     tip_height, tip_hash, best_chain_hash
                 );
+                // XXX start syncing from N blocks backs instead of from the beginning?
                 self.tip = None;
             }
         }
@@ -180,7 +125,7 @@ impl Indexer {
         );
 
         if !status.is_viable() {
-            self.index.purge_tx(&ltx.info.txid);
+            self.store.purge_tx(&ltx.info.txid);
             return;
         }
 
@@ -191,12 +136,12 @@ impl Indexer {
         let mut txentry = TxEntry::new(status, None);
         txentry.funding.insert(ltx.detail.vout, funding_info);
 
-        self.index.index_tx_entry(&ltx.info.txid, txentry);
+        self.store.index_tx_entry(&ltx.info.txid, txentry);
 
-        self.index
+        self.store
             .track_scripthash(&scripthash, &origin, &ltx.detail.address);
 
-        self.index
+        self.store
             .index_history_entry(&scripthash, HistoryEntry::new(ltx.info.txid, status));
 
         self.watcher.mark_funded(&origin);
@@ -210,7 +155,7 @@ impl Indexer {
         );
 
         if !txentry.status.is_viable() {
-            self.index.purge_tx(&txid);
+            self.store.purge_tx(&txid);
             return Ok(());
         }
 
@@ -218,9 +163,9 @@ impl Indexer {
 
         for (vin, input) in tx.input.iter().enumerate() {
             if let Some(FundingInfo(scripthash, amount)) =
-                self.index.lookup_txo_fund(&input.previous_output)
+                self.store.lookup_txo_fund(&input.previous_output)
             {
-                self.index
+                self.store
                     .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status));
 
                 // we could keep just the previous_output and lookup the scripthash and amount
@@ -232,7 +177,7 @@ impl Indexer {
                 );
 
                 #[cfg(feature = "track-spends")]
-                self.index
+                self.store
                     .index_txo_spend(input.previous_output, TxInput::new(txid, vin as u32));
             }
         }
@@ -240,263 +185,11 @@ impl Indexer {
         #[cfg(feature = "track-spends")]
         {
             if !txentry.spending.is_empty() {
-                self.index.index_tx_entry(&txid, txentry);
+                self.store.index_tx_entry(&txid, txentry);
             }
         }
 
         Ok(())
-    }
-
-    pub fn get_history(&self, scripthash: &ScriptHash) -> Vec<HistoryEntry> {
-        self.index
-            .get_history(scripthash)
-            .map_or_else(|| Vec::new(), |entries| entries.iter().cloned().collect())
-    }
-
-    pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
-        let script_entry = self.index.get_script_entry(scripthash)?;
-        Some(ScriptInfo::new(scripthash, script_entry))
-    }
-
-    pub fn get_tx_entry(&self, txid: &Txid) -> Option<TxEntry> {
-        self.index.get_tx_entry(txid).cloned()
-    }
-
-    pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
-        let txentry = self.index.get_tx_entry(txid).or_err("tx not found")?;
-        Ok(match txentry.status {
-            TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
-            _ => None,
-        })
-    }
-
-    #[cfg(feature = "track-spends")]
-    pub fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<TxInput> {
-        self.index.lookup_txo_spend(outpoint)
-    }
-
-    // avoid unnecessary copies by directly operating on the history entries as a reference
-    pub fn with_history<T>(
-        &self,
-        scripthash: &ScriptHash,
-        f: impl Fn(&HistoryEntry) -> T,
-    ) -> Vec<T> {
-        self.index
-            .get_history(scripthash)
-            .map(|history| history.into_iter().map(f).collect())
-            .unwrap_or_else(|| vec![])
-    }
-
-    pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {
-        self.index.get_tx_entry(txid).map(f)
-    }
-
-    pub fn get_address(&self, scripthash: &ScriptHash) -> Option<Address> {
-        Some(self.index.get_script_entry(scripthash)?.address.clone())
-    }
-}
-
-impl MemoryIndex {
-    fn new() -> Self {
-        MemoryIndex {
-            scripthashes: HashMap::new(),
-            transactions: HashMap::new(),
-            #[cfg(feature = "track-spends")]
-            txo_spends: HashMap::new(),
-        }
-    }
-
-    fn track_scripthash(&mut self, scripthash: &ScriptHash, origin: &KeyOrigin, address: &Address) {
-        debug!("tracking {:?} {:?} {:?}", origin, scripthash, address);
-
-        self.scripthashes
-            .entry(*scripthash)
-            .and_modify(|curr_entry| {
-                assert_eq!(
-                    curr_entry.origin, *origin,
-                    "unexpected stored origin for {:?}",
-                    scripthash
-                )
-            })
-            .or_insert_with(|| ScriptEntry {
-                address: address.clone(),
-                origin: origin.clone(),
-                history: BTreeSet::new(),
-            });
-    }
-
-    fn index_tx_entry(&mut self, txid: &Txid, mut txentry: TxEntry) {
-        debug!("index tx entry {:?}: {:?}", txid, txentry);
-
-        assert!(
-            txentry.status.is_viable(),
-            "should not index non-viable tx entries"
-        );
-
-        let new_status = txentry.status;
-        let mut changed_from = None;
-
-        self.transactions
-            .entry(*txid)
-            .and_modify(|curr_entry| {
-                if let (None, &Some(_)) = (curr_entry.fee, &txentry.fee) {
-                    curr_entry.fee = txentry.fee;
-                }
-
-                curr_entry.funding.extend(txentry.funding.drain());
-                #[cfg(feature = "track-spends")]
-                curr_entry.spending.extend(txentry.spending.drain());
-
-                if &curr_entry.status != &txentry.status {
-                    changed_from = Some(curr_entry.status);
-                    curr_entry.status = new_status;
-                }
-            })
-            .or_insert_with(|| {
-                info!("new tx entry: {:?}", txid);
-                txentry
-            });
-
-        if let Some(old_status) = changed_from {
-            self.tx_status_changed(txid, old_status, new_status)
-        }
-    }
-
-    fn index_history_entry(&mut self, scripthash: &ScriptHash, txhist: HistoryEntry) {
-        debug!(
-            "index scripthash history for {:?}: {:?}",
-            scripthash, txhist
-        );
-
-        let added = self
-            .scripthashes
-            .get_mut(scripthash)
-            .expect("missing expected scripthash entry")
-            .history
-            .insert(txhist);
-
-        if added {
-            info!("new history entry added for {:?}", scripthash)
-        }
-    }
-
-    #[cfg(feature = "track-spends")]
-    fn index_txo_spend(&mut self, spent_prevout: OutPoint, spending_input: TxInput) {
-        debug!(
-            "index txo spend: {:?} by {:?}",
-            spent_prevout, spending_input
-        );
-        self.txo_spends.insert(spent_prevout, spending_input);
-    }
-
-    /// Update the scripthash history index to reflect the new tx status
-    fn tx_status_changed(&mut self, txid: &Txid, old_status: TxStatus, new_status: TxStatus) {
-        if old_status == new_status {
-            return;
-        }
-
-        info!(
-            "transition tx {:?} status: {:?} -> {:?}",
-            txid, old_status, new_status
-        );
-
-        let old_txhist = HistoryEntry::new(*txid, old_status);
-        let new_txhist = HistoryEntry::new(*txid, new_status);
-
-        /*
-        let txentry = self
-            .transactions
-            .get(txid)
-            .expect("missing expected tx entry");
-        let affected_scripthashes = txentry
-            .funding
-            .iter()
-            .map(|(_, scripthash)| scripthash)
-            .chain(txentry.spending.iter().map(|(_, scripthash)| scripthash));
-
-        for scripthash in affected_scripthashes {
-            let scriptentry = self
-                .scripthashes
-                .get(scripthash)
-                .expect("missing expected script entry");
-            assert!(scriptentry.history.remove(&old_txhist));
-            assert!(scriptentry.history.insert(new_txhist.clone()));
-        }
-        */
-
-        // TODO optimize, keep txid->scripthashes map
-        for (_scripthash, ScriptEntry { history, .. }) in &mut self.scripthashes {
-            if history.remove(&old_txhist) {
-                history.insert(new_txhist.clone());
-            }
-        }
-    }
-
-    fn purge_tx(&mut self, txid: &Txid) {
-        info!("purge tx {:?}", txid);
-
-        if let Some(old_entry) = self.transactions.remove(txid) {
-            let old_txhist = HistoryEntry {
-                status: old_entry.status,
-                txid: *txid,
-            };
-
-            #[cfg(feature = "track-spends")]
-            for (_, SpendingInfo(scripthash, prevout, _)) in old_entry.spending {
-                // remove prevout spending edge, but only if it still references the purged tx
-                #[cfg(feature = "track-spends")]
-                remove_if(&mut self.txo_spends, prevout, |spending_input| {
-                    spending_input.txid == *txid
-                });
-
-                self.scripthashes
-                    .get_mut(&scripthash)
-                    .map(|s| s.history.remove(&old_txhist));
-            }
-
-            // if we don't track spends, we have to iterate over the entire scripthash set in order
-            // to purge history entries of transactions spending the removed tx.
-            #[cfg(not(feature = "track-spends"))]
-            self.scripthashes
-                .retain(|_scripthash, ScriptEntry { history, .. }| {
-                    history.remove(&old_txhist);
-                    history.len() > 0
-                });
-
-            for (_, FundingInfo(scripthash, _)) in old_entry.funding {
-                self.scripthashes
-                    .get_mut(&scripthash)
-                    .map(|s| s.history.remove(&old_txhist));
-            }
-
-            // TODO remove the scripthashes entirely if have no more history entries
-        }
-    }
-
-    fn lookup_txo_fund(&self, outpoint: &OutPoint) -> Option<FundingInfo> {
-        self.transactions
-            .get(&outpoint.txid)?
-            .funding
-            .get(&outpoint.vout)
-            .cloned()
-    }
-
-    #[cfg(feature = "track-spends")]
-    fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<TxInput> {
-        // XXX don't return non-viabla (double-spent) spends?
-        self.txo_spends.get(outpoint).copied()
-    }
-
-    fn get_script_entry(&self, scripthash: &ScriptHash) -> Option<&ScriptEntry> {
-        self.scripthashes.get(scripthash)
-    }
-
-    fn get_history(&self, scripthash: &ScriptHash) -> Option<&BTreeSet<HistoryEntry>> {
-        Some(&self.scripthashes.get(scripthash)?.history)
-    }
-
-    fn get_tx_entry(&self, txid: &Txid) -> Option<&TxEntry> {
-        self.transactions.get(txid)
     }
 }
 
@@ -515,24 +208,6 @@ impl PartialOrd for HistoryEntry {
                 .cmp(&other.status)
                 .then_with(|| self.txid.cmp(&other.txid)),
         )
-    }
-}
-
-#[derive(Serialize, Debug)]
-pub struct ScriptInfo {
-    scripthash: ScriptHash,
-    address: Address,
-    #[serde(skip_serializing_if = "KeyOrigin::is_standalone")]
-    origin: KeyOrigin,
-}
-
-impl ScriptInfo {
-    fn new(scripthash: &ScriptHash, script_entry: &ScriptEntry) -> Self {
-        ScriptInfo {
-            scripthash: *scripthash,
-            address: script_entry.address.clone(),
-            origin: script_entry.origin.clone(),
-        }
     }
 }
 

@@ -7,11 +7,12 @@ use bitcoin::{BlockHash, OutPoint, Txid};
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
-use crate::indexer::{FundingInfo, HistoryEntry, Indexer, ScriptInfo, TxEntry};
+use crate::indexer::Indexer;
+use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, TxEntry};
 use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
 
 #[cfg(feature = "track-spends")]
-use crate::{indexer::SpendingInfo, types::TxInput};
+use crate::{store::SpendingInfo, types::TxInput};
 
 pub struct Query {
     rpc: Arc<RpcClient>,
@@ -79,11 +80,16 @@ impl Query {
     }
 
     pub fn get_history(&self, scripthash: &ScriptHash) -> Vec<HistoryEntry> {
-        self.indexer.read().unwrap().get_history(scripthash)
+        self.indexer
+            .read()
+            .unwrap()
+            .store()
+            .get_history(scripthash)
+            .map_or_else(|| Vec::new(), |entries| entries.iter().cloned().collect())
     }
 
     pub fn get_history_info(&self, scripthash: &ScriptHash) -> Vec<TxInfo> {
-        self.with_history(scripthash, |txhist| self.get_tx_info(&txhist.txid).unwrap())
+        self.map_history(scripthash, |txhist| self.get_tx_info(&txhist.txid).unwrap())
     }
 
     pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
@@ -91,7 +97,8 @@ impl Query {
             .indexer
             .read()
             .unwrap()
-            .get_address(scripthash)
+            .store()
+            .get_script_address(scripthash)
             .or_err("unknown scripthash")?;
 
         loop {
@@ -120,20 +127,37 @@ impl Query {
         }
     }
 
-    pub fn with_history<T>(
+    // avoid unnecessary copies by directly operating on the history entries as a reference
+    pub fn map_history<T>(
         &self,
         scripthash: &ScriptHash,
         f: impl Fn(&HistoryEntry) -> T,
     ) -> Vec<T> {
-        self.indexer.read().unwrap().with_history(scripthash, f)
+        self.indexer
+            .read()
+            .unwrap()
+            .store()
+            .get_history(scripthash)
+            .map(|history| history.into_iter().map(f).collect())
+            .unwrap_or_else(|| vec![])
     }
 
-    pub fn with_tx_entry<T>(&self, txid: &Txid, f: fn(&TxEntry) -> T) -> Option<T> {
-        self.indexer.read().unwrap().with_tx_entry(txid, f)
+    // -> get_tx_fee
+    pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {
+        self.indexer
+            .read()
+            .unwrap()
+            .store()
+            .get_tx_entry(txid)
+            .map(f)
     }
 
     pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
-        self.indexer.read().unwrap().get_script_info(scripthash)
+        self.indexer
+            .read()
+            .unwrap()
+            .store()
+            .get_script_info(scripthash)
     }
 
     /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)
@@ -156,21 +180,12 @@ impl Query {
     }
 
     pub fn get_tx_json(&self, txid: &Txid) -> Result<Value> {
-        let blockhash = self.indexer.read().unwrap().find_tx_blockhash(txid)?;
+        let blockhash = self.find_tx_blockhash(txid)?;
 
         Ok(self.rpc.call(
             "getrawtransaction",
             &[json!(txid), true.into(), json!(blockhash)],
         )?)
-    }
-
-    pub fn get_tx_entry(&self, txid: &Txid) -> Result<TxEntry> {
-        Ok(self
-            .indexer
-            .read()
-            .unwrap()
-            .get_tx_entry(txid)
-            .or_err("tx not found")?)
     }
 
     pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {
@@ -181,54 +196,64 @@ impl Query {
         Ok(self.rpc.call("getrawmempool", &[json!(true)])?)
     }
 
+    pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
+        let indexer = self.indexer.read().unwrap();
+        let tx_entry = indexer.store().get_tx_entry(txid).or_err("tx not found")?;
+        Ok(match tx_entry.status {
+            TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
+            _ => None,
+        })
+    }
+
     pub fn get_tx_info(&self, txid: &Txid) -> Option<TxInfo> {
         let index = self.indexer.read().unwrap();
-        index.with_tx_entry(txid, |tx_entry| {
-            let funding = tx_entry
-                .funding
-                .iter()
-                .map(|(vout, FundingInfo(scripthash, amount))| {
-                    TxInfoFunding {
-                        vout: *vout,
-                        script_info: index.get_script_info(scripthash).unwrap(), // must exists
-                        #[cfg(feature = "track-spends")]
-                        spent_by: index.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
-                        amount: *amount,
-                    }
-                })
-                .collect::<Vec<TxInfoFunding>>();
+        let store = index.store();
+        let tx_entry = store.get_tx_entry(txid)?;
 
+        let funding = tx_entry
+            .funding
+            .iter()
+            .map(|(vout, FundingInfo(scripthash, amount))| {
+                TxInfoFunding {
+                    vout: *vout,
+                    script_info: store.get_script_info(scripthash).unwrap(), // must exists
+                    #[cfg(feature = "track-spends")]
+                    spent_by: store.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
+                    amount: *amount,
+                }
+            })
+            .collect::<Vec<TxInfoFunding>>();
+
+        #[cfg(feature = "track-spends")]
+        let spending = tx_entry
+            .spending
+            .iter()
+            .map(|(vin, SpendingInfo(scripthash, prevout, amount))| {
+                TxInfoSpending {
+                    vin: *vin,
+                    script_info: store.get_script_info(scripthash).unwrap(), // must exists
+                    amount: *amount,
+                    prevout: *prevout,
+                }
+            })
+            .collect::<Vec<TxInfoSpending>>();
+
+        #[cfg(feature = "track-spends")]
+        let balance_change = {
+            let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
+            let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
+            funding_sum as i64 - spending_sum as i64
+        };
+
+        Some(TxInfo {
+            txid: *txid,
+            status: tx_entry.status,
+            fee: tx_entry.fee,
+            funding: funding,
             #[cfg(feature = "track-spends")]
-            let spending = tx_entry
-                .spending
-                .iter()
-                .map(|(vin, SpendingInfo(scripthash, prevout, amount))| {
-                    TxInfoSpending {
-                        vin: *vin,
-                        script_info: index.get_script_info(scripthash).unwrap(), // must exists
-                        amount: *amount,
-                        prevout: *prevout,
-                    }
-                })
-                .collect::<Vec<TxInfoSpending>>();
-
+            spending: spending,
             #[cfg(feature = "track-spends")]
-            let balance_change = {
-                let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
-                let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
-                funding_sum as i64 - spending_sum as i64
-            };
-
-            TxInfo {
-                txid: *txid,
-                status: tx_entry.status,
-                fee: tx_entry.fee,
-                funding: funding,
-                #[cfg(feature = "track-spends")]
-                spending: spending,
-                #[cfg(feature = "track-spends")]
-                balance_change: balance_change,
-            }
+            balance_change: balance_change,
         })
     }
 }

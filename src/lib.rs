@@ -20,6 +20,7 @@ pub mod hd;
 pub mod indexer;
 pub mod mempool;
 pub mod query;
+pub mod store;
 pub mod types;
 pub mod util;
 

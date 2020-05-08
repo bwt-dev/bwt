@@ -165,7 +165,7 @@ impl Connection {
         let (script_hash,): (String,) = from_value(params)?;
         let script_hash = decode_script_hash(&script_hash)?;
 
-        let txs: Vec<Value> = self.query.with_history(&script_hash, |txhist| {
+        let txs: Vec<Value> = self.query.map_history(&script_hash, |txhist| {
             let fee = self.query.with_tx_entry(&txhist.txid, |e| e.fee);
             json!({
                 "height": electrum_height(&txhist.status),
@@ -413,7 +413,7 @@ where
 }
 
 fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
-    let p = query.with_history(scripthash, |hist| {
+    let p = query.map_history(scripthash, |hist| {
         format!("{}:{}:", hist.txid, electrum_height(&hist.status))
     });
 
