@@ -78,19 +78,6 @@ impl TxStatus {
         }
     }
 
-    // height suitable for the electrum protocol
-    // TODO -1 to indicate unconfirmed tx with unconfirmed parents
-    #[cfg(feature = "electrum")]
-    pub fn electrum_height(&self) -> u32 {
-        match self {
-            TxStatus::Confirmed(height) => *height,
-            TxStatus::Unconfirmed => 0,
-            TxStatus::Conflicted => {
-                unreachable!("electrum_height() should not be called on conflicted txs")
-            }
-        }
-    }
-
     pub fn is_viable(&self) -> bool {
         match self {
             TxStatus::Confirmed(_) | TxStatus::Unconfirmed => true,

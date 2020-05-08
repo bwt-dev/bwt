@@ -14,7 +14,7 @@ use crate::error::{fmt_error_chain, Result, ResultExt};
 use crate::mempool::get_fee_histogram;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
-use crate::types::{BlockId, ScriptHash, StatusHash};
+use crate::types::{BlockId, ScriptHash, StatusHash, TxStatus};
 
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
 // released under the MIT license. https://github.com/romanz/electrs
@@ -165,16 +165,14 @@ impl Connection {
         let (script_hash,): (String,) = from_value(params)?;
         let script_hash = decode_script_hash(&script_hash)?;
 
-        let txs: Vec<Value> = self
-            .query
-            .with_history(&script_hash, |txhist| {
-                let fee = self.query.with_tx_entry(&txhist.txid, |e| e.fee);
-                json!({
-                    "height": txhist.status.electrum_height(),
-                    "tx_hash": txhist.txid,
-                    "fee": fee,
-                })
-            });
+        let txs: Vec<Value> = self.query.with_history(&script_hash, |txhist| {
+            let fee = self.query.with_tx_entry(&txhist.txid, |e| e.fee);
+            json!({
+                "height": electrum_height(&txhist.status),
+                "tx_hash": txhist.txid,
+                "fee": fee,
+            })
+        });
         Ok(json!(txs))
     }
 
@@ -188,7 +186,7 @@ impl Connection {
             .into_iter()
             .map(|utxo| {
                 json!({
-                    "height": utxo.status.electrum_height(),
+                    "height": electrum_height(&utxo.status),
                     "tx_hash": utxo.txid,
                     "tx_pos": utxo.vout,
                     "value": utxo.value
@@ -414,15 +412,26 @@ where
     items.into_iter().map(|item| item.to_string()).collect()
 }
 
-pub fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
+fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
     let p = query.with_history(scripthash, |hist| {
-        format!("{}:{}:", hist.txid, hist.status.electrum_height())
+        format!("{}:{}:", hist.txid, electrum_height(&hist.status))
     });
 
     if !p.is_empty() {
         Some(StatusHash::hash(&p.join("").into_bytes()))
     } else {
         None
+    }
+}
+
+// TODO -1 to indicate unconfirmed tx with unconfirmed parents
+fn electrum_height(status: &TxStatus) -> u32 {
+    match status {
+        TxStatus::Confirmed(height) => *height,
+        TxStatus::Unconfirmed => 0,
+        TxStatus::Conflicted => {
+            unreachable!("electrum_height() should not be called on conflicted txs")
+        }
     }
 }
 
