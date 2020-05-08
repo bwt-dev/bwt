@@ -82,6 +82,11 @@ impl Query {
         self.indexer.read().unwrap().get_history(scripthash)
     }
 
+    pub fn get_history_info(&self, scripthash: &ScriptHash) -> Vec<TxInfo> {
+        self.with_history(scripthash, |txhist| self.get_tx_info(&txhist.txid).unwrap())
+            .unwrap_or_else(|| vec![])
+    }
+
     pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
         Ok(self
             .indexer

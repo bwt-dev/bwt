@@ -8,6 +8,8 @@ use bitcoincore_rpc::Client as RpcClient;
 
 use pxt::{Config, HDWallet, HDWatcher, Indexer, Query, Result};
 
+#[cfg(feature = "http")]
+use pxt::start_http;
 #[cfg(feature = "electrum")]
 use pxt::ElectrumServer;
 
@@ -31,6 +33,9 @@ fn main() -> Result<()> {
 
     #[cfg(feature = "electrum")]
     let electrum = ElectrumServer::start(config.electrum_rpc_addr, Arc::clone(&query));
+
+    #[cfg(feature = "http")]
+    let _http = start_http(config.http_server_addr, Arc::clone(&query));
 
     loop {
         indexer

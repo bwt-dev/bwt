@@ -33,6 +33,10 @@ pub use query::Query;
 pub mod electrum;
 #[cfg(feature = "electrum")]
 pub mod merkle;
-
 #[cfg(feature = "electrum")]
 pub use electrum::ElectrumServer;
+
+#[cfg(feature = "http")]
+pub mod http;
+#[cfg(feature = "http")]
+pub use http::start_http;
