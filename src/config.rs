@@ -123,8 +123,6 @@ pub struct CliConfig {
 
 impl Config {
     pub fn from_args() -> Self {
-        // use structopt to parse args into CliConfig first, then do some more processing
-        // and convert it convert it intoa Config
         Self::from_cli(CliConfig::from_args()).unwrap()
     }
 

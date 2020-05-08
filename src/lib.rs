@@ -1,4 +1,3 @@
-extern crate serde;
 #[macro_use]
 extern crate serde_json;
 #[macro_use]
@@ -7,13 +6,13 @@ extern crate log;
 extern crate failure;
 #[macro_use]
 extern crate lazy_static;
-extern crate structopt;
 #[macro_use]
-pub extern crate bitcoin_hashes;
+extern crate bitcoin_hashes;
 
 #[macro_use]
 mod macros;
 
+pub mod app;
 pub mod config;
 pub mod error;
 pub mod hd;
@@ -24,6 +23,7 @@ pub mod store;
 pub mod types;
 pub mod util;
 
+pub use app::App;
 pub use config::Config;
 pub use error::{Error, Result};
 pub use hd::{HDWallet, HDWatcher};
@@ -34,10 +34,6 @@ pub use query::Query;
 pub mod electrum;
 #[cfg(feature = "electrum")]
 pub mod merkle;
-#[cfg(feature = "electrum")]
-pub use electrum::ElectrumServer;
 
 #[cfg(feature = "http")]
 pub mod http;
-#[cfg(feature = "http")]
-pub use http::start_http;

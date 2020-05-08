@@ -120,10 +120,14 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>) {
     warp::serve(route).run(addr).await
 }
 
-pub fn start_http(addr: net::SocketAddr, query: Arc<Query>) -> task::JoinHandle<()> {
-    task::spawn(async move {
-        run(addr, query);
-    })
+pub struct HttpServer(task::JoinHandle<()>);
+
+impl HttpServer {
+    pub fn start(addr: net::SocketAddr, query: Arc<Query>) -> Self {
+        HttpServer(task::spawn(async move {
+            run(addr, query);
+        }))
+    }
 }
 
 async fn reject_error<T>(result: Result<T, Error>) -> Result<T, warp::Rejection> {
@@ -153,16 +157,3 @@ enum WarpError {
 }
 
 impl warp::reject::Reject for WarpError {}
-
-/*
-impl From<WarpError> for warp::reject::Rejection {
-    fn from(e: WarpError) -> Self {
-        warp::reject::custom(e)
-    }
-}
-
-impl From<Error> for WarpError {
-    fn from(e: Error) -> Self {
-        WarpError::Error(e)
-    }
-}*/
