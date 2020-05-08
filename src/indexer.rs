@@ -320,7 +320,7 @@ impl Indexer {
             .map(|history| history.into_iter().map(f).collect())
     }
 
-    pub fn with_tx_entry<T>(&self, txid: &Txid, f: fn(&TxEntry) -> T) -> Option<T> {
+    pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {
         self.index.get_tx_entry(txid).map(f)
     }
 }

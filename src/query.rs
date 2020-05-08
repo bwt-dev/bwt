@@ -158,52 +158,52 @@ impl Query {
 
     pub fn get_tx_info(&self, txid: &Txid) -> Option<TxInfo> {
         let index = self.indexer.read().unwrap();
-        let tx_entry = index.get_tx_entry(txid)?;
+        index.with_tx_entry(txid, |tx_entry| {
+            let funding = tx_entry
+                .funding
+                .iter()
+                .map(|(vout, FundingInfo(scripthash, amount))| {
+                    TxInfoFunding {
+                        vout: *vout,
+                        script_info: index.get_script_info(scripthash).unwrap(), // must exists
+                        #[cfg(feature = "track-spends")]
+                        spent_by: index.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
+                        amount: *amount,
+                    }
+                })
+                .collect::<Vec<TxInfoFunding>>();
 
-        let funding = tx_entry
-            .funding
-            .iter()
-            .map(|(vout, FundingInfo(scripthash, amount))| {
-                TxInfoFunding {
-                    vout: *vout,
-                    script_info: index.get_script_info(scripthash).unwrap(), // must exists
-                    #[cfg(feature = "track-spends")]
-                    spent_by: index.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
-                    amount: *amount,
-                }
-            })
-            .collect::<Vec<TxInfoFunding>>();
-
-        #[cfg(feature = "track-spends")]
-        let spending = tx_entry
-            .spending
-            .iter()
-            .map(|(vin, SpendingInfo(scripthash, prevout, amount))| {
-                TxInfoSpending {
-                    vin: *vin,
-                    script_info: index.get_script_info(scripthash).unwrap(), // must exists
-                    amount: *amount,
-                    prevout: *prevout,
-                }
-            })
-            .collect::<Vec<TxInfoSpending>>();
-
-        #[cfg(feature = "track-spends")]
-        let balance = {
-            let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
-            let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
-            funding_sum as i64 - spending_sum as i64
-        };
-
-        Some(TxInfo {
-            txid: *txid,
-            status: tx_entry.status,
-            fee: tx_entry.fee,
-            funding: funding,
             #[cfg(feature = "track-spends")]
-            spending: spending,
+            let spending = tx_entry
+                .spending
+                .iter()
+                .map(|(vin, SpendingInfo(scripthash, prevout, amount))| {
+                    TxInfoSpending {
+                        vin: *vin,
+                        script_info: index.get_script_info(scripthash).unwrap(), // must exists
+                        amount: *amount,
+                        prevout: *prevout,
+                    }
+                })
+                .collect::<Vec<TxInfoSpending>>();
+
             #[cfg(feature = "track-spends")]
-            balance: balance,
+            let balance = {
+                let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
+                let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
+                funding_sum as i64 - spending_sum as i64
+            };
+
+            TxInfo {
+                txid: *txid,
+                status: tx_entry.status,
+                fee: tx_entry.fee,
+                funding: funding,
+                #[cfg(feature = "track-spends")]
+                spending: spending,
+                #[cfg(feature = "track-spends")]
+                balance: balance,
+            }
         })
     }
 }
