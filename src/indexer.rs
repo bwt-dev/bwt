@@ -42,9 +42,10 @@ struct ScriptEntry {
     //electrum_status_hash: Option<StatusHash>,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash, Serialize)]
 pub struct HistoryEntry {
     pub txid: Txid,
+    #[serde(flatten)]
     pub status: TxStatus,
 }
 
@@ -56,6 +57,7 @@ impl HistoryEntry {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct TxEntry {
+    #[serde(flatten)]
     pub status: TxStatus,
     pub fee: Option<u64>,
     pub funding: HashMap<u32, FundingInfo>,
@@ -80,13 +82,6 @@ impl TxEntry {
             spending: HashMap::new(),
         }
     }
-}
-
-#[derive(Debug, Serialize)]
-pub struct Tx {
-    pub txid: Txid,
-    #[serde(flatten)]
-    pub entry: TxEntry,
 }
 
 impl Indexer {
@@ -252,27 +247,10 @@ impl Indexer {
         Ok(())
     }
 
-    pub fn get_history(&self, scripthash: &ScriptHash) -> Result<Vec<Tx>> {
+    pub fn get_history(&self, scripthash: &ScriptHash) -> Vec<HistoryEntry> {
         self.index
             .get_history(scripthash)
-            .map(|entries| {
-                entries
-                    .into_iter()
-                    .map(|hist| {
-                        let tx_entry =
-                            self.index.get_tx_entry(&hist.txid).or_err("tx not found")?;
-                        Ok(Tx {
-                            txid: hist.txid,
-                            entry: tx_entry.clone(),
-                        })
-                    })
-                    .collect::<Result<Vec<Tx>>>()
-            })
-            .unwrap_or_else(|| Ok(vec![]))
-    }
-
-    pub fn raw_history_ref(&self, scripthash: &ScriptHash) -> Option<&BTreeSet<HistoryEntry>> {
-        self.index.get_history(scripthash)
+            .map_or_else(|| Vec::new(), |entries| entries.iter().cloned().collect())
     }
 
     pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
@@ -329,6 +307,21 @@ impl Indexer {
     #[cfg(feature = "track-spends")]
     pub fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<TxInput> {
         self.index.lookup_txo_spend(outpoint)
+    }
+
+    // avoid unnecessary copies by directly operating on the history entries as a reference
+    pub fn with_history<T>(
+        &self,
+        scripthash: &ScriptHash,
+        f: impl Fn(&HistoryEntry) -> T,
+    ) -> Option<Vec<T>> {
+        self.index
+            .get_history(scripthash)
+            .map(|history| history.into_iter().map(f).collect())
+    }
+
+    pub fn with_tx_entry<T>(&self, txid: &Txid, f: fn(&TxEntry) -> T) -> Option<T> {
+        self.index.get_tx_entry(txid).map(f)
     }
 }
 

@@ -167,16 +167,15 @@ impl Connection {
 
         let txs: Vec<Value> = self
             .query
-            .get_history(&script_hash)?
-            .into_iter()
-            .map(|tx| {
+            .with_history(&script_hash, |txhist| {
+                let fee = self.query.with_tx_entry(&txhist.txid, |e| e.fee);
                 json!({
-                    "height": tx.entry.status.electrum_height(),
-                    "tx_hash": tx.txid,
-                    "fee": tx.entry.fee,
+                    "height": txhist.status.electrum_height(),
+                    "tx_hash": txhist.txid,
+                    "fee": fee,
                 })
             })
-            .collect();
+            .unwrap_or_else(|| vec![]);
         Ok(json!(txs))
     }
 
@@ -417,13 +416,11 @@ where
 }
 
 pub fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
-    query.with_history_ref(scripthash, |entries| {
-        let p = entries
-            .iter()
-            .map(|hist| format!("{}:{}:", hist.txid, hist.status.electrum_height()))
-            .collect::<Vec<String>>();
-        StatusHash::hash(&p.join("").into_bytes())
-    })
+    let p = query.with_history(scripthash, |hist| {
+        format!("{}:{}:", hist.txid, hist.status.electrum_height())
+    })?;
+
+    Some(StatusHash::hash(&p.join("").into_bytes()))
 }
 
 fn encode_script_hash(hash: &ScriptHash) -> String {

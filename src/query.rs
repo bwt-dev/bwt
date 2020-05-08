@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::sync::{Arc, RwLock};
 
 use serde::Serialize;
@@ -8,7 +7,7 @@ use bitcoin::{BlockHash, OutPoint, Txid};
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
-use crate::indexer::{FundingInfo, HistoryEntry, Indexer, ScriptInfo, Tx, TxEntry};
+use crate::indexer::{FundingInfo, HistoryEntry, Indexer, ScriptInfo, TxEntry};
 use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
 
 #[cfg(feature = "track-spends")]
@@ -79,8 +78,8 @@ impl Query {
         Ok((feerate * 100_000f64) as f64)
     }
 
-    pub fn get_history(&self, scripthash: &ScriptHash) -> Result<Vec<Tx>> {
-        Ok(self.indexer.read().unwrap().get_history(scripthash)?)
+    pub fn get_history(&self, scripthash: &ScriptHash) -> Vec<HistoryEntry> {
+        self.indexer.read().unwrap().get_history(scripthash)
     }
 
     pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
@@ -91,17 +90,16 @@ impl Query {
             .list_unspent(scripthash, min_conf)?)
     }
 
-    // avoid unnecessary copies by directly operating on the history entry reference
-    pub fn with_history_ref<T>(
+    pub fn with_history<T>(
         &self,
         scripthash: &ScriptHash,
-        f: fn(&BTreeSet<HistoryEntry>) -> T,
-    ) -> Option<T> {
-        self.indexer
-            .read()
-            .unwrap()
-            .raw_history_ref(scripthash)
-            .map(f)
+        f: impl Fn(&HistoryEntry) -> T,
+    ) -> Option<Vec<T>> {
+        self.indexer.read().unwrap().with_history(scripthash, f)
+    }
+
+    pub fn with_tx_entry<T>(&self, txid: &Txid, f: fn(&TxEntry) -> T) -> Option<T> {
+        self.indexer.read().unwrap().with_tx_entry(txid, f)
     }
 
     pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
