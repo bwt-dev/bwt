@@ -247,8 +247,7 @@ fn batch_import(
     )?)
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(untagged, rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq)]
 pub enum KeyOrigin {
     Derived(Fingerprint, u32),
     Standalone,
@@ -284,5 +283,28 @@ impl KeyOrigin {
             KeyOrigin::Standalone => true,
             KeyOrigin::Derived(..) => false,
         }
+    }
+}
+
+use serde::Serializer;
+use std::fmt;
+
+impl fmt::Display for KeyOrigin {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            KeyOrigin::Standalone => write!(f, "standalone"),
+            KeyOrigin::Derived(parent_fingerprint, index) => {
+                write!(f, "{}:{}", parent_fingerprint, index)
+            }
+        }
+    }
+}
+
+impl Serialize for KeyOrigin {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.collect_str(self)
     }
 }
