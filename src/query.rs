@@ -130,10 +130,6 @@ impl Query {
             .map_or_else(|| Vec::new(), |entries| entries.iter().cloned().collect())
     }
 
-    pub fn get_history_info(&self, scripthash: &ScriptHash) -> Vec<TxInfo> {
-        self.map_history(scripthash, |txhist| self.get_tx_info(&txhist.txid).unwrap())
-    }
-
     pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
         let address = self
             .indexer
@@ -240,6 +236,21 @@ impl Query {
             TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
             _ => None,
         })
+    }
+
+    pub fn map_history_since<T>(
+        &self,
+        min_block_height: u32,
+        f: impl Fn(&HistoryEntry) -> T,
+    ) -> Vec<T> {
+        self.indexer
+            .read()
+            .unwrap()
+            .store()
+            .get_history_since(min_block_height)
+            .into_iter()
+            .map(f)
+            .collect()
     }
 
     pub fn get_script_stats(&self, scripthash: &ScriptHash) -> Result<ScriptStats> {

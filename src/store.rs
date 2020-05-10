@@ -284,6 +284,27 @@ impl MemoryStore {
     pub fn get_script_address(&self, scripthash: &ScriptHash) -> Option<Address> {
         Some(self.scripthashes.get(scripthash)?.address.clone())
     }
+    /// Get all history since `min_block_height`, including unconfirmed mempool transactions,
+    /// for *all* tracked scripthashes
+    pub fn get_history_since(&self, min_block_height: u32) -> BTreeSet<&HistoryEntry> {
+        // XXX this is terribly inefficient. okayish for now, but should be rewritten not to
+        // require a full scan at some point
+        self.scripthashes
+            .values()
+            .map(|script_entry| {
+                script_entry
+                    .history
+                    .iter()
+                    .rev()
+                    .take_while(|txhist| match txhist.status {
+                        TxStatus::Confirmed(block_height) => block_height >= min_block_height,
+                        TxStatus::Unconfirmed => true,
+                        TxStatus::Conflicted => unreachable!(),
+                    })
+            })
+            .flatten()
+            .collect()
+    }
 }
 
 #[derive(Serialize, Debug)]

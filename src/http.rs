@@ -11,8 +11,8 @@ use warp::{reply, Reply};
 use bitcoin::{Address, Txid};
 
 use crate::error::{Error, OptionExt};
-use crate::types::ScriptHash;
 use crate::Query;
+use crate::types::ScriptHash;
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
 
@@ -69,7 +69,9 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .and(warp::path!("history"))
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
-            let txs = query.get_history_info(&scripthash);
+            let txs = query.map_history(&scripthash, |txhist| {
+                query.get_tx_info(&txhist.txid).unwrap()
+            });
             Ok(reply::json(&txs))
         })
         .map(handle_error);
@@ -127,6 +129,17 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         })
         .map(handle_error);
 
+    // GET /txs/since/:block_height
+    let txs_since_handler = warp::get()
+        .and(warp::path!("txs" / "since" / u32))
+        .and(query.clone())
+        .map(|min_block_height: u32, query: Arc<Query>| {
+            let txs = query.map_history_since(min_block_height, |txhist| {
+                query.get_tx_info(&txhist.txid).unwrap()
+            });
+            reply::json(&txs)
+        });
+
     // GET /mempool/histogram
     let mempool_histogram_handler = warp::get()
         .and(warp::path!("mempool" / "histogram"))
@@ -161,6 +174,7 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .or(tx_handler)
         .or(tx_verbose_handler)
         .or(tx_hex_handler)
+        .or(txs_since_handler)
         .or(mempool_histogram_handler)
         .or(debug_handler)
         .or(sync_handler)
