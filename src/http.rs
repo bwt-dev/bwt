@@ -352,7 +352,7 @@ where
             warn!("request failed with: {:#?}", e);
             let status = StatusCode::INTERNAL_SERVER_ERROR;
             let body = fmt_error_chain(&e);
-            reply::with_status(e.to_string(), status).into_response()
+            reply::with_status(body, status).into_response()
         }
     }
 }
