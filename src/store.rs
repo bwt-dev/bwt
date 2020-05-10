@@ -266,6 +266,12 @@ impl MemoryStore {
         Some(&self.scripthashes.get(scripthash)?.history)
     }
 
+    pub fn get_tx_count(&self, scripthash: &ScriptHash) -> usize {
+        self.scripthashes
+            .get(scripthash)
+            .map_or(0, |script_entry| script_entry.history.len())
+    }
+
     pub fn get_tx_entry(&self, txid: &Txid) -> Option<&TxEntry> {
         self.transactions.get(txid)
     }

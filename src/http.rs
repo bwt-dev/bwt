@@ -44,8 +44,8 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .and(warp::path::end())
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
-            let script_info = query.get_script_info(&scripthash).or_err("not found")?;
-            Ok(reply::json(&script_info))
+            let script_stats = query.get_script_stats(&scripthash)?;
+            Ok(reply::json(&script_stats))
         })
         .map(handle_error);
 

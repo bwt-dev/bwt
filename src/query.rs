@@ -109,12 +109,11 @@ impl Query {
             let tip_height = self.rpc.get_block_count()? as u32;
             let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
-            // XXX include unsafe?
             let unspents = self.rpc.list_unspent(
                 Some(min_conf),
                 None,
                 Some(&[&address]),
-                Some(false),
+                Some(true),
                 None,
             )?;
 
@@ -209,6 +208,23 @@ impl Query {
         })
     }
 
+    pub fn get_script_stats(&self, scripthash: &ScriptHash) -> Result<ScriptStats> {
+        let indexer = self.indexer.read().unwrap();
+        let store = indexer.store();
+        let script_info = store
+            .get_script_info(scripthash)
+            .or_err("scripthash not found")?;
+        let tx_count = store.get_tx_count(scripthash);
+        let (confirmed_balance, unconfirmed_balance) = self.get_balance(scripthash)?;
+
+        Ok(ScriptStats {
+            script_info,
+            tx_count,
+            confirmed_balance,
+            unconfirmed_balance,
+        })
+    }
+
     pub fn get_tx_info(&self, txid: &Txid) -> Option<TxInfo> {
         let index = self.indexer.read().unwrap();
         let store = index.store();
@@ -292,4 +308,13 @@ struct TxInfoSpending {
     script_info: ScriptInfo, // scripthash, address & origin
     amount: u64,
     prevout: OutPoint,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ScriptStats {
+    #[serde(flatten)]
+    script_info: ScriptInfo,
+    tx_count: usize,
+    confirmed_balance: u64,
+    unconfirmed_balance: u64,
 }
