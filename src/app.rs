@@ -88,7 +88,7 @@ impl App {
                     debug!("indexer updates: {:#?}", updates);
 
                     #[cfg(feature = "electrum")]
-                    self.electrum.notify();
+                    self.electrum.send_updates(&updates);
 
                     #[cfg(feature = "http")]
                     self.http.send_updates(&updates);

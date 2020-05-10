@@ -11,6 +11,7 @@ use bitcoin_hashes::{hex::FromHex, hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
 use crate::error::{fmt_error_chain, Result, ResultExt};
+use crate::indexer::IndexUpdate;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
 use crate::types::{BlockId, ScriptHash, StatusHash, TxStatus};
@@ -24,7 +25,6 @@ const MAX_HEADERS: u32 = 2016;
 
 struct Connection {
     query: Arc<Query>,
-    tip: Option<BlockId>,
     status_hashes: HashMap<ScriptHash, Option<StatusHash>>,
     stream: TcpStream,
     addr: SocketAddr,
@@ -35,7 +35,6 @@ impl Connection {
     pub fn new(query: Arc<Query>, stream: TcpStream, addr: SocketAddr) -> Connection {
         Connection {
             query,
-            tip: None, // disable header subscription for now
             status_hashes: HashMap::new(),
             stream,
             addr,
@@ -44,10 +43,8 @@ impl Connection {
     }
 
     fn blockchain_headers_subscribe(&mut self) -> Result<Value> {
-        let tip = self.query.get_tip()?;
-        let tip_height = tip.0;
-        let tip_hex = self.query.get_header_by_hash(&tip.1)?;
-        self.tip = Some(tip);
+        let BlockId(tip_height, tip_hash) = self.query.get_tip()?;
+        let tip_hex = self.query.get_header_by_hash(&tip_hash)?;
         Ok(json!({ "height": tip_height, "hex": tip_hex }))
     }
 
@@ -199,9 +196,6 @@ impl Connection {
         let (tx_hex,): (String,) = from_value(params)?;
 
         let txid = self.query.broadcast(&tx_hex)?;
-        if let Err(e) = self.chan.sender().try_send(Message::PeriodicUpdate) {
-            warn!("failed to issue PeriodicUpdate after broadcast: {}", e);
-        }
         Ok(json!(txid.to_hex()))
     }
 
@@ -281,40 +275,35 @@ impl Connection {
         })
     }
 
-    fn update_subscriptions(&mut self) -> Result<Vec<Value>> {
-        let mut result = vec![];
-        if let Some(ref mut last_tip) = self.tip {
-            let tip = self.query.get_tip()?;
-            if *last_tip != tip {
-                let hex_header = self.query.get_header_by_hash(&tip.1)?;
-                let header = json!({"hex": hex_header, "height": tip.0 });
-                *last_tip = tip;
-                result.push(json!({
+    fn update_subscriptions(&mut self, update: IndexUpdate) -> Result<Option<Value>> {
+        Ok(Some(match update {
+            IndexUpdate::ChainTip(BlockId(tip_height, tip_hash)) => {
+                let hex_header = self.query.get_header_by_hash(&tip_hash)?;
+                let header = json!({"hex": hex_header, "height": tip_height });
+                json!({
                     "jsonrpc": "2.0",
                     "method": "blockchain.headers.subscribe",
-                    "params": [header]}));
+                    "params": [header]})
             }
-        }
-        for (script_hash, status_hash) in self.status_hashes.iter_mut() {
-            let new_status_hash = get_status_hash(&self.query, &script_hash);
-            if new_status_hash == *status_hash {
-                continue;
+            IndexUpdate::History(scripthash, _) => {
+                if let Some(status_hash) = self.status_hashes.get_mut(&scripthash) {
+                    let new_status_hash = get_status_hash(&self.query, &scripthash);
+                    info!(
+                        "[electrum] status hash for {:?} updated to {:?} (was {:?})",
+                        scripthash, new_status_hash, status_hash
+                    );
+                    *status_hash = new_status_hash;
+                    json!({
+                        "jsonrpc": "2.0",
+                        "method": "blockchain.scripthash.subscribe",
+                        "params": [encode_script_hash(&scripthash), new_status_hash]
+                    })
+                } else {
+                    return Ok(None);
+                }
             }
-            info!(
-                "status hash for {:?} updated to {:?} (was {:?})",
-                script_hash, new_status_hash, status_hash
-            );
-            result.push(json!({
-                "jsonrpc": "2.0",
-                "method": "blockchain.scripthash.subscribe",
-                "params": [encode_script_hash(script_hash), new_status_hash]
-            }));
-            *status_hash = new_status_hash;
-        }
-        if result.len() > 0 {
-            info!("sending notifications: {:#?}", result);
-        }
-        Ok(result)
+            _ => unreachable!(), // we're not supposed to receive anything else
+        }))
     }
 
     fn send_values(&mut self, values: &[Value]) -> Result<()> {
@@ -343,11 +332,11 @@ impl Connection {
                     };
                     self.send_values(&[reply])?
                 }
-                Message::PeriodicUpdate => {
-                    let values = self
-                        .update_subscriptions()
-                        .context("failed to update subscriptions")?;
-                    self.send_values(&values)?
+                Message::IndexUpdate(update) => {
+                    if let Some(value) = self.update_subscriptions(update)? {
+                        info!("[electrum] sending notification: {:#?}", value);
+                        self.send_values(&[value])?
+                    }
                 }
                 Message::Done => return Ok(()),
             }
@@ -454,12 +443,12 @@ fn reverse_hash(hash: ScriptHash) -> ScriptHash {
 #[derive(Debug)]
 pub enum Message {
     Request(String),
-    PeriodicUpdate,
+    IndexUpdate(IndexUpdate),
     Done,
 }
 
 pub enum Notification {
-    Periodic,
+    IndexUpdate(IndexUpdate),
     Exit,
 }
 
@@ -478,11 +467,10 @@ impl ElectrumServer {
             for msg in notification.receiver().iter() {
                 let mut senders = senders.lock().unwrap();
                 match msg {
-                    Notification::Periodic => {
+                    Notification::IndexUpdate(update) => {
                         for sender in senders.split_off(0) {
-                            if let Err(TrySendError::Disconnected(_)) =
-                                sender.try_send(Message::PeriodicUpdate)
-                            {
+                            let msg = Message::IndexUpdate(update.clone());
+                            if let Err(TrySendError::Disconnected(_)) = sender.try_send(msg) {
                                 continue;
                             }
                             senders.push(sender);
@@ -548,8 +536,17 @@ impl ElectrumServer {
         }
     }
 
-    pub fn notify(&self) {
-        self.notification.send(Notification::Periodic).unwrap();
+    pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
+        for update in updates {
+            match update {
+                IndexUpdate::ChainTip(..) | IndexUpdate::History(..) => self
+                    .notification
+                    .send(Notification::IndexUpdate(update.clone()))
+                    .unwrap(),
+                // we don't care about other updates
+                _ => (),
+            }
+        }
     }
 
     pub fn join(mut self) {
