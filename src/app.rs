@@ -27,7 +27,7 @@ pub struct App {
 
 impl App {
     pub fn boot(config: Config) -> Result<Self> {
-        info!("booting with config: #{:?}", config);
+        info!("config: {:?}", config);
 
         let wallets = HDWallet::from_xpubs(&config.xpubs[..], config.network)?;
         let watcher = HDWatcher::new(wallets);
@@ -40,7 +40,7 @@ impl App {
         let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&indexer)));
         let (tx, rx) = mpsc::channel();
 
-        indexer.write().unwrap().sync()?;
+        indexer.write().unwrap().sync(false)?;
 
         #[cfg(feature = "electrum")]
         let electrum = ElectrumServer::start(config.electrum_rpc_addr, Arc::clone(&query));
@@ -51,7 +51,7 @@ impl App {
         #[cfg(unix)]
         {
             if let Some(listener_path) = &config.unix_listener_path {
-                let _listener = listener::start(listener_path.clone(), tx.clone());
+                listener::start(listener_path.clone(), tx.clone());
             }
         }
 
@@ -70,15 +70,18 @@ impl App {
     /// Start a sync loop blocking the current thread
     pub fn sync(self) {
         loop {
-            self.indexer
-                .write()
-                .unwrap()
-                .sync()
-                .map_err(|err| warn!("error while updating index: {:#?}", err))
-                .ok();
+            match self.indexer.write().unwrap().sync(true) {
+                Ok(updates) => {
+                    debug!("updates: {:#?}", updates);
 
-            #[cfg(feature = "electrum")]
-            self.electrum.notify();
+                    #[cfg(feature = "electrum")]
+                    self.electrum.notify();
+
+                    #[cfg(feature = "http")]
+                    self.http.send_updates(&updates);
+                }
+                Err(e) => warn!("error while updating index: {:#?}", e),
+            }
 
             // wait for poll_interval seconds, or until we receive a sync notification message
             // TODO debounce messages to avoid excessive indexing

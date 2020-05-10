@@ -1,8 +1,10 @@
-use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
-use bitcoin::{SignedAmount, Txid};
+use serde::Serialize;
+
+use bitcoin::{BlockHash, OutPoint, SignedAmount, Txid};
 use bitcoincore_rpc::json::{
     GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
 };
@@ -37,7 +39,9 @@ impl Indexer {
         &self.store
     }
 
-    pub fn sync(&mut self) -> Result<()> {
+    pub fn sync(&mut self, track_updates: bool) -> Result<Vec<IndexUpdate>> {
+        let mut updates = IndexUpdates::new(track_updates);
+
         // Detect reorgs and start syncing history from scratch when they happen
         if let Some(BlockId(tip_height, tip_hash)) = self.tip {
             let best_chain_hash = self.rpc.get_block_hash(tip_height as u64)?;
@@ -46,22 +50,28 @@ impl Indexer {
                     "reorg detected, block height {} was {} and now is {}. fetching history from scratch...",
                     tip_height, tip_hash, best_chain_hash
                 );
+
                 // XXX start syncing from N blocks backs instead of from the beginning?
                 self.tip = None;
+
+                updates.push(|| IndexUpdate::Reorg(tip_height, tip_hash, best_chain_hash));
             }
         }
 
-        let synced_tip = self.sync_transactions()?;
+        let synced_tip = self.sync_transactions(&mut updates)?;
 
         self.watcher.watch(&self.rpc)?;
 
-        info!("synced up to {:?}", synced_tip);
-        self.tip = Some(synced_tip);
+        if self.tip.as_ref() != Some(&synced_tip) {
+            info!("synced up to tip at {:?}", synced_tip);
+            updates.push(|| IndexUpdate::ChainTip(synced_tip.clone()));
+            self.tip = Some(synced_tip);
+        }
 
-        Ok(())
+        Ok(updates.into_vec())
     }
 
-    fn sync_transactions(&mut self) -> Result<BlockId> {
+    fn sync_transactions(&mut self, updates: &mut IndexUpdates) -> Result<BlockId> {
         let start_height = self
             .tip
             .as_ref()
@@ -75,9 +85,15 @@ impl Indexer {
             None,
             &mut |chunk, tip_height| {
                 for ltx in chunk {
+                    if ltx.info.confirmations < 0 {
+                        if self.store.purge_tx(&ltx.info.txid) {
+                            updates.push(|| IndexUpdate::TransactionRemoved(ltx.info.txid));
+                        }
+                        continue;
+                    }
                     match ltx.detail.category {
                         TxCategory::Receive => {
-                            self.process_incoming(ltx, tip_height);
+                            self.process_incoming(ltx, tip_height, updates);
                         }
                         TxCategory::Send => {
                             // outgoing payments are buffered and processed later so that the
@@ -94,7 +110,7 @@ impl Indexer {
         )?;
 
         for (txid, txentry) in pending_outgoing {
-            self.process_outgoing(txid, txentry)
+            self.process_outgoing(txid, txentry, updates)
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
         }
@@ -102,7 +118,12 @@ impl Indexer {
         Ok(synced_tip)
     }
 
-    fn process_incoming(&mut self, ltx: ListTransactionResult, tip_height: u32) {
+    fn process_incoming(
+        &mut self,
+        ltx: ListTransactionResult,
+        tip_height: u32,
+        updates: &mut IndexUpdates,
+    ) {
         // XXX stop early if we're familiar with this txid and its long confirmed
 
         let origin = match ltx
@@ -121,11 +142,6 @@ impl Indexer {
             ltx.detail.address, origin, status, ltx
         );
 
-        if !status.is_viable() {
-            self.store.purge_tx(&ltx.info.txid);
-            return;
-        }
-
         let scripthash = ScriptHash::from(&ltx.detail.address);
         let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts
         let funding_info = FundingInfo(scripthash, amount);
@@ -133,28 +149,38 @@ impl Indexer {
         let mut txentry = TxEntry::new(status, None);
         txentry.funding.insert(ltx.detail.vout, funding_info);
 
-        self.store.index_tx_entry(&ltx.info.txid, txentry);
+        if self.store.index_tx_entry(&ltx.info.txid, txentry) {
+            updates.push(|| IndexUpdate::Transaction(ltx.info.txid));
+        }
 
-        self.store
-            .track_scripthash(&scripthash, &origin, &ltx.detail.address);
+        if self
+            .store
+            .track_scripthash(&scripthash, &origin, &ltx.detail.address)
+        {
+            updates.push(|| IndexUpdate::FirstFunding(scripthash));
+        }
 
-        self.store
-            .index_history_entry(&scripthash, HistoryEntry::new(ltx.info.txid, status));
+        if self
+            .store
+            .index_history_entry(&scripthash, HistoryEntry::new(ltx.info.txid, status))
+        {
+            updates.push(|| IndexUpdate::History(scripthash));
+        }
 
         self.watcher.mark_funded(&origin);
     }
 
     #[cfg_attr(not(feature = "track-spends"), allow(unused_variables, unused_mut))]
-    fn process_outgoing(&mut self, txid: Txid, mut txentry: TxEntry) -> Result<()> {
+    fn process_outgoing(
+        &mut self,
+        txid: Txid,
+        mut txentry: TxEntry,
+        updates: &mut IndexUpdates,
+    ) -> Result<()> {
         debug!(
             "processing outgoing tx {:?} with status {:?}",
             txid, txentry.status
         );
-
-        if !txentry.status.is_viable() {
-            self.store.purge_tx(&txid);
-            return Ok(());
-        }
 
         let tx = self.rpc.get_transaction(&txid, Some(true))?.transaction()?;
 
@@ -162,8 +188,12 @@ impl Indexer {
             if let Some(FundingInfo(scripthash, amount)) =
                 self.store.lookup_txo_fund(&input.previous_output)
             {
-                self.store
-                    .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status));
+                if self
+                    .store
+                    .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status))
+                {
+                    updates.push(|| IndexUpdate::History(scripthash));
+                }
 
                 // we could keep just the previous_output and lookup the scripthash and amount
                 // from the corrospanding FundingInfo, but we keep it here anyway for quick access
@@ -174,15 +204,23 @@ impl Indexer {
                 );
 
                 #[cfg(feature = "track-spends")]
-                self.store
-                    .index_txo_spend(input.previous_output, TxInput::new(txid, vin as u32));
+                {
+                    if self
+                        .store
+                        .index_txo_spend(input.previous_output, TxInput::new(txid, vin as u32))
+                    {
+                        updates.push(|| IndexUpdate::TxoSpend(input.previous_output));
+                    }
+                }
             }
         }
 
         #[cfg(feature = "track-spends")]
         {
             if !txentry.spending.is_empty() {
-                self.store.index_tx_entry(&txid, txentry);
+                if self.store.index_tx_entry(&txid, txentry) {
+                    updates.push(|| IndexUpdate::Transaction(txid));
+                }
             }
         }
 
@@ -190,21 +228,52 @@ impl Indexer {
     }
 }
 
-impl Ord for HistoryEntry {
-    fn cmp(&self, other: &HistoryEntry) -> Ordering {
-        self.status
-            .cmp(&other.status)
-            .then_with(|| self.txid.cmp(&other.txid))
+#[derive(Clone, Serialize, Debug)]
+#[serde(tag = "type", content = "params")]
+pub enum IndexUpdate {
+    ChainTip(BlockId),
+    Reorg(u32, BlockHash, BlockHash),
+
+    History(ScriptHash),
+    FirstFunding(ScriptHash),
+
+    Transaction(Txid),
+    TransactionRemoved(Txid),
+
+    #[cfg(feature = "track-spends")]
+    TxoSpend(OutPoint),
+}
+
+enum IndexUpdates {
+    Stored(Vec<IndexUpdate>),
+    Void,
+}
+
+impl IndexUpdates {
+    fn new(stored: bool) -> Self {
+        if stored {
+            IndexUpdates::Stored(vec![])
+        } else {
+            IndexUpdates::Void
+        }
+    }
+    fn push(&mut self, make_update: impl Fn() -> IndexUpdate) {
+        match self {
+            IndexUpdates::Stored(updates) => updates.push(make_update()),
+            IndexUpdates::Void => (),
+        }
+    }
+    fn into_vec(self) -> Vec<IndexUpdate> {
+        match self {
+            IndexUpdates::Stored(updates) => updates,
+            IndexUpdates::Void => vec![],
+        }
     }
 }
 
-impl PartialOrd for HistoryEntry {
-    fn partial_cmp(&self, other: &HistoryEntry) -> Option<Ordering> {
-        Some(
-            self.status
-                .cmp(&other.status)
-                .then_with(|| self.txid.cmp(&other.txid)),
-        )
+impl fmt::Display for IndexUpdate {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 

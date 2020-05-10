@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::{BTreeSet, HashMap};
 
 use serde::Serialize;
@@ -81,8 +82,10 @@ impl MemoryStore {
         scripthash: &ScriptHash,
         origin: &KeyOrigin,
         address: &Address,
-    ) {
+    ) -> bool {
         debug!("tracking {:?} {:?} {:?}", origin, scripthash, address);
+
+        let mut existed = false;
 
         self.scripthashes
             .entry(*scripthash)
@@ -91,16 +94,19 @@ impl MemoryStore {
                     curr_entry.origin, *origin,
                     "unexpected stored origin for {:?}",
                     scripthash
-                )
+                );
+                existed = true;
             })
             .or_insert_with(|| ScriptEntry {
                 address: address.clone(),
                 origin: origin.clone(),
                 history: BTreeSet::new(),
             });
+
+        !existed
     }
 
-    pub fn index_tx_entry(&mut self, txid: &Txid, mut txentry: TxEntry) {
+    pub fn index_tx_entry(&mut self, txid: &Txid, mut txentry: TxEntry) -> bool {
         debug!("index tx entry {:?}: {:?}", txid, txentry);
 
         assert!(
@@ -109,6 +115,7 @@ impl MemoryStore {
         );
 
         let new_status = txentry.status;
+        let mut updated = false;
         let mut changed_from = None;
 
         self.transactions
@@ -125,19 +132,23 @@ impl MemoryStore {
                 if &curr_entry.status != &txentry.status {
                     changed_from = Some(curr_entry.status);
                     curr_entry.status = new_status;
+                    updated = true;
                 }
             })
             .or_insert_with(|| {
                 info!("new tx entry: {:?}", txid);
+                updated = true;
                 txentry
             });
 
         if let Some(old_status) = changed_from {
-            self.tx_status_changed(txid, old_status, new_status)
+            self.tx_status_changed(txid, old_status, new_status);
         }
+
+        updated
     }
 
-    pub fn index_history_entry(&mut self, scripthash: &ScriptHash, txhist: HistoryEntry) {
+    pub fn index_history_entry(&mut self, scripthash: &ScriptHash, txhist: HistoryEntry) -> bool {
         debug!(
             "index scripthash history for {:?}: {:?}",
             scripthash, txhist
@@ -151,17 +162,24 @@ impl MemoryStore {
             .insert(txhist);
 
         if added {
-            info!("new history entry added for {:?}", scripthash)
+            info!("new history entry added for {:?}", scripthash);
         }
+
+        added
     }
 
     #[cfg(feature = "track-spends")]
-    pub fn index_txo_spend(&mut self, spent_prevout: OutPoint, spending_input: TxInput) {
+    pub fn index_txo_spend(&mut self, spent_prevout: OutPoint, spending_input: TxInput) -> bool {
         debug!(
             "index txo spend: {:?} by {:?}",
             spent_prevout, spending_input
         );
-        self.txo_spends.insert(spent_prevout, spending_input);
+
+        let added = self
+            .txo_spends
+            .insert(spent_prevout, spending_input)
+            .is_none();
+        added
     }
 
     /// Update the scripthash history index to reflect the new tx status
@@ -207,9 +225,10 @@ impl MemoryStore {
         }
     }
 
-    pub fn purge_tx(&mut self, txid: &Txid) {
+    pub fn purge_tx(&mut self, txid: &Txid) -> bool {
         info!("purge tx {:?}", txid);
 
+        // XXX should replaced transactions be kept around instead of purged entirely?
         if let Some(old_entry) = self.transactions.remove(txid) {
             let old_txhist = HistoryEntry {
                 status: old_entry.status,
@@ -245,6 +264,9 @@ impl MemoryStore {
             }
 
             // TODO remove the scripthashes entirely if have no more history entries
+            true
+        } else {
+            false
         }
     }
 
@@ -322,5 +344,23 @@ impl ScriptInfo {
             address: script_entry.address.clone(),
             origin: script_entry.origin.clone(),
         }
+    }
+}
+
+impl Ord for HistoryEntry {
+    fn cmp(&self, other: &HistoryEntry) -> Ordering {
+        self.status
+            .cmp(&other.status)
+            .then_with(|| self.txid.cmp(&other.txid))
+    }
+}
+
+impl PartialOrd for HistoryEntry {
+    fn partial_cmp(&self, other: &HistoryEntry) -> Option<Ordering> {
+        Some(
+            self.status
+                .cmp(&other.status)
+                .then_with(|| self.txid.cmp(&other.txid)),
+        )
     }
 }

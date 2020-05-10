@@ -8,17 +8,6 @@ use bitcoin::{Network, Txid};
 
 use crate::types::ScriptType;
 
-pub fn remove_if<K, V>(hm: &mut HashMap<K, V>, key: K, predicate: impl Fn(&V) -> bool)
-where
-    K: Eq + std::hash::Hash,
-{
-    if let Entry::Occupied(entry) = hm.entry(key) {
-        if predicate(entry.get()) {
-            entry.remove_entry();
-        }
-    }
-}
-
 const VSIZE_BIN_WIDTH: u32 = 50_000; // vbytes
 
 // Make the fee histogram our of a list of `getrawmempool true` entries
@@ -56,6 +45,17 @@ pub fn make_fee_histogram(mempool_entries: HashMap<Txid, Value>) -> Vec<(f32, u3
     }
 
     histogram
+}
+
+pub fn remove_if<K, V>(hm: &mut HashMap<K, V>, key: K, predicate: impl Fn(&V) -> bool)
+where
+    K: Eq + std::hash::Hash,
+{
+    if let Entry::Occupied(entry) = hm.entry(key) {
+        if predicate(entry.get()) {
+            entry.remove_entry();
+        }
+    }
 }
 
 pub struct XyzPubKey {

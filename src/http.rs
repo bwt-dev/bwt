@@ -4,22 +4,33 @@ use std::sync::{mpsc, Arc, Mutex};
 
 use async_std::task;
 use serde_derive::Deserialize;
+use tokio::stream::{Stream, StreamExt};
+use tokio::sync::mpsc as tmpsc;
 use warp::http::StatusCode;
-use warp::Filter;
-use warp::{reply, Reply};
+use warp::sse::ServerSentEvent;
+use warp::{reply, Filter, Reply};
 
 use bitcoin::{Address, Txid};
 
 use crate::error::{Error, OptionExt};
-use crate::Query;
+use crate::indexer::IndexUpdate;
 use crate::types::ScriptHash;
+use crate::Query;
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
 
+type UpdateListeners = Arc<Mutex<Vec<tmpsc::UnboundedSender<IndexUpdate>>>>;
+
 #[tokio::main]
-async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) {
+async fn run(
+    addr: net::SocketAddr,
+    query: Arc<Query>,
+    sync_tx: SyncChanSender,
+    listeners: UpdateListeners,
+) {
     let query = warp::any().map(move || Arc::clone(&query));
     let sync_tx = warp::any().map(move || Arc::clone(&sync_tx));
+    let listeners = warp::any().map(move || Arc::clone(&listeners));
 
     // Pre-processing
     // GET /address/:address/*
@@ -150,6 +161,14 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         })
         .map(handle_error);
 
+    // GET /stream
+    let sse_handler = warp::path!("stream")
+        .and(listeners)
+        .map(|listeners: UpdateListeners| {
+            let stream = make_connection_sse_stream(listeners.clone());
+            warp::sse::reply(warp::sse::keep_alive().stream(stream))
+        });
+
     // GET /debug
     let debug_handler = warp::get()
         .and(warp::path!("debug"))
@@ -176,6 +195,7 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .or(tx_hex_handler)
         .or(txs_since_handler)
         .or(mempool_histogram_handler)
+        .or(sse_handler)
         .or(debug_handler)
         .or(sync_handler)
         .with(warp::log("pxt"));
@@ -185,15 +205,41 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
     warp::serve(handlers).run(addr).await
 }
 
-pub struct HttpServer(task::JoinHandle<()>);
+pub struct HttpServer {
+    thread: task::JoinHandle<()>,
+    listeners: UpdateListeners,
+}
 
 impl HttpServer {
     pub fn start(addr: net::SocketAddr, query: Arc<Query>, sync_tx: mpsc::Sender<()>) -> Self {
-        HttpServer(task::spawn(async move {
-            let sync_tx = Arc::new(Mutex::new(sync_tx));
-            run(addr, query, sync_tx);
-        }))
+        let sync_tx = Arc::new(Mutex::new(sync_tx));
+
+        let listeners: UpdateListeners = Arc::new(Mutex::new(Vec::new()));
+        let thr_listeners = Arc::clone(&listeners);
+
+        HttpServer {
+            thread: task::spawn(async move {
+                run(addr, query, sync_tx, thr_listeners);
+            }),
+            listeners,
+        }
     }
+
+    pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
+        // send updates while dropping unresponsive listeners
+        self.listeners
+            .lock()
+            .unwrap()
+            .retain(|tx| updates.iter().all(|update| tx.send(update.clone()).is_ok()))
+    }
+}
+
+fn make_connection_sse_stream(
+    listeners: UpdateListeners,
+) -> impl Stream<Item = Result<impl ServerSentEvent, warp::Error>> {
+    let (tx, rx) = tmpsc::unbounded_channel();
+    listeners.lock().unwrap().push(tx);
+    rx.map(|update: IndexUpdate| Ok(warp::sse::json(update)))
 }
 
 #[derive(Deserialize, Debug)]

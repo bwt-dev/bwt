@@ -17,7 +17,7 @@ impl From<&Address> for ScriptHash {
 #[cfg(feature = "electrum")]
 hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
 
-#[derive(Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq, Clone)]
 pub struct BlockId(pub u32, pub BlockHash);
 
 #[derive(Debug, Copy, Clone)]
