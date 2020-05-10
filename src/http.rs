@@ -138,7 +138,8 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .or(tx_verbose_handler)
         .or(tx_hex_handler)
         .or(debug_handler)
-        .or(sync_handler);
+        .or(sync_handler)
+        .with(warp::log("pxt"));
 
     info!("starting http server on {}", addr);
 
