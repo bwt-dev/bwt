@@ -1,8 +1,10 @@
 use std::collections::hash_map::{Entry, HashMap};
 use std::str::FromStr;
 
+use serde_json::Value;
+
 use bitcoin::util::{base58, bip32::ExtendedPubKey};
-use bitcoin::Network;
+use bitcoin::{Network, Txid};
 
 use crate::types::ScriptType;
 
@@ -15,6 +17,45 @@ where
             entry.remove_entry();
         }
     }
+}
+
+const VSIZE_BIN_WIDTH: u32 = 50_000; // vbytes
+
+// Make the fee histogram our of a list of `getrawmempool true` entries
+pub fn make_fee_histogram(mempool_entries: HashMap<Txid, Value>) -> Vec<(f32, u32)> {
+    let mut entries: Vec<(u32, f32)> = mempool_entries
+        .values()
+        .map(|entry| {
+            let size = entry["size"].as_u64().unwrap(); // bitcoind is borked if this fails
+            let fee = entry["fee"].as_f64().unwrap();
+            let feerate = fee as f32 / size as f32 * 100_000_000f32;
+            (size as u32, feerate)
+        })
+        .collect();
+
+    // XXX we should take unconfirmed parents feerates into account
+
+    entries.sort_unstable_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+    let mut histogram = vec![];
+    let mut bin_size = 0;
+    let mut last_feerate = None;
+
+    for (size, feerate) in entries.into_iter().rev() {
+        bin_size += size;
+        if bin_size > VSIZE_BIN_WIDTH && last_feerate.map_or(true, |last| feerate > last) {
+            // vsize of transactions paying >= e.fee_per_vbyte()
+            histogram.push((feerate, bin_size));
+            bin_size = 0;
+        }
+        last_feerate = Some(feerate);
+    }
+
+    if let Some(feerate) = last_feerate {
+        histogram.push((feerate, bin_size));
+    }
+
+    histogram
 }
 
 pub struct XyzPubKey {

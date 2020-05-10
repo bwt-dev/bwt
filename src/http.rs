@@ -127,6 +127,16 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         })
         .map(handle_error);
 
+    // GET /mempool/histogram
+    let mempool_histogram_handler = warp::get()
+        .and(warp::path!("mempool" / "histogram"))
+        .and(query.clone())
+        .map(|query: Arc<Query>| {
+            let histogram = query.fee_histogram()?;
+            Ok(reply::json(&histogram))
+        })
+        .map(handle_error);
+
     // GET /debug
     let debug_handler = warp::get()
         .and(warp::path!("debug"))
@@ -151,6 +161,7 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .or(tx_handler)
         .or(tx_verbose_handler)
         .or(tx_hex_handler)
+        .or(mempool_histogram_handler)
         .or(debug_handler)
         .or(sync_handler)
         .with(warp::log("pxt"));

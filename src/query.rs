@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use serde::Serialize;
@@ -10,6 +11,7 @@ use crate::error::{OptionExt, Result};
 use crate::indexer::Indexer;
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, TxEntry};
 use crate::types::{BlockId, ScriptHash, TxStatus};
+use crate::util::make_fee_histogram;
 
 #[cfg(feature = "track-spends")]
 use crate::{store::SpendingInfo, types::TxInput};
@@ -77,6 +79,11 @@ impl Query {
 
         // from BTC/kB to sat/b
         Ok((feerate * 100_000f64) as f64)
+    }
+
+    pub fn fee_histogram(&self) -> Result<Vec<(f32, u32)>> {
+        let mempool_entries = self.get_raw_mempool()?;
+        Ok(make_fee_histogram(mempool_entries))
     }
 
     pub fn debug_index(&self) -> String {
@@ -191,7 +198,7 @@ impl Query {
         Ok(self.rpc.send_raw_transaction(tx_hex)?)
     }
 
-    pub fn get_raw_mempool(&self) -> Result<Value> {
+    pub fn get_raw_mempool(&self) -> Result<HashMap<Txid, Value>> {
         Ok(self.rpc.call("getrawmempool", &[json!(true)])?)
     }
 
