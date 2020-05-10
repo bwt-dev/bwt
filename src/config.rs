@@ -104,6 +104,13 @@ pub struct Config {
         help = "path for binding sync notification unix socket"
     )]
     pub unix_listener_path: Option<path::PathBuf>,
+
+    #[cfg(feature = "webhooks")]
+    #[structopt(
+        long = "webhook-url",
+        help = "url to send index update notifications to"
+    )]
+    pub webhook_urls: Option<Vec<String>>,
 }
 
 impl Config {
@@ -134,6 +141,7 @@ impl Config {
             .or_err("no available authentication for bitcoind rpc, please specify credentials or a cookie file")?)
     }
 
+    #[cfg(feature = "electrum")]
     pub fn electrum_rpc_addr(&self) -> net::SocketAddr {
         self.electrum_rpc_addr.clone().unwrap_or_else(|| {
             net::SocketAddr::new(

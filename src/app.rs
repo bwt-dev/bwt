@@ -11,6 +11,8 @@ use crate::electrum::ElectrumServer;
 use crate::http::HttpServer;
 #[cfg(unix)]
 use crate::listener;
+#[cfg(feature = "webhooks")]
+use crate::webhooks::WebHookNotifier;
 
 pub struct App {
     config: Config,
@@ -23,6 +25,8 @@ pub struct App {
     electrum: ElectrumServer,
     #[cfg(feature = "http")]
     http: HttpServer,
+    #[cfg(feature = "webhooks")]
+    webhook: Option<WebHookNotifier>,
 }
 
 impl App {
@@ -56,6 +60,12 @@ impl App {
             }
         }
 
+        #[cfg(feature = "webhooks")]
+        let webhook = config
+            .webhook_urls
+            .clone()
+            .map(|urls| WebHookNotifier::start(urls));
+
         Ok(App {
             config,
             indexer,
@@ -65,6 +75,8 @@ impl App {
             electrum,
             #[cfg(feature = "http")]
             http,
+            #[cfg(feature = "webhooks")]
+            webhook,
         })
     }
 
@@ -80,6 +92,11 @@ impl App {
 
                     #[cfg(feature = "http")]
                     self.http.send_updates(&updates);
+
+                    #[cfg(feature = "webhooks")]
+                    self.webhook
+                        .as_ref()
+                        .map(|webhook| webhook.send_updates(&updates));
                 }
                 Err(e) => warn!("error while updating index: {:#?}", e),
             }

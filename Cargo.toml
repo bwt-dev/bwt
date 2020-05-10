@@ -5,9 +5,10 @@ authors = ["Nadav Ivgi <nadav@shesek.info>"]
 edition = "2018"
 
 [features]
-default = [ "electrum", "http", "track-spends" ]
+default = [ "electrum", "http", "webhooks", "track-spends" ]
 electrum = []
 http = [ "warp", "tokio", "async-std" ]
+webhooks = [ "reqwest" ]
 track-spends = []
 
 [dependencies]
@@ -30,3 +31,4 @@ structopt = "0.3.13"
 tokio = { version = "0.2.20", features = ["macros"], optional = true }
 warp = { version = "0.2.2", optional = true }
 async-std = { version = "1.5.0", optional = true }
+reqwest = { version = "0.10.4", optional = true, features = ["json", "blocking"] }

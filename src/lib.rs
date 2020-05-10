@@ -33,6 +33,9 @@ pub mod merkle;
 #[cfg(feature = "http")]
 pub mod http;
 
+#[cfg(feature = "webhooks")]
+pub mod webhooks;
+
 pub use app::App;
 pub use config::Config;
 pub use error::{Error, Result};
