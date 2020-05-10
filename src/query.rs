@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::Value;
@@ -16,14 +17,29 @@ use crate::util::make_fee_histogram;
 #[cfg(feature = "track-spends")]
 use crate::{store::SpendingInfo, types::TxInput};
 
+lazy_static! {
+    static ref FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(60);
+    static ref FEE_ESTIMATES_TTL: Duration = Duration::from_secs(60);
+}
+
 pub struct Query {
     rpc: Arc<RpcClient>,
     indexer: Arc<RwLock<Indexer>>,
+
+    cached_histogram: RwLock<Option<(FeeHistogram, Instant)>>,
+    cached_estimates: RwLock<HashMap<u16, (Option<f64>, Instant)>>,
 }
+
+type FeeHistogram = Vec<(f32, u32)>;
 
 impl Query {
     pub fn new(rpc: Arc<RpcClient>, indexer: Arc<RwLock<Indexer>>) -> Self {
-        Query { rpc, indexer }
+        Query {
+            rpc,
+            indexer,
+            cached_histogram: RwLock::new(None),
+            cached_estimates: RwLock::new(HashMap::new()),
+        }
     }
 
     pub fn get_tip(&self) -> Result<BlockId> {
@@ -63,13 +79,22 @@ impl Query {
     }
 
     pub fn estimate_fee(&self, target: u16) -> Result<Option<f64>> {
-        let feerate = self
-            .rpc
-            .estimate_smart_fee(target, None)?
-            .fee_rate
-            // from sat/kB to sat/b
-            .map(|rate| (rate.as_sat() as f64 / 1000f64) as f64);
-        Ok(feerate)
+        ensure!(target < 1024, "target out of range");
+
+        ttl_cache!(
+            self.cached_estimates,
+            *FEE_ESTIMATES_TTL,
+            || -> Result<Option<f64>> {
+                let feerate = self
+                    .rpc
+                    .estimate_smart_fee(target, None)?
+                    .fee_rate
+                    // from sat/kB to sat/b
+                    .map(|rate| (rate.as_sat() as f64 / 1000f64) as f64);
+                Ok(feerate)
+            },
+            target
+        );
     }
 
     pub fn relay_fee(&self) -> Result<f64> {
@@ -81,9 +106,15 @@ impl Query {
         Ok((feerate * 100_000f64) as f64)
     }
 
-    pub fn fee_histogram(&self) -> Result<Vec<(f32, u32)>> {
-        let mempool_entries = self.get_raw_mempool()?;
-        Ok(make_fee_histogram(mempool_entries))
+    pub fn fee_histogram(&self) -> Result<FeeHistogram> {
+        ttl_cache!(
+            self.cached_histogram,
+            *FEE_HISTOGRAM_TTL,
+            || -> Result<FeeHistogram> {
+                let mempool_entries = self.get_raw_mempool()?;
+                Ok(make_fee_histogram(mempool_entries))
+            }
+        );
     }
 
     pub fn debug_index(&self) -> String {
