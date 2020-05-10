@@ -63,7 +63,7 @@ impl Indexer {
         self.watcher.watch(&self.rpc)?;
 
         if self.tip.as_ref() != Some(&synced_tip) {
-            info!("synced up to tip at {:?}", synced_tip);
+            info!("synced up to {:?}", synced_tip);
             updates.push(|| IndexUpdate::ChainTip(synced_tip.clone()));
             self.tip = Some(synced_tip);
         }

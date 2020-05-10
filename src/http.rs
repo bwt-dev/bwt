@@ -12,7 +12,7 @@ use warp::{reply, Filter, Reply};
 
 use bitcoin::{Address, Txid};
 
-use crate::error::{Error, OptionExt};
+use crate::error::{Error, OptionExt, fmt_error_chain};
 use crate::indexer::IndexUpdate;
 use crate::types::ScriptHash;
 use crate::Query;
@@ -325,6 +325,7 @@ where
         Err(e) => {
             warn!("request failed with: {:#?}", e);
             let status = StatusCode::INTERNAL_SERVER_ERROR;
+            let body = fmt_error_chain(&e);
             reply::with_status(e.to_string(), status).into_response()
         }
     }
