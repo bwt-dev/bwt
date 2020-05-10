@@ -84,8 +84,8 @@ impl App {
     pub fn sync(self) {
         loop {
             match self.indexer.write().unwrap().sync(true) {
-                Ok(updates) => {
-                    debug!("updates: {:#?}", updates);
+                Ok(updates) if updates.len() > 0 => {
+                    debug!("indexer updates: {:#?}", updates);
 
                     #[cfg(feature = "electrum")]
                     self.electrum.notify();
@@ -98,6 +98,7 @@ impl App {
                         .as_ref()
                         .map(|webhook| webhook.send_updates(&updates));
                 }
+                Ok(_) => (), // no updates
                 Err(e) => warn!("error while updating index: {:#?}", e),
             }
 
