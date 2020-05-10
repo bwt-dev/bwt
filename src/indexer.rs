@@ -11,8 +11,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWatcher, KeyOrigin};
 use crate::store::{FundingInfo, HistoryEntry, MemoryStore, TxEntry};
-use crate::types::{BlockId, TxStatus};
-use crate::util::address_to_scripthash;
+use crate::types::{BlockId, ScriptHash, TxStatus};
 
 #[cfg(feature = "track-spends")]
 use crate::{store::SpendingInfo, types::TxInput};
@@ -127,7 +126,7 @@ impl Indexer {
             return;
         }
 
-        let scripthash = address_to_scripthash(&ltx.detail.address);
+        let scripthash = ScriptHash::from(&ltx.detail.address);
         let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts
         let funding_info = FundingInfo(scripthash, amount);
 

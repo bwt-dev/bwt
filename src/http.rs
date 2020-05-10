@@ -12,7 +12,6 @@ use bitcoin::{Address, Txid};
 
 use crate::error::{Error, OptionExt};
 use crate::types::ScriptHash;
-use crate::util::address_to_scripthash;
 use crate::Query;
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
@@ -29,7 +28,7 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .map(|address: String| {
             let address = Address::from_str(&address)?;
             // TODO ensure!(address.network == config.network);
-            let scripthash = address_to_scripthash(&address);
+            let scripthash = ScriptHash::from(&address);
             Ok(scripthash)
         })
         .and_then(reject_error);

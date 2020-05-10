@@ -2,14 +2,9 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::str::FromStr;
 
 use bitcoin::util::{base58, bip32::ExtendedPubKey};
-use bitcoin::{Address, Network};
-use bitcoin_hashes::Hash;
+use bitcoin::Network;
 
-use crate::types::{ScriptHash, ScriptType};
-
-pub fn address_to_scripthash(address: &Address) -> ScriptHash {
-    ScriptHash::hash(&address.script_pubkey().into_bytes())
-}
+use crate::types::ScriptType;
 
 pub fn remove_if<K, V>(hm: &mut HashMap<K, V>, key: K, predicate: impl Fn(&V) -> bool)
 where

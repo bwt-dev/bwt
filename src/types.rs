@@ -3,10 +3,16 @@ use std::cmp::Ordering;
 use serde::Serialize;
 use serde_json::Value;
 
-use bitcoin::{BlockHash, Txid};
+use bitcoin::{Address, BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
 
 hash_newtype!(ScriptHash, sha256::Hash, 32, doc = "The hash of an spk.");
+
+impl From<&Address> for ScriptHash {
+    fn from(address: &Address) -> Self {
+        ScriptHash::hash(&address.script_pubkey().into_bytes())
+    }
+}
 
 #[cfg(feature = "electrum")]
 hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
