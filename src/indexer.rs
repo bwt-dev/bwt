@@ -271,6 +271,33 @@ impl IndexUpdates {
         }
     }
 }
+impl IndexUpdate {
+    // the scripthash affected by the update, if any
+    pub fn scripthash(&self) -> Option<&ScriptHash> {
+        match self {
+            IndexUpdate::History(ref scripthash, _) | IndexUpdate::FirstFunding(ref scripthash) => {
+                Some(scripthash)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn category_str(&self) -> &str {
+        match self {
+            Self::ChainTip(_) => "ChainTip",
+            Self::Reorg(..) => "Reorg",
+
+            Self::Transaction(_) => "Transaction",
+            Self::TransactionReplaced(_) => "TransactionReplaced",
+
+            Self::History(..) => "History",
+            Self::FirstFunding(_) => "FirstFunding",
+
+            #[cfg(feature = "track-spends")]
+            Self::TxoSpent(_) => "TxoSpent",
+        }
+    }
+}
 
 impl fmt::Display for IndexUpdate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

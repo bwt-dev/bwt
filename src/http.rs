@@ -19,8 +19,6 @@ use crate::Query;
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
 
-type UpdateListeners = Arc<Mutex<Vec<tmpsc::UnboundedSender<IndexUpdate>>>>;
-
 #[tokio::main]
 async fn run(
     addr: net::SocketAddr,
@@ -162,12 +160,29 @@ async fn run(
         .map(handle_error);
 
     // GET /stream
-    let sse_handler = warp::path!("stream")
-        .and(listeners)
-        .map(|listeners: UpdateListeners| {
-            let stream = make_connection_sse_stream(listeners.clone());
+    let sse_handler = warp::get()
+        .and(warp::path!("stream"))
+        .and(warp::query::<UpdatesFilter>())
+        .and(listeners.clone())
+        .map(|filter: UpdatesFilter, listeners: UpdateListeners| {
+            let stream = make_connection_sse_stream(listeners, filter);
             warp::sse::reply(warp::sse::keep_alive().stream(stream))
         });
+
+    // GET /scripthash/:scripthash/stream
+    // GET /address/:address/stream
+    let spk_sse_handler = warp::get()
+        .and(spk_route)
+        .and(warp::path!("stream"))
+        .and(warp::query::<UpdatesFilter>())
+        .and(listeners.clone())
+        .map(
+            |scripthash: ScriptHash, mut filter: UpdatesFilter, listeners: UpdateListeners| {
+                filter.scripthash = Some(scripthash);
+                let stream = make_connection_sse_stream(listeners, filter);
+                warp::sse::reply(warp::sse::keep_alive().stream(stream))
+            },
+        );
 
     // GET /debug
     let debug_handler = warp::get()
@@ -196,6 +211,7 @@ async fn run(
         .or(txs_since_handler)
         .or(mempool_histogram_handler)
         .or(sse_handler)
+        .or(spk_sse_handler)
         .or(debug_handler)
         .or(sync_handler)
         .with(warp::log("pxt"));
@@ -227,19 +243,64 @@ impl HttpServer {
 
     pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
         // send updates while dropping unresponsive listeners
-        self.listeners
-            .lock()
-            .unwrap()
-            .retain(|tx| updates.iter().all(|update| tx.send(update.clone()).is_ok()))
+        self.listeners.lock().unwrap().retain(|listener| {
+            updates
+                .iter()
+                .filter(|update| listener.filter.matches(update))
+                .all(|update| listener.tx.send(update.clone()).is_ok())
+        })
     }
+}
+
+type UpdateListeners = Arc<Mutex<Vec<UpdateListener>>>;
+
+struct UpdateListener {
+    tx: tmpsc::UnboundedSender<IndexUpdate>,
+    filter: UpdatesFilter, // None means subscribing to everything
 }
 
 fn make_connection_sse_stream(
     listeners: UpdateListeners,
+    filter: UpdatesFilter,
 ) -> impl Stream<Item = Result<impl ServerSentEvent, warp::Error>> {
+    info!("subscribing sse stream to {:?}", filter);
     let (tx, rx) = tmpsc::unbounded_channel();
-    listeners.lock().unwrap().push(tx);
+    listeners
+        .lock()
+        .unwrap()
+        .push(UpdateListener { tx, filter });
     rx.map(|update: IndexUpdate| Ok(warp::sse::json(update)))
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdatesFilter {
+    scripthash: Option<ScriptHash>,
+    category: Option<String>,
+    // warp::query() does not support nested arrays
+    //pub scripthash: Option<Vec<ScriptHash>>,
+    //pub category: Option<Vec<String>>,
+}
+
+impl UpdatesFilter {
+    fn matches(&self, update: &IndexUpdate) -> bool {
+        debug!("filtering {:?}", update);
+        self.scripthash_matches(update) && self.category_matches(update)
+    }
+    fn scripthash_matches(&self, update: &IndexUpdate) -> bool {
+        self.scripthash.as_ref().map_or(true, |filter_sh| {
+            update
+                .scripthash()
+                .map_or(false, |update_sh| filter_sh == update_sh)
+            //.map_or(false, |update_sh| filter_sh.contains(update_sh))
+        })
+    }
+    fn category_matches(&self, update: &IndexUpdate) -> bool {
+        self.category.as_ref().map_or(true, |filter_cat| {
+            update.category_str() == filter_cat
+            //let update_cat = update.category_str();
+            //filter_cat.iter().any(|filter_cat| filter_cat == update_cat)
+        })
+    }
 }
 
 #[derive(Deserialize, Debug)]
