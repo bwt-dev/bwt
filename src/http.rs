@@ -3,6 +3,7 @@ use std::str::FromStr;
 use std::sync::{mpsc, Arc, Mutex};
 
 use async_std::task;
+use serde_derive::Deserialize;
 use warp::http::StatusCode;
 use warp::Filter;
 use warp::{reply, Reply};
@@ -46,6 +47,19 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .map(|scripthash, query: Arc<Query>| {
             let script_stats = query.get_script_stats(&scripthash)?;
             Ok(reply::json(&script_stats))
+        })
+        .map(handle_error);
+
+    // GET /address/:address/utxo
+    // GET /scripthash/:scripthash/utxo
+    let spk_utxo_handler = warp::get()
+        .and(spk_route)
+        .and(warp::path!("utxo"))
+        .and(warp::query::<UtxoOptions>())
+        .and(query.clone())
+        .map(|scripthash, options: UtxoOptions, query: Arc<Query>| {
+            let utxos = query.list_unspent(&scripthash, options.min_conf)?;
+            Ok(reply::json(&utxos))
         })
         .map(handle_error);
 
@@ -132,6 +146,7 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .map(handle_error);
 
     let handlers = spk_handler
+        .or(spk_utxo_handler)
         .or(spk_history_handler)
         .or(spk_minimal_history_handler)
         .or(tx_handler)
@@ -155,6 +170,12 @@ impl HttpServer {
             run(addr, query, sync_tx);
         }))
     }
+}
+
+#[derive(Deserialize, Debug)]
+struct UtxoOptions {
+    #[serde(default)]
+    min_conf: usize,
 }
 
 async fn reject_error<T>(result: Result<T, Error>) -> Result<T, warp::Rejection> {

@@ -4,12 +4,12 @@ use serde::Serialize;
 use serde_json::Value;
 
 use bitcoin::{BlockHash, OutPoint, Txid};
-use bitcoincore_rpc::{Client as RpcClient, RpcApi};
+use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::indexer::Indexer;
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, TxEntry};
-use crate::types::{BlockId, ScriptHash, TxStatus, Utxo};
+use crate::types::{BlockId, ScriptHash, TxStatus};
 
 #[cfg(feature = "track-spends")]
 use crate::{store::SpendingInfo, types::TxInput};
@@ -109,13 +109,9 @@ impl Query {
             let tip_height = self.rpc.get_block_count()? as u32;
             let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
-            let unspents = self.rpc.list_unspent(
-                Some(min_conf),
-                None,
-                Some(&[&address]),
-                Some(true),
-                None,
-            )?;
+            let unspents =
+                self.rpc
+                    .list_unspent(Some(min_conf), None, Some(&[&address]), Some(true), None)?;
 
             if tip_hash != self.rpc.get_best_block_hash()? {
                 warn!("tip changed while fetching unspents, retrying...");
@@ -275,6 +271,28 @@ impl Query {
             #[cfg(feature = "track-spends")]
             balance_change: balance_change,
         })
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct Utxo {
+    #[serde(flatten)]
+    pub status: TxStatus,
+    pub txid: Txid,
+    pub vout: u32,
+    pub value: u64,
+    pub safe: bool,
+}
+
+impl Utxo {
+    pub fn from_unspent(unspent: rpcjson::ListUnspentResultEntry, tip_height: u32) -> Self {
+        Self {
+            status: TxStatus::new(unspent.confirmations as i32, tip_height),
+            txid: unspent.txid,
+            vout: unspent.vout,
+            value: unspent.amount.as_sat(),
+            safe: unspent.safe,
+        }
     }
 }
 

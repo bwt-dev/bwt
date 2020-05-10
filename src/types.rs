@@ -5,7 +5,6 @@ use serde_json::Value;
 
 use bitcoin::{BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
-use bitcoincore_rpc::json::ListUnspentResultEntry;
 
 hash_newtype!(ScriptHash, sha256::Hash, 32, doc = "The hash of an spk.");
 
@@ -14,25 +13,6 @@ hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
 
 #[derive(Debug, PartialEq)]
 pub struct BlockId(pub u32, pub BlockHash);
-
-#[derive(Debug)]
-pub struct Utxo {
-    pub status: TxStatus,
-    pub txid: Txid,
-    pub vout: u32,
-    pub value: u64,
-}
-
-impl Utxo {
-    pub fn from_unspent(unspent: ListUnspentResultEntry, tip_height: u32) -> Self {
-        Self {
-            status: TxStatus::new(unspent.confirmations as i32, tip_height),
-            txid: unspent.txid,
-            vout: unspent.vout,
-            value: unspent.amount.as_sat(),
-        }
-    }
-}
 
 #[derive(Debug, Copy, Clone)]
 pub struct TxInput {
