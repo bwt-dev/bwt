@@ -34,10 +34,6 @@ impl Indexer {
         }
     }
 
-    pub fn dump(&self) {
-        debug!("{:#?}", self.store);
-    }
-
     pub fn store(&self) -> &MemoryStore {
         &self.store
     }
@@ -67,8 +63,6 @@ impl Indexer {
     }
 
     fn sync_transactions(&mut self) -> Result<BlockId> {
-        let rpc = Arc::clone(&self.rpc);
-
         let start_height = self
             .tip
             .as_ref()
@@ -76,8 +70,11 @@ impl Indexer {
 
         let mut pending_outgoing: HashMap<Txid, TxEntry> = HashMap::new();
 
-        let synced_tip =
-            load_transactions_since(&rpc, start_height, None, &mut |chunk, tip_height| {
+        let synced_tip = load_transactions_since(
+            &self.rpc.clone(),
+            start_height,
+            None,
+            &mut |chunk, tip_height| {
                 for ltx in chunk {
                     match ltx.detail.category {
                         TxCategory::Receive => {
@@ -94,7 +91,8 @@ impl Indexer {
                         TxCategory::Generate | TxCategory::Immature => (),
                     };
                 }
-            })?;
+            },
+        )?;
 
         for (txid, txentry) in pending_outgoing {
             self.process_outgoing(txid, txentry)
@@ -240,7 +238,7 @@ fn load_transactions_since(
     // skip processing the entries entirely
 
     info!("syncing transactions {}..{}", start_height, tip_height,);
-    while {
+    loop {
         debug!(
             "reading {} transactions starting at index {}",
             per_page, start_index
@@ -248,8 +246,6 @@ fn load_transactions_since(
 
         let mut chunk =
             rpc.list_transactions(None, Some(per_page), Some(start_index), Some(true))?;
-
-        let mut exhausted = chunk.len() < per_page;
 
         // this is necessary because we rely on the tip height to derive the confirmed height
         // from the number of confirmations
@@ -259,8 +255,8 @@ fn load_transactions_since(
         }
 
         // make sure we didn't miss any transactions by comparing the first entry of this page with
-        // the last entry of the last page. note that the entry used for comprasion is popped off
-        if let Some(ref oldest_seen) = oldest_seen {
+        // the last entry of the last page (the "marker")
+        if let Some(oldest_seen) = &oldest_seen {
             let marker = chunk.pop().or_err("missing marker tx")?;
 
             if oldest_seen != &(marker.info.txid, marker.detail.vout) {
@@ -268,18 +264,27 @@ fn load_transactions_since(
                 return load_transactions_since(rpc, start_height, Some(per_page), chunk_handler);
             }
         }
-
-        // process entries (if any)
+        // update the marker
         if let Some(oldest) = chunk.first() {
             oldest_seen = Some((oldest.info.txid.clone(), oldest.detail.vout));
-
-            chunk.retain(|ltx| ltx.info.confirmations <= max_confirmations);
-            exhausted = exhausted || chunk.is_empty();
-
-            chunk_handler(chunk, tip_height);
+        } else {
+            break;
         }
-        !exhausted
-    } {
+
+        let chunk: Vec<ListTransactionResult> = chunk
+            .into_iter()
+            .rev()
+            .take_while(|ltx| ltx.info.confirmations <= max_confirmations)
+            .collect();
+
+        let exhausted = chunk.len() < per_page;
+
+        chunk_handler(chunk, tip_height);
+
+        if exhausted {
+            break;
+        }
+
         // -1 so we'll get the last entry of this page as the first of the next, as a marker for sanity check
         start_index = start_index + per_page - 1;
         per_page = MAX_TX_PER_PAGE.min(per_page * 2);
