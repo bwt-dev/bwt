@@ -10,7 +10,7 @@ use warp::http::StatusCode;
 use warp::sse::ServerSentEvent;
 use warp::{reply, Filter, Reply};
 
-use bitcoin::{Address, Txid};
+use bitcoin::{Address, OutPoint, Txid};
 
 use crate::error::{Error, OptionExt, fmt_error_chain};
 use crate::indexer::IndexUpdate;
@@ -286,6 +286,7 @@ fn make_connection_sse_stream(
 #[derive(Debug, Deserialize)]
 struct UpdatesFilter {
     scripthash: Option<ScriptHash>,
+    outpoint: Option<OutPoint>,
     category: Option<String>,
     // warp::query() does not support nested arrays
     //pub scripthash: Option<Vec<ScriptHash>>,
@@ -295,7 +296,7 @@ struct UpdatesFilter {
 impl UpdatesFilter {
     fn matches(&self, update: &IndexUpdate) -> bool {
         debug!("filtering {:?}", update);
-        self.scripthash_matches(update) && self.category_matches(update)
+        self.scripthash_matches(update) && self.category_matches(update) && self.outpoint_matches(update)
     }
     fn scripthash_matches(&self, update: &IndexUpdate) -> bool {
         self.scripthash.as_ref().map_or(true, |filter_sh| {
@@ -310,6 +311,13 @@ impl UpdatesFilter {
             update.category_str() == filter_cat
             //let update_cat = update.category_str();
             //filter_cat.iter().any(|filter_cat| filter_cat == update_cat)
+        })
+    }
+    fn outpoint_matches(&self, update: &IndexUpdate) -> bool {
+        self.outpoint.as_ref().map_or(true, |filter_outpoint| {
+            update
+                .outpoint()
+                .map_or(false, |update_outpoint| filter_outpoint == update_outpoint)
         })
     }
 }

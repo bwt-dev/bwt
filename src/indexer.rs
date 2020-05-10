@@ -282,6 +282,14 @@ impl IndexUpdate {
         }
     }
 
+    // the (previously) utxo spent by the update, if any
+    pub fn outpoint(&self) -> Option<&OutPoint> {
+        match self {
+            IndexUpdate::TxoSpent(ref outpoint) => Some(outpoint),
+            _ => None,
+        }
+    }
+
     pub fn category_str(&self) -> &str {
         match self {
             Self::ChainTip(_) => "ChainTip",
