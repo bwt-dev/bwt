@@ -85,20 +85,16 @@ impl TxStatus {
 
 impl Ord for TxStatus {
     fn cmp(&self, other: &TxStatus) -> Ordering {
-        match self {
-            TxStatus::Confirmed(height) => match other {
-                TxStatus::Confirmed(other_height) => height.cmp(other_height),
-                TxStatus::Unconfirmed | TxStatus::Conflicted => Ordering::Greater,
-            },
-            TxStatus::Unconfirmed => match other {
-                TxStatus::Confirmed(_) => Ordering::Less,
-                TxStatus::Unconfirmed => Ordering::Equal,
-                TxStatus::Conflicted => Ordering::Greater,
-            },
-            TxStatus::Conflicted => match other {
-                TxStatus::Confirmed(_) | TxStatus::Unconfirmed => Ordering::Less,
-                TxStatus::Conflicted => Ordering::Equal,
-            },
+        match (self, other) {
+            (TxStatus::Confirmed(my_height), TxStatus::Confirmed(other_height)) => {
+                my_height.cmp(other_height)
+            }
+            (TxStatus::Confirmed(_), TxStatus::Unconfirmed) => Ordering::Less,
+            (TxStatus::Unconfirmed, TxStatus::Confirmed(_)) => Ordering::Greater,
+            (TxStatus::Unconfirmed, TxStatus::Unconfirmed) => Ordering::Equal,
+            (TxStatus::Conflicted, _) | (_, TxStatus::Conflicted) => {
+                unreachable!("confliced txs should not be ordered")
+            }
         }
     }
 }
