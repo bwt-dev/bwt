@@ -149,16 +149,6 @@ async fn run(
             reply::json(&txs)
         });
 
-    // GET /mempool/histogram
-    let mempool_histogram_handler = warp::get()
-        .and(warp::path!("mempool" / "histogram"))
-        .and(query.clone())
-        .map(|query: Arc<Query>| {
-            let histogram = query.fee_histogram()?;
-            Ok(reply::json(&histogram))
-        })
-        .map(handle_error);
-
     // GET /stream
     let sse_handler = warp::get()
         .and(warp::path!("stream"))
@@ -183,6 +173,26 @@ async fn run(
                 warp::sse::reply(warp::sse::keep_alive().stream(stream))
             },
         );
+
+    // GET /mempool/histogram
+    let mempool_histogram_handler = warp::get()
+        .and(warp::path!("mempool" / "histogram"))
+        .and(query.clone())
+        .map(|query: Arc<Query>| {
+            let histogram = query.fee_histogram()?;
+            Ok(reply::json(&histogram))
+        })
+        .map(handle_error);
+
+    // GET /fee-estimate/:confirmation-target
+    let fee_estimate_handler = warp::get()
+        .and(warp::path!("fee-estimate" / u16))
+        .and(query.clone())
+        .map(|confirmation_target: u16, query: Arc<Query>| {
+            let feerate = query.estimate_fee(confirmation_target)?;
+            Ok(reply::json(&feerate))
+        })
+        .map(handle_error);
 
     // GET /debug
     let debug_handler = warp::get()
@@ -209,9 +219,10 @@ async fn run(
         .or(tx_verbose_handler)
         .or(tx_hex_handler)
         .or(txs_since_handler)
-        .or(mempool_histogram_handler)
         .or(sse_handler)
         .or(spk_sse_handler)
+        .or(mempool_histogram_handler)
+        .or(fee_estimate_handler)
         .or(debug_handler)
         .or(sync_handler)
         .with(warp::log("pxt"));
