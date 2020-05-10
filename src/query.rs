@@ -79,6 +79,10 @@ impl Query {
         Ok((feerate * 100_000f64) as f64)
     }
 
+    pub fn debug_index(&self) -> String {
+        format!("{:#?}", self.indexer.read().unwrap().store())
+    }
+
     pub fn get_history(&self, scripthash: &ScriptHash) -> Vec<HistoryEntry> {
         self.indexer
             .read()

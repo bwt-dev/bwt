@@ -95,8 +95,7 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
     // GET /tx/:txid/verbose
     let tx_verbose_handler = warp::get()
         .and(tx_route)
-        .and(warp::path("verbose"))
-        .and(warp::path::end())
+        .and(warp::path!("verbose"))
         .and(query.clone())
         .map(|txid: Txid, query: Arc<Query>| {
             let tx_json = query.get_tx_json(&txid)?;
@@ -107,14 +106,19 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
     // GET /tx/:txid/hex
     let tx_hex_handler = warp::get()
         .and(tx_route)
-        .and(warp::path("hex"))
-        .and(warp::path::end())
+        .and(warp::path!("hex"))
         .and(query.clone())
         .map(|txid: Txid, query: Arc<Query>| {
             let tx_raw = query.get_tx_raw(&txid)?;
             Ok(hex::encode(tx_raw))
         })
         .map(handle_error);
+
+    // GET /debug
+    let debug_handler = warp::get()
+        .and(warp::path!("debug"))
+        .and(query.clone())
+        .map(|query: Arc<Query>| query.debug_index());
 
     // POST /sync
     let sync_handler = warp::post()
@@ -133,6 +137,7 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) 
         .or(tx_handler)
         .or(tx_verbose_handler)
         .or(tx_hex_handler)
+        .or(debug_handler)
         .or(sync_handler);
 
     info!("starting http server on {}", addr);
