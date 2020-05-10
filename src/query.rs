@@ -121,6 +121,10 @@ impl Query {
         format!("{:#?}", self.indexer.read().unwrap().store())
     }
 
+    pub fn dump_index(&self) -> Value {
+        json!(self.indexer.read().unwrap().store())
+    }
+
     pub fn get_history(&self, scripthash: &ScriptHash) -> Vec<HistoryEntry> {
         self.indexer
             .read()

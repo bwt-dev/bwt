@@ -11,7 +11,7 @@ use crate::types::{ScriptHash, TxStatus};
 #[cfg(feature = "track-spends")]
 use crate::{types::TxInput, util::remove_if};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct MemoryStore {
     scripthashes: HashMap<ScriptHash, ScriptEntry>,
     transactions: HashMap<Txid, TxEntry>,
@@ -19,7 +19,7 @@ pub struct MemoryStore {
     txo_spends: HashMap<OutPoint, TxInput>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct ScriptEntry {
     address: Address,
     origin: KeyOrigin,

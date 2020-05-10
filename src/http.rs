@@ -194,6 +194,12 @@ async fn run(
         })
         .map(handle_error);
 
+    // GET /dump
+    let dump_handler = warp::get()
+        .and(warp::path!("dump"))
+        .and(query.clone())
+        .map(|query: Arc<Query>| reply::json(&query.dump_index()));
+
     // GET /debug
     let debug_handler = warp::get()
         .and(warp::path!("debug"))
@@ -223,6 +229,7 @@ async fn run(
         .or(spk_sse_handler)
         .or(mempool_histogram_handler)
         .or(fee_estimate_handler)
+        .or(dump_handler)
         .or(debug_handler)
         .or(sync_handler)
         .with(warp::log("pxt"));
