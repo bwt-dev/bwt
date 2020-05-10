@@ -23,12 +23,8 @@ pub mod store;
 pub mod types;
 pub mod util;
 
-pub use app::App;
-pub use config::Config;
-pub use error::{Error, Result};
-pub use hd::{HDWallet, HDWatcher};
-pub use indexer::Indexer;
-pub use query::Query;
+#[cfg(unix)]
+pub mod listener;
 
 #[cfg(feature = "electrum")]
 pub mod electrum;
@@ -37,3 +33,10 @@ pub mod merkle;
 
 #[cfg(feature = "http")]
 pub mod http;
+
+pub use app::App;
+pub use config::Config;
+pub use error::{Error, Result};
+pub use hd::{HDWallet, HDWatcher};
+pub use indexer::Indexer;
+pub use query::Query;

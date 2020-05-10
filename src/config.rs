@@ -96,6 +96,13 @@ pub struct Config {
         help = "address to bind the http rest server (host:port)"
     )]
     pub http_server_addr: net::SocketAddr,
+
+    #[cfg(unix)]
+    #[structopt(
+        long = "unix-listener-path",
+        help = "path for binding sync notification unix socket"
+    )]
+    pub unix_listener_path: Option<path::PathBuf>,
 }
 
 impl Config {

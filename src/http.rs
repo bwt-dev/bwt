@@ -1,6 +1,6 @@
 use std::net;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{mpsc, Arc, Mutex};
 
 use async_std::task;
 use warp::http::StatusCode;
@@ -14,9 +14,12 @@ use crate::types::ScriptHash;
 use crate::util::address_to_scripthash;
 use crate::Query;
 
+type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
+
 #[tokio::main]
-async fn run(addr: net::SocketAddr, query: Arc<Query>) {
+async fn run(addr: net::SocketAddr, query: Arc<Query>, sync_tx: SyncChanSender) {
     let query = warp::any().map(move || Arc::clone(&query));
+    let sync_tx = warp::any().map(move || Arc::clone(&sync_tx));
 
     // Pre-processing
     // GET /address/:address/*
@@ -36,7 +39,8 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>) {
 
     // GET /address/:address
     // GET /scripthash/:scripthash
-    let spk_handler = spk_route
+    let spk_handler = warp::get()
+        .and(spk_route)
         .and(warp::path::end())
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
@@ -47,7 +51,8 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>) {
 
     // GET /address/:address/history
     // GET /scripthash/:scripthash/history
-    let spk_history_handler = spk_route
+    let spk_history_handler = warp::get()
+        .and(spk_route)
         .and(warp::path!("history"))
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
@@ -58,7 +63,8 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>) {
 
     // GET /address/:address/history/minimal
     // GET /scripthash/:scripthash/history/minimal
-    let spk_minimal_history_handler = spk_route
+    let spk_minimal_history_handler = warp::get()
+        .and(spk_route)
         .and(warp::path!("history" / "minimal"))
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
@@ -76,7 +82,8 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>) {
     );
 
     // GET /tx/:txid
-    let tx_handler = tx_route
+    let tx_handler = warp::get()
+        .and(tx_route)
         .and(warp::path::end())
         .and(query.clone())
         .map(|txid: Txid, query: Arc<Query>| {
@@ -86,7 +93,8 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>) {
         .map(handle_error);
 
     // GET /tx/:txid/verbose
-    let tx_verbose_handler = tx_route
+    let tx_verbose_handler = warp::get()
+        .and(tx_route)
         .and(warp::path("verbose"))
         .and(warp::path::end())
         .and(query.clone())
@@ -97,7 +105,8 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>) {
         .map(handle_error);
 
     // GET /tx/:txid/hex
-    let tx_hex_handler = tx_route
+    let tx_hex_handler = warp::get()
+        .and(tx_route)
         .and(warp::path("hex"))
         .and(warp::path::end())
         .and(query.clone())
@@ -107,25 +116,37 @@ async fn run(addr: net::SocketAddr, query: Arc<Query>) {
         })
         .map(handle_error);
 
+    // POST /sync
+    let sync_handler = warp::post()
+        .and(warp::path!("sync"))
+        .and(sync_tx.clone())
+        .map(|sync_tx: SyncChanSender| {
+            info!("received sync notification via http server");
+            sync_tx.lock().unwrap().send(())?;
+            Ok("syncing in progress")
+        })
+        .map(handle_error);
+
     let handlers = spk_handler
         .or(spk_history_handler)
         .or(spk_minimal_history_handler)
         .or(tx_handler)
         .or(tx_verbose_handler)
-        .or(tx_hex_handler);
-    let route = warp::get().and(handlers);
+        .or(tx_hex_handler)
+        .or(sync_handler);
 
     info!("starting http server on {}", addr);
 
-    warp::serve(route).run(addr).await
+    warp::serve(handlers).run(addr).await
 }
 
 pub struct HttpServer(task::JoinHandle<()>);
 
 impl HttpServer {
-    pub fn start(addr: net::SocketAddr, query: Arc<Query>) -> Self {
+    pub fn start(addr: net::SocketAddr, query: Arc<Query>, sync_tx: mpsc::Sender<()>) -> Self {
         HttpServer(task::spawn(async move {
-            run(addr, query);
+            let sync_tx = Arc::new(Mutex::new(sync_tx));
+            run(addr, query, sync_tx);
         }))
     }
 }

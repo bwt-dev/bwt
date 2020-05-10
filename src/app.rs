@@ -1,5 +1,5 @@
+use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
-use std::thread;
 
 use bitcoincore_rpc::Client as RpcClient;
 
@@ -9,11 +9,15 @@ use crate::{Config, HDWallet, HDWatcher, Indexer, Query, Result};
 use crate::electrum::ElectrumServer;
 #[cfg(feature = "http")]
 use crate::http::HttpServer;
+#[cfg(unix)]
+use crate::listener;
 
 pub struct App {
     config: Config,
     indexer: Arc<RwLock<Indexer>>,
     query: Arc<Query>,
+
+    sync_channel: (mpsc::Sender<()>, mpsc::Receiver<()>),
 
     #[cfg(feature = "electrum")]
     electrum: ElectrumServer,
@@ -34,6 +38,7 @@ impl App {
         )?);
         let indexer = Arc::new(RwLock::new(Indexer::new(Arc::clone(&rpc), watcher)));
         let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&indexer)));
+        let (tx, rx) = mpsc::channel();
 
         indexer.write().unwrap().sync()?;
 
@@ -41,12 +46,20 @@ impl App {
         let electrum = ElectrumServer::start(config.electrum_rpc_addr, Arc::clone(&query));
 
         #[cfg(feature = "http")]
-        let http = HttpServer::start(config.http_server_addr, Arc::clone(&query));
+        let http = HttpServer::start(config.http_server_addr, Arc::clone(&query), tx.clone());
+
+        #[cfg(unix)]
+        {
+            if let Some(listener_path) = &config.unix_listener_path {
+                let _listener = listener::start(listener_path.clone(), tx.clone());
+            }
+        }
 
         Ok(App {
             config,
             indexer,
             query,
+            sync_channel: (tx, rx),
             #[cfg(feature = "electrum")]
             electrum,
             #[cfg(feature = "http")]
@@ -63,14 +76,16 @@ impl App {
                 .sync()
                 .map_err(|err| warn!("error while updating index: {:#?}", err))
                 .ok();
-            // XXX fatal?
-
-            //indexer.read().unwrap().dump();
 
             #[cfg(feature = "electrum")]
             self.electrum.notify();
 
-            thread::sleep(self.config.poll_interval);
+            // wait for poll_interval seconds, or until we receive a sync notification message
+            // TODO debounce messages to avoid excessive indexing
+            self.sync_channel
+                .1
+                .recv_timeout(self.config.poll_interval)
+                .ok();
         }
     }
 }
