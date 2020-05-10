@@ -213,8 +213,9 @@ fn parse_fee(fee: Option<SignedAmount>) -> Option<u64> {
     fee.map(|fee| fee.abs().as_sat() as u64)
 }
 
-const INIT_TX_PER_PAGE: usize = 25;
-const MAX_TX_PER_PAGE: usize = 250;
+const INIT_TX_PER_PAGE: usize = 150;
+const DELTA_TX_PER_PAGE: usize = 25;
+const MAX_TX_PER_PAGE: usize = 500;
 
 // Fetch all unconfirmed transactions + transactions confirmed at or after start_height
 fn load_transactions_since(
@@ -223,8 +224,15 @@ fn load_transactions_since(
     init_per_page: Option<usize>,
     chunk_handler: &mut dyn FnMut(Vec<ListTransactionResult>, u32),
 ) -> Result<BlockId> {
-    let mut per_page = init_per_page.unwrap_or(INIT_TX_PER_PAGE);
     let mut start_index = 0;
+    let mut per_page = init_per_page.unwrap_or_else(|| {
+        if start_height == 0 {
+            // start with larger pages if we're catching up for the first time
+            INIT_TX_PER_PAGE
+        } else {
+            DELTA_TX_PER_PAGE
+        }
+    });
     let mut oldest_seen = None;
 
     let tip_height = rpc.get_block_count()? as u32;
