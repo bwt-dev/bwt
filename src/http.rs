@@ -12,7 +12,7 @@ use warp::{reply, Filter, Reply};
 
 use bitcoin::{Address, OutPoint, Txid};
 
-use crate::error::{Error, OptionExt, fmt_error_chain};
+use crate::error::{fmt_error_chain, Error, OptionExt};
 use crate::indexer::IndexUpdate;
 use crate::types::ScriptHash;
 use crate::Query;
@@ -240,7 +240,7 @@ async fn run(
 }
 
 pub struct HttpServer {
-    thread: task::JoinHandle<()>,
+    _thread: task::JoinHandle<()>,
     listeners: UpdateListeners,
 }
 
@@ -252,7 +252,7 @@ impl HttpServer {
         let thr_listeners = Arc::clone(&listeners);
 
         HttpServer {
-            thread: task::spawn(async move {
+            _thread: task::spawn(async move {
                 run(addr, query, sync_tx, thr_listeners);
             }),
             listeners,
@@ -303,7 +303,9 @@ struct UpdatesFilter {
 impl UpdatesFilter {
     fn matches(&self, update: &IndexUpdate) -> bool {
         debug!("filtering {:?}", update);
-        self.scripthash_matches(update) && self.category_matches(update) && self.outpoint_matches(update)
+        self.scripthash_matches(update)
+            && self.category_matches(update)
+            && self.outpoint_matches(update)
     }
     fn scripthash_matches(&self, update: &IndexUpdate) -> bool {
         self.scripthash.as_ref().map_or(true, |filter_sh| {

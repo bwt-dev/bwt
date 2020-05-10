@@ -285,6 +285,7 @@ impl IndexUpdate {
     // the (previously) utxo spent by the update, if any
     pub fn outpoint(&self) -> Option<&OutPoint> {
         match self {
+            #[cfg(feature = "track-spends")]
             IndexUpdate::TxoSpent(ref outpoint) => Some(outpoint),
             _ => None,
         }
