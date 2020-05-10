@@ -87,13 +87,14 @@ pub struct Config {
         long = "electrum-rpc-addr",
         help = "address to bind the electrum rpc server (host:port)"
     )]
-    pub electrum_rpc_addr: net::SocketAddr,
+    pub electrum_rpc_addr: Option<net::SocketAddr>,
 
     #[cfg(feature = "http")]
     #[structopt(
         short,
         long = "http-server-addr",
-        help = "address to bind the http rest server (host:port)"
+        help = "address to bind the http rest server (host:port)",
+        default_value = "127.0.0.1:3060"
     )]
     pub http_server_addr: net::SocketAddr,
 
@@ -131,6 +132,19 @@ impl Config {
                 Some(RpcAuth::CookieFile(cookie))
             })
             .or_err("no available authentication for bitcoind rpc, please specify credentials or a cookie file")?)
+    }
+
+    pub fn electrum_rpc_addr(&self) -> net::SocketAddr {
+        self.electrum_rpc_addr.clone().unwrap_or_else(|| {
+            net::SocketAddr::new(
+                "127.0.0.1".parse().unwrap(),
+                match self.network {
+                    Network::Bitcoin => 50001,
+                    Network::Testnet => 60001,
+                    Network::Regtest => 60401,
+                },
+            )
+        })
     }
 }
 

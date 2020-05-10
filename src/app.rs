@@ -40,10 +40,11 @@ impl App {
         let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&indexer)));
         let (tx, rx) = mpsc::channel();
 
+        // do an initial sync without keeping track of updates
         indexer.write().unwrap().sync(false)?;
 
         #[cfg(feature = "electrum")]
-        let electrum = ElectrumServer::start(config.electrum_rpc_addr, Arc::clone(&query));
+        let electrum = ElectrumServer::start(config.electrum_rpc_addr(), Arc::clone(&query));
 
         #[cfg(feature = "http")]
         let http = HttpServer::start(config.http_server_addr, Arc::clone(&query), tx.clone());
