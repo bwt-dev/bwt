@@ -87,7 +87,7 @@ impl Indexer {
                 for ltx in chunk {
                     if ltx.info.confirmations < 0 {
                         if self.store.purge_tx(&ltx.info.txid) {
-                            updates.push(|| IndexUpdate::TransactionRemoved(ltx.info.txid));
+                            updates.push(|| IndexUpdate::TransactionReplaced(ltx.info.txid));
                         }
                         continue;
                     }
@@ -142,6 +142,7 @@ impl Indexer {
             ltx.detail.address, origin, status, ltx
         );
 
+        let txid = ltx.info.txid;
         let scripthash = ScriptHash::from(&ltx.detail.address);
         let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts
         let funding_info = FundingInfo(scripthash, amount);
@@ -149,8 +150,8 @@ impl Indexer {
         let mut txentry = TxEntry::new(status, None);
         txentry.funding.insert(ltx.detail.vout, funding_info);
 
-        if self.store.index_tx_entry(&ltx.info.txid, txentry) {
-            updates.push(|| IndexUpdate::Transaction(ltx.info.txid));
+        if self.store.index_tx_entry(&txid, txentry) {
+            updates.push(|| IndexUpdate::Transaction(txid));
         }
 
         if self
@@ -162,9 +163,9 @@ impl Indexer {
 
         if self
             .store
-            .index_history_entry(&scripthash, HistoryEntry::new(ltx.info.txid, status))
+            .index_history_entry(&scripthash, HistoryEntry::new(txid, status))
         {
-            updates.push(|| IndexUpdate::History(scripthash));
+            updates.push(|| IndexUpdate::History(scripthash, txid));
         }
 
         self.watcher.mark_funded(&origin);
@@ -192,24 +193,24 @@ impl Indexer {
                     .store
                     .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status))
                 {
-                    updates.push(|| IndexUpdate::History(scripthash));
+                    updates.push(|| IndexUpdate::History(scripthash, txid));
                 }
-
-                // we could keep just the previous_output and lookup the scripthash and amount
-                // from the corrospanding FundingInfo, but we keep it here anyway for quick access
-                #[cfg(feature = "track-spends")]
-                txentry.spending.insert(
-                    vin as u32,
-                    SpendingInfo(scripthash, input.previous_output, amount),
-                );
 
                 #[cfg(feature = "track-spends")]
                 {
+                    // we could keep just the previous_output and lookup the scripthash and amount
+                    // from the corrospanding FundingInfo, but we keep it here anyway for quick access
+                    #[cfg(feature = "track-spends")]
+                    txentry.spending.insert(
+                        vin as u32,
+                        SpendingInfo(scripthash, input.previous_output, amount),
+                    );
+
                     if self
                         .store
                         .index_txo_spend(input.previous_output, TxInput::new(txid, vin as u32))
                     {
-                        updates.push(|| IndexUpdate::TxoSpend(input.previous_output));
+                        updates.push(|| IndexUpdate::TxoSpent(input.previous_output));
                     }
                 }
             }
@@ -229,19 +230,19 @@ impl Indexer {
 }
 
 #[derive(Clone, Serialize, Debug)]
-#[serde(tag = "type", content = "params")]
+#[serde(tag = "category", content = "params")]
 pub enum IndexUpdate {
     ChainTip(BlockId),
     Reorg(u32, BlockHash, BlockHash),
 
-    History(ScriptHash),
+    Transaction(Txid),
+    TransactionReplaced(Txid),
+
+    History(ScriptHash, Txid),
     FirstFunding(ScriptHash),
 
-    Transaction(Txid),
-    TransactionRemoved(Txid),
-
     #[cfg(feature = "track-spends")]
-    TxoSpend(OutPoint),
+    TxoSpent(OutPoint),
 }
 
 enum IndexUpdates {
