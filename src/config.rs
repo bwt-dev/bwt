@@ -9,35 +9,15 @@ use structopt::StructOpt;
 use crate::error::{OptionExt, Result, ResultExt};
 use crate::types::KeyRescan;
 
-#[derive(Debug)]
+#[derive(StructOpt, Debug)]
 pub struct Config {
-    pub network: Network,
-    pub xpubs: Vec<(String, KeyRescan)>,
-    pub verbose: usize,
-    pub poll_interval: time::Duration,
-
-    pub bitcoind_url: String,
-    pub bitcoind_auth: RpcAuth,
-
-    #[cfg(feature = "electrum")]
-    pub electrum_rpc_addr: net::SocketAddr,
-    #[cfg(feature = "http")]
-    pub http_server_addr: net::SocketAddr,
-}
-
-#[derive(StructOpt)]
-#[structopt(
-    name = "server config",
-    about = "server config for personal-xpub-tracker"
-)]
-pub struct CliConfig {
     #[structopt(
         short,
         long,
         help = "one of 'bitcoin', 'testnet' or 'regtest'",
         default_value = "bitcoin"
     )]
-    network: Network,
+    pub network: Network,
 
     #[structopt(
         short,
@@ -45,7 +25,7 @@ pub struct CliConfig {
         help = "increase verbosity level (up to 3 times)",
         parse(from_occurrences)
     )]
-    verbose: usize,
+    pub verbose: usize,
 
     #[structopt(
         short = "i",
@@ -54,36 +34,35 @@ pub struct CliConfig {
         default_value = "5",
         parse(try_from_str = parse_duration)
     )]
-    poll_interval: time::Duration,
+    pub poll_interval: time::Duration,
 
-    // bitcoind related configuration
     #[structopt(
         short = "d",
         long = "bitcoind-dir",
         help = "path to bitcoind directory (used for cookie file, defaults to ~/.bitcoin/<network>)"
     )]
-    bitcoind_dir: Option<path::PathBuf>,
+    pub bitcoind_dir: Option<path::PathBuf>,
 
     #[structopt(
         short = "u",
         long = "bitcoind-url",
         help = "url for the bitcoind rpc server (defaults to http://localhost:<network-rpc-port>)"
     )]
-    bitcoind_url: Option<String>,
+    pub bitcoind_url: Option<String>,
 
     #[structopt(
         short = "C",
         long = "bitcoind-cred",
         help = "credentials for accessing the bitcoind rpc server (as <username>:<password>, instead of reading the cookie file)"
     )]
-    bitcoind_cred: Option<String>,
+    pub bitcoind_cred: Option<String>,
 
     #[structopt(
         short = "c",
         long = "bitcoind-cookie",
         help = "cookie file for accessing the bitcoind rpc server (defaults to <bitcoind-dir>/.cookie)"
     )]
-    bitcoind_cookie: Option<path::PathBuf>,
+    pub bitcoind_cookie: Option<path::PathBuf>,
 
     // wallets to watch
     #[structopt(
@@ -92,7 +71,7 @@ pub struct CliConfig {
         help = "xpubs to scan and since when (<xpub>, <xpub>:all, <xpub>:none, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
         parse(try_from_str = parse_xpub)
     )]
-    xpubs: Vec<(String, KeyRescan)>,
+    pub xpubs: Vec<(String, KeyRescan)>,
 
     //// TODO
     //#[structopt(
@@ -102,15 +81,13 @@ pub struct CliConfig {
     //parse(try_from_str = "parse_address")
     //)]
     //addresses: Vec<(String, KeyRescan)>,
-
-    // pxt server configuration
     #[cfg(feature = "electrum")]
     #[structopt(
         short,
         long = "electrum-rpc-addr",
         help = "address to bind the electrum rpc server (host:port)"
     )]
-    electrum_rpc_addr: net::SocketAddr,
+    pub electrum_rpc_addr: net::SocketAddr,
 
     #[cfg(feature = "http")]
     #[structopt(
@@ -118,86 +95,35 @@ pub struct CliConfig {
         long = "http-server-addr",
         help = "address to bind the http rest server (host:port)"
     )]
-    http_server_addr: net::SocketAddr,
+    pub http_server_addr: net::SocketAddr,
 }
 
 impl Config {
-    pub fn from_args() -> Self {
-        Self::from_cli(CliConfig::from_args()).unwrap()
-    }
-
-    fn from_cli(config: CliConfig) -> Result<Self> {
-        let CliConfig {
-            network,
-            verbose,
-            poll_interval,
-            bitcoind_url,
-            bitcoind_dir,
-            bitcoind_cred,
-            bitcoind_cookie,
-            xpubs,
-            #[cfg(feature = "electrum")]
-            electrum_rpc_addr,
-            #[cfg(feature = "http")]
-            http_server_addr,
-        } = config;
-
-        let bitcoind_url = bitcoind_url.unwrap_or_else(|| {
+    pub fn bitcoind_url(&self) -> String {
+        self.bitcoind_url.clone().unwrap_or_else(|| {
             format!(
                 "http://localhost:{}/",
-                match network {
+                match self.network {
                     Network::Bitcoin => 8332,
                     Network::Testnet => 18332,
                     Network::Regtest => 18443,
                 }
             )
-        });
+        })
+    }
 
-        let get_dir = || {
-            let mut dir = bitcoind_dir.or_else(|| Some(home_dir()?.join(".bitcoin")))?;
-            match network {
-                Network::Bitcoin => (),
-                Network::Testnet => dir.push("testnet3"),
-                Network::Regtest => dir.push("regtest"),
-            }
-            Some(dir)
-        };
-
-        let get_cookie = || {
-            bitcoind_cookie.or_else(|| {
-                let cookie = get_dir()?.join(".cookie");
-                if cookie.exists() {
-                    Some(cookie)
-                } else {
-                    println!("cookie file not found in {:?}", cookie);
-                    None
-                }
-            })
-        };
-
-        let bitcoind_auth = bitcoind_cred
+    pub fn bitcoind_auth(&self) -> Result<RpcAuth> {
+        Ok(self.bitcoind_cred
+            .as_ref()
             .and_then(|cred| {
                 let mut parts = cred.splitn(2, ":");
                 Some(RpcAuth::UserPass(parts.next()?.into(), parts.next()?.into()))
             })
             .or_else(|| {
-                Some(RpcAuth::CookieFile(get_cookie()?))
+                let cookie = self.bitcoind_cookie.clone().or_else(|| get_cookie(self))?;
+                Some(RpcAuth::CookieFile(cookie))
             })
-            .or_err("no available authentication for bitcoind rpc, please specify credentials or a cookie file")?;
-
-        Ok(Config {
-            network,
-            verbose,
-            poll_interval,
-            bitcoind_url,
-            bitcoind_auth,
-            xpubs,
-
-            #[cfg(feature = "electrum")]
-            electrum_rpc_addr,
-            #[cfg(feature = "http")]
-            http_server_addr,
-        })
+            .or_err("no available authentication for bitcoind rpc, please specify credentials or a cookie file")?)
     }
 }
 
@@ -239,4 +165,23 @@ fn parse_yyyymmdd(s: &str) -> Result<u32> {
 
 fn parse_duration(s: &str) -> Result<time::Duration> {
     Ok(time::Duration::from_secs(s.parse()?))
+}
+
+fn get_cookie(config: &Config) -> Option<path::PathBuf> {
+    let mut dir = config
+        .bitcoind_dir
+        .clone()
+        .or_else(|| Some(home_dir()?.join(".bitcoin")))?;
+    match config.network {
+        Network::Bitcoin => (),
+        Network::Testnet => dir.push("testnet3"),
+        Network::Regtest => dir.push("regtest"),
+    }
+    let cookie = dir.join(".cookie");
+    if cookie.exists() {
+        Some(cookie)
+    } else {
+        println!("cookie file not found in {:?}", cookie);
+        None
+    }
 }

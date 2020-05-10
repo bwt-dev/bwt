@@ -1,4 +1,5 @@
 use pxt::{App, Config, Result};
+use structopt::StructOpt;
 
 #[allow(unreachable_code)]
 fn main() -> Result<()> {

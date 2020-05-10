@@ -29,8 +29,8 @@ impl App {
         let watcher = HDWatcher::new(wallets);
 
         let rpc = Arc::new(RpcClient::new(
-            config.bitcoind_url.clone(),
-            config.bitcoind_auth.clone(),
+            config.bitcoind_url(),
+            config.bitcoind_auth()?,
         )?);
         let indexer = Arc::new(RwLock::new(Indexer::new(Arc::clone(&rpc), watcher)));
         let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&indexer)));
