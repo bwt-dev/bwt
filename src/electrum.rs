@@ -238,7 +238,8 @@ impl Connection {
 
     fn handle_command(&mut self, method: &str, params: Value, id: Value) -> Result<Value> {
         match method {
-            "blockchain.scripthash.subscribe"
+            "server.ping"
+            | "blockchain.scripthash.subscribe"
             | "blockchain.estimatefee"
             | "mempool.get_fee_histogram" => {
                 trace!("rpc #{} <--- {} {}", id, method, params);
