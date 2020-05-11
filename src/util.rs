@@ -124,3 +124,39 @@ fn get_xpub_p2pkh_version(network: Network) -> [u8; 4] {
         Network::Testnet | Network::Regtest => [0x04u8, 0x35, 0x87, 0xCF],
     }
 }
+
+use std::sync::mpsc;
+use std::thread;
+use std::time::{Duration, Instant};
+
+// debounce a Sender to only emit events sent when `duration` seconds has passed since
+// the previous event, or after `duration` seconds elapses without new events coming in.
+pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sender<()> {
+    let duration = Duration::from_secs(duration);
+    let (debounce_tx, debounce_rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        loop {
+            let tick_start = Instant::now();
+            // always wait for the first sync message to arrive first
+            debounce_rx.recv().unwrap();
+            if tick_start.elapsed() < duration {
+                // if duration hasn't passed, debounce for another `duration` seconds
+                loop {
+                    trace!("debouncing sync for {:?}", duration);
+                    match debounce_rx.recv_timeout(duration) {
+                        // if we receive another message within the `duration`, debounce and start over again
+                        Ok(()) => continue,
+                        // if we timed-out, we're good!
+                        Err(mpsc::RecvTimeoutError::Timeout) => break,
+                        Err(mpsc::RecvTimeoutError::Disconnected) => panic!(),
+                    }
+                }
+            }
+            info!("unix socket triggering index sync");
+            forward_tx.send(()).unwrap();
+        }
+    });
+
+    debounce_tx
+}

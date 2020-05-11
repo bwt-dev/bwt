@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 
 use bitcoincore_rpc::Client as RpcClient;
 
+use crate::util::debounce_sender;
 use crate::{Config, HDWallet, HDWatcher, Indexer, Query, Result};
 
 #[cfg(feature = "electrum")]
@@ -14,12 +15,13 @@ use crate::listener;
 #[cfg(feature = "webhooks")]
 use crate::webhooks::WebHookNotifier;
 
+const DEBOUNCE_SEC: u64 = 7;
+
 pub struct App {
     config: Config,
     indexer: Arc<RwLock<Indexer>>,
     query: Arc<Query>,
-
-    sync_channel: (mpsc::Sender<()>, mpsc::Receiver<()>),
+    sync_rx: mpsc::Receiver<()>,
 
     #[cfg(feature = "electrum")]
     electrum: ElectrumServer,
@@ -42,21 +44,24 @@ impl App {
         )?);
         let indexer = Arc::new(RwLock::new(Indexer::new(Arc::clone(&rpc), watcher)));
         let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&indexer)));
-        let (tx, rx) = mpsc::channel();
+        let (sync_tx, sync_rx) = mpsc::channel();
 
         // do an initial sync without keeping track of updates
         indexer.write().unwrap().sync(false)?;
+
+        // debounce sync message rate to avoid excessive indexing when bitcoind catches up
+        let sync_tx = debounce_sender(sync_tx, DEBOUNCE_SEC);
 
         #[cfg(feature = "electrum")]
         let electrum = ElectrumServer::start(config.electrum_rpc_addr(), Arc::clone(&query));
 
         #[cfg(feature = "http")]
-        let http = HttpServer::start(config.http_server_addr, Arc::clone(&query), tx.clone());
+        let http = HttpServer::start(config.http_server_addr, Arc::clone(&query), sync_tx.clone());
 
         #[cfg(unix)]
         {
             if let Some(listener_path) = &config.unix_listener_path {
-                listener::start(listener_path.clone(), tx.clone());
+                listener::start(listener_path.clone(), sync_tx.clone());
             }
         }
 
@@ -70,7 +75,7 @@ impl App {
             config,
             indexer,
             query,
-            sync_channel: (tx, rx),
+            sync_rx,
             #[cfg(feature = "electrum")]
             electrum,
             #[cfg(feature = "http")]
@@ -102,10 +107,7 @@ impl App {
 
             // wait for poll_interval seconds, or until we receive a sync notification message
             // TODO debounce messages to avoid excessive indexing
-            self.sync_channel
-                .1
-                .recv_timeout(self.config.poll_interval)
-                .ok();
+            self.sync_rx.recv_timeout(self.config.poll_interval).ok();
         }
     }
 }
