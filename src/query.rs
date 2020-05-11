@@ -134,7 +134,12 @@ impl Query {
             .map_or_else(|| Vec::new(), |entries| entries.iter().cloned().collect())
     }
 
-    pub fn list_unspent(&self, scripthash: &ScriptHash, min_conf: usize) -> Result<Vec<Utxo>> {
+    pub fn list_unspent(
+        &self,
+        scripthash: &ScriptHash,
+        min_conf: usize,
+        include_unsafe: Option<bool>,
+    ) -> Result<Vec<Utxo>> {
         let address = self
             .indexer
             .read()
@@ -147,9 +152,13 @@ impl Query {
             let tip_height = self.rpc.get_block_count()? as u32;
             let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
-            let unspents =
-                self.rpc
-                    .list_unspent(Some(min_conf), None, Some(&[&address]), Some(true), None)?;
+            let unspents = self.rpc.list_unspent(
+                Some(min_conf),
+                None,
+                Some(&[&address]),
+                include_unsafe,
+                None,
+            )?;
 
             if tip_hash != self.rpc.get_best_block_hash()? {
                 warn!("tip changed while fetching unspents, retrying...");
@@ -199,7 +208,7 @@ impl Query {
 
     /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)
     pub fn get_balance(&self, scripthash: &ScriptHash) -> Result<(u64, u64)> {
-        let utxos = self.list_unspent(scripthash, 0)?;
+        let utxos = self.list_unspent(scripthash, 0, None)?;
 
         let (confirmed, unconfirmed): (Vec<Utxo>, Vec<Utxo>) = utxos
             .into_iter()

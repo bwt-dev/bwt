@@ -66,7 +66,8 @@ async fn run(
         .and(warp::query::<UtxoOptions>())
         .and(query.clone())
         .map(|scripthash, options: UtxoOptions, query: Arc<Query>| {
-            let utxos = query.list_unspent(&scripthash, options.min_conf)?;
+            let utxos =
+                query.list_unspent(&scripthash, options.min_conf, options.include_unsafe)?;
             Ok(reply::json(&utxos))
         })
         .map(handle_error);

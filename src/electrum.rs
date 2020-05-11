@@ -174,7 +174,7 @@ impl Connection {
 
         let utxos: Vec<Value> = self
             .query
-            .list_unspent(&script_hash, 0)?
+            .list_unspent(&script_hash, 0, None)?
             .into_iter()
             .map(|utxo| {
                 json!({
