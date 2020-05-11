@@ -1,5 +1,5 @@
 use std::cmp;
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySendError};
@@ -25,7 +25,7 @@ const MAX_HEADERS: u32 = 2016;
 
 struct Connection {
     query: Arc<Query>,
-    status_hashes: HashMap<ScriptHash, Option<StatusHash>>,
+    subscriptions: HashSet<ScriptHash>,
     stream: TcpStream,
     addr: SocketAddr,
     chan: SyncChannel<Message>,
@@ -35,7 +35,7 @@ impl Connection {
     pub fn new(query: Arc<Query>, stream: TcpStream, addr: SocketAddr) -> Connection {
         Connection {
             query,
-            status_hashes: HashMap::new(),
+            subscriptions: HashSet::new(),
             stream,
             addr,
             chan: SyncChannel::new(10),
@@ -139,7 +139,7 @@ impl Connection {
         let (script_hash,): (ScriptHash,) = from_value(params)?;
 
         let status_hash = get_status_hash(&self.query, &script_hash);
-        self.status_hashes.insert(script_hash, status_hash.clone());
+        self.subscriptions.insert(script_hash.clone());
 
         Ok(json!(status_hash))
     }
@@ -295,15 +295,9 @@ impl Connection {
                     "params": [header]})
             }
             IndexUpdate::History(scripthash, _) => {
-                if let Some(status_hash) = self.status_hashes.get_mut(&scripthash) {
+                if self.subscriptions.contains(&scripthash) {
                     let new_status_hash = get_status_hash(&self.query, &scripthash);
-                    debug!("status hash updated for {:?}", scripthash);
-                    trace!(
-                        "old_status_hash={:?} new_status_hash={:?}",
-                        status_hash,
-                        new_status_hash
-                    );
-                    *status_hash = new_status_hash;
+                    debug!("status hash updated for {} to {:?}", scripthash, new_status_hash);
                     json!({
                         "jsonrpc": "2.0",
                         "method": "blockchain.scripthash.subscribe",
