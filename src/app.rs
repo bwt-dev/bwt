@@ -20,7 +20,6 @@ const DEBOUNCE_SEC: u64 = 7;
 pub struct App {
     config: Config,
     indexer: Arc<RwLock<Indexer>>,
-    query: Arc<Query>,
     sync_rx: mpsc::Receiver<()>,
 
     #[cfg(feature = "electrum")]
@@ -74,7 +73,6 @@ impl App {
         Ok(App {
             config,
             indexer,
-            query,
             sync_rx,
             #[cfg(feature = "electrum")]
             electrum,
