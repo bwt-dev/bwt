@@ -65,26 +65,33 @@ impl HDWatcher {
                     wallet.initial_rescan
                 };
 
-                info!(
-                    "importing hd wallet {} range {}-{} with rescan policy {:?}",
-                    wallet.master, start_index, watch_index, rescan,
+                debug!(
+                    "[hd] importing range {}-{} of xpub {} rescan={:?}",
+                    start_index, watch_index, wallet.master, rescan,
                 );
 
                 import_reqs.append(&mut wallet.make_imports(start_index, watch_index, rescan));
                 pending_updates.push((wallet, watch_index));
             } else if !wallet.done_initial_import {
-                info!("done initial import for {}", wallet.master);
-                // XXX figure out done_initial_import logic (following restart etc)
+                debug!(
+                    "[hd] done initial import for xpub {} (up to index {:?})",
+                    wallet.master, wallet.max_imported_index
+                );
                 wallet.done_initial_import = true;
             }
         }
 
         if !import_reqs.is_empty() {
+            info!("[hd] importing batch of {} addresses", import_reqs.len());
             batch_import(rpc, import_reqs)?;
+            info!("[hd] done importing batch");
         }
 
         for (wallet, watched_index) in pending_updates {
-            info!("imported hd key {} up to {}", wallet.master, watched_index);
+            debug!(
+                "[hd] imported xpub {} up to index {}",
+                wallet.master, watched_index
+            );
             wallet.max_imported_index = Some(watched_index);
         }
 
@@ -221,8 +228,6 @@ fn batch_import(
     rpc: &RpcClient,
     import_reqs: Vec<(Address, KeyRescan, KeyOrigin)>,
 ) -> Result<Vec<Value>> {
-    info!("importing {} addresses", import_reqs.len());
-
     // TODO: parse result, detect errors
     Ok(rpc.call(
         "importmulti",
@@ -231,9 +236,11 @@ fn batch_import(
             .map(|(address, rescan, origin)| {
                 let label = origin.to_label();
 
-                debug!(
-                    "importing {} as {} with rescan {:?}",
-                    address, label, rescan
+                trace!(
+                    "[hd] importing {} as {} with rescan {:?}",
+                    address,
+                    label,
+                    rescan
                 );
 
                 json!({

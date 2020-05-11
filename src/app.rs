@@ -31,7 +31,7 @@ pub struct App {
 
 impl App {
     pub fn boot(config: Config) -> Result<Self> {
-        info!("config: {:?}", config);
+        info!("[app] {:?}", config);
 
         let wallets = HDWallet::from_xpubs(&config.xpubs[..], config.network)?;
         let watcher = HDWatcher::new(wallets);
@@ -85,8 +85,6 @@ impl App {
         loop {
             match self.indexer.write().unwrap().sync(true) {
                 Ok(updates) if updates.len() > 0 => {
-                    debug!("indexer updates: {:#?}", updates);
-
                     #[cfg(feature = "electrum")]
                     self.electrum.send_updates(&updates);
 

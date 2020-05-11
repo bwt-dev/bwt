@@ -211,7 +211,7 @@ async fn run(
         .and(warp::path!("sync"))
         .and(sync_tx.clone())
         .map(|sync_tx: SyncChanSender| {
-            info!("received sync notification via http server");
+            info!("[http] received sync notification");
             sync_tx.lock().unwrap().send(())?;
             Ok("syncing in progress")
         })
@@ -234,7 +234,7 @@ async fn run(
         .or(sync_handler)
         .with(warp::log("pxt"));
 
-    info!("starting http server on {}", addr);
+    info!("[http] HTTP REST API server starting on {}", addr);
 
     warp::serve(handlers).run(addr).await
 }
@@ -260,8 +260,17 @@ impl HttpServer {
     }
 
     pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
+        let mut listeners = self.listeners.lock().unwrap();
+        if listeners.is_empty() {
+            return;
+        }
+        info!(
+            "[http] sending {} updates to {} sse clients",
+            updates.len(),
+            listeners.len()
+        );
         // send updates while dropping unresponsive listeners
-        self.listeners.lock().unwrap().retain(|listener| {
+        listeners.retain(|listener| {
             updates
                 .iter()
                 .filter(|update| listener.filter.matches(update))
@@ -281,7 +290,7 @@ fn make_connection_sse_stream(
     listeners: UpdateListeners,
     filter: UpdatesFilter,
 ) -> impl Stream<Item = Result<impl ServerSentEvent, warp::Error>> {
-    info!("subscribing sse stream to {:?}", filter);
+    debug!("[http] subscribing sse client with {:?}", filter);
     let (tx, rx) = tmpsc::unbounded_channel();
     listeners
         .lock()
@@ -302,7 +311,6 @@ struct UpdatesFilter {
 
 impl UpdatesFilter {
     fn matches(&self, update: &IndexUpdate) -> bool {
-        debug!("filtering {:?}", update);
         self.scripthash_matches(update)
             && self.category_matches(update)
             && self.outpoint_matches(update)
@@ -339,7 +347,7 @@ struct UtxoOptions {
 
 async fn reject_error<T>(result: Result<T, Error>) -> Result<T, warp::Rejection> {
     result.map_err(|err| {
-        warn!("filter rejected: {:?}", err);
+        warn!("[http] pre-processing failed: {:?}", err);
         warp::reject::custom(WarpError::Error(err))
     })
 }
@@ -351,7 +359,7 @@ where
     match result {
         Ok(x) => x.into_response(),
         Err(e) => {
-            warn!("request failed with: {:#?}", e);
+            warn!("[http] processing failed: {:#?}", e);
             let status = StatusCode::INTERNAL_SERVER_ERROR;
             let body = fmt_error_chain(&e);
             reply::with_status(body, status).into_response()

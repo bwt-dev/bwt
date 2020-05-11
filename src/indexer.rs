@@ -47,7 +47,7 @@ impl Indexer {
             let best_chain_hash = self.rpc.get_block_hash(tip_height as u64)?;
             if best_chain_hash != tip_hash {
                 warn!(
-                    "reorg detected, block height {} was {} and now is {}. fetching history from scratch...",
+                    "[indexer] reorg detected, block height {} was {} and now is {}. fetching history from scratch...",
                     tip_height, tip_hash, best_chain_hash
                 );
 
@@ -63,12 +63,19 @@ impl Indexer {
         self.watcher.watch(&self.rpc)?;
 
         if self.tip.as_ref() != Some(&synced_tip) {
-            info!("synced up to {:?}", synced_tip);
+            info!("[indexer] synced up to {:?}", synced_tip);
             updates.push(|| IndexUpdate::ChainTip(synced_tip.clone()));
             self.tip = Some(synced_tip);
         }
 
-        Ok(updates.into_vec())
+        let updates = updates.into_vec();
+
+        if !updates.is_empty() {
+            info!("[indexer] sync resulted in {} index updates", updates.len());
+            debug!("[indexer] {:#?}", updates);
+        }
+
+        Ok(updates)
     }
 
     fn sync_transactions(&mut self, updates: &mut IndexUpdates) -> Result<BlockId> {
@@ -111,7 +118,7 @@ impl Indexer {
 
         for (txid, txentry) in pending_outgoing {
             self.process_outgoing(txid, txentry, updates)
-                .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
+                .map_err(|err| warn!("[indexer] failed processing outgoing payment: {:?}", err))
                 .ok();
         }
 
@@ -137,17 +144,17 @@ impl Indexer {
         };
         let status = TxStatus::new(ltx.info.confirmations, tip_height);
 
-        debug!(
-            "process incoming tx for {:?} origin {:?} with status {:?}: {:?}",
-            ltx.detail.address, origin, status, ltx
-        );
-
         let txid = ltx.info.txid;
         let scripthash = ScriptHash::from(&ltx.detail.address);
         let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts
-        let funding_info = FundingInfo(scripthash, amount);
+
+        trace!(
+            "[indexer] processing incoming txout {}:{} scripthash={} address={} origin={:?} status={:?} amount={}",
+            txid, ltx.detail.vout, scripthash, ltx.detail.address, origin, status, amount
+        );
 
         let mut txentry = TxEntry::new(status, None);
+        let funding_info = FundingInfo(scripthash, amount);
         txentry.funding.insert(ltx.detail.vout, funding_info);
 
         if self.store.index_tx_entry(&txid, txentry) {
@@ -178,9 +185,10 @@ impl Indexer {
         mut txentry: TxEntry,
         updates: &mut IndexUpdates,
     ) -> Result<()> {
-        debug!(
-            "processing outgoing tx {:?} with status {:?}",
-            txid, txentry.status
+        trace!(
+            "[indexer] processing outgoing tx txid={} status={:?}",
+            txid,
+            txentry.status
         );
 
         let tx = self.rpc.get_transaction(&txid, Some(true))?.transaction()?;
@@ -350,11 +358,20 @@ fn load_transactions_since(
     // TODO: if the newest entry has the exact same (txid,address,height) as the previous newest,
     // skip processing the entries entirely
 
-    info!("syncing transactions {}..{}", start_height, tip_height,);
+    if start_height <= tip_height {
+        info!(
+            "[indexer] syncing transactions from blocks {}..{} + mempool",
+            start_height, tip_height,
+        );
+    } else {
+        info!("[indexer] syncing mempool transactions");
+    }
+
     loop {
-        debug!(
-            "reading {} transactions starting at index {}",
-            per_page, start_index
+        trace!(
+            "[indexer] fetching {} transactions starting at index {}",
+            per_page,
+            start_index
         );
 
         let mut chunk =
@@ -363,7 +380,7 @@ fn load_transactions_since(
         // this is necessary because we rely on the tip height to derive the confirmed height
         // from the number of confirmations
         if tip_hash != rpc.get_best_block_hash()? {
-            warn!("tip changed while fetching transactions, retrying...");
+            warn!("[indexer] tip changed while fetching transactions, retrying...");
             return load_transactions_since(rpc, start_height, Some(per_page), chunk_handler);
         }
 
@@ -373,7 +390,7 @@ fn load_transactions_since(
             let marker = chunk.pop().or_err("missing marker tx")?;
 
             if oldest_seen != &(marker.info.txid, marker.detail.vout) {
-                warn!("transaction set changed while fetching transactions, retrying...");
+                warn!("[indexer] transaction set changed while fetching transactions, retrying...");
                 return load_transactions_since(rpc, start_height, Some(per_page), chunk_handler);
             }
         }

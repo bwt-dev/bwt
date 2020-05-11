@@ -241,7 +241,17 @@ impl Connection {
     }
 
     fn handle_command(&mut self, method: &str, params: Value, id: Value) -> Result<Value> {
-        info!("handle command {} {:?}", method, params);
+        match method {
+            "blockchain.scripthash.subscribe"
+            | "blockchain.estimatefee"
+            | "mempool.get_fee_histogram" => {
+                trace!("[electrum] rpc #{} <--- {} {}", id, method, params);
+            }
+            _ => {
+                debug!("[electrum] rpc #{} <--- {} {}", id, method, params);
+            }
+        }
+
         let result = match method {
             "blockchain.block.header" => self.blockchain_block_header(params),
             "blockchain.block.headers" => self.blockchain_block_headers(params),
@@ -264,12 +274,14 @@ impl Connection {
             "server.version" => self.server_version(),
             &_ => bail!("unknown method {} {:?}", method, params),
         };
-        info!("reply for {}: {:?}", method, result);
 
         Ok(match result {
-            Ok(result) => json!({"jsonrpc": "2.0", "id": id, "result": result}),
+            Ok(result) => {
+                trace!("[electrum] rpc #{} ---> {} {}", id, method, result);
+                json!({"jsonrpc": "2.0", "id": id, "result": result})
+            }
             Err(e) => {
-                warn!("rpc #{} {} failed: {:?}", id, method, e,);
+                warn!("[electrum] rpc #{} {} failed: {:?}", id, method, e,);
                 json!({"jsonrpc": "2.0", "id": id, "error": fmt_error_chain(&e)})
             }
         })
@@ -288,9 +300,11 @@ impl Connection {
             IndexUpdate::History(scripthash, _) => {
                 if let Some(status_hash) = self.status_hashes.get_mut(&scripthash) {
                     let new_status_hash = get_status_hash(&self.query, &scripthash);
-                    info!(
-                        "[electrum] status hash for {:?} updated to {:?} (was {:?})",
-                        scripthash, new_status_hash, status_hash
+                    debug!("[electrum] status hash updated for {:?}", scripthash);
+                    trace!(
+                        "[electrum] old_status_hash={:?} new_status_hash={:?}",
+                        status_hash,
+                        new_status_hash
                     );
                     *status_hash = new_status_hash;
                     json!({
@@ -319,7 +333,6 @@ impl Connection {
     fn handle_replies(&mut self) -> Result<()> {
         loop {
             let msg = self.chan.receiver().recv().context("channel closed")?;
-            trace!("RPC {:?}", msg);
             match msg {
                 Message::Request(line) => {
                     let mut cmd: Value = from_str(&line).context("invalid JSON format")?;
@@ -334,7 +347,7 @@ impl Connection {
                 }
                 Message::IndexUpdate(update) => {
                     if let Some(value) = self.update_subscriptions(update)? {
-                        info!("[electrum] sending notification: {:#?}", value);
+                        debug!("[electrum] sending notification: {}", value);
                         self.send_values(&[value])?
                     }
                 }
@@ -376,7 +389,7 @@ impl Connection {
         if let Err(e) = self.handle_replies() {
             error!("[{}] connection handling failed: {:#?}", self.addr, e,)
         }
-        debug!("[{}] shutting down connection", self.addr);
+        trace!("[{}] shutting down connection", self.addr);
         let _ = self.stream.shutdown(Shutdown::Both);
         if let Err(err) = child.join().expect("receiver panicked") {
             error!("[{}] receiver failed: {:?}", self.addr, err);
@@ -489,7 +502,7 @@ impl ElectrumServer {
             let listener =
                 TcpListener::bind(addr).unwrap_or_else(|e| panic!("bind({}) failed: {}", addr, e));
             info!(
-                "Electrum RPC server running on {} (protocol {})",
+                "[electrum] Electrum RPC server running on {} (protocol {})",
                 addr, PROTOCOL_VERSION
             );
             loop {
@@ -516,11 +529,11 @@ impl ElectrumServer {
                     let query = query.clone();
                     let senders = senders.clone();
                     children.push(spawn_thread("peer", move || {
-                        info!("[{}] connected peer", addr);
+                        info!("[electrum] [{}] connected peer", addr);
                         let conn = Connection::new(query, stream, addr);
                         senders.lock().unwrap().push(conn.chan.sender());
                         conn.run();
-                        info!("[{}] disconnected peer", addr);
+                        info!("[electrum] [{}] disconnected peer", addr);
                     }));
                 }
                 trace!("closing {} RPC connections", senders.lock().unwrap().len());
@@ -537,6 +550,7 @@ impl ElectrumServer {
     }
 
     pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
+        info!("[electrum] sending {} updates to rpc client", updates.len());
         for update in updates {
             match update {
                 IndexUpdate::ChainTip(..) | IndexUpdate::History(..) => self
