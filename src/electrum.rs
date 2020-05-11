@@ -136,8 +136,7 @@ impl Connection {
     }
 
     fn blockchain_scripthash_subscribe(&mut self, params: Value) -> Result<Value> {
-        let (script_hash,): (String,) = from_value(params)?;
-        let script_hash = decode_script_hash(&script_hash)?;
+        let (script_hash,): (ScriptHash,) = from_value(params)?;
 
         let status_hash = get_status_hash(&self.query, &script_hash);
         self.status_hashes.insert(script_hash, status_hash.clone());
@@ -146,8 +145,7 @@ impl Connection {
     }
 
     fn blockchain_scripthash_get_balance(&self, params: Value) -> Result<Value> {
-        let (script_hash,): (String,) = from_value(params)?;
-        let script_hash = decode_script_hash(&script_hash)?;
+        let (script_hash,): (ScriptHash,) = from_value(params)?;
 
         let (confirmed_balance, mempool_balance) = self.query.get_balance(&script_hash)?;
 
@@ -158,8 +156,7 @@ impl Connection {
     }
 
     fn blockchain_scripthash_get_history(&self, params: Value) -> Result<Value> {
-        let (script_hash,): (String,) = from_value(params)?;
-        let script_hash = decode_script_hash(&script_hash)?;
+        let (script_hash,): (ScriptHash,) = from_value(params)?;
 
         let txs: Vec<Value> = self.query.map_history(&script_hash, |txhist| {
             let fee = self.query.with_tx_entry(&txhist.txid, |e| e.fee);
@@ -173,8 +170,7 @@ impl Connection {
     }
 
     fn blockchain_scripthash_listunspent(&self, params: Value) -> Result<Value> {
-        let (script_hash,): (String,) = from_value(params)?;
-        let script_hash = decode_script_hash(&script_hash)?;
+        let (script_hash,): (ScriptHash,) = from_value(params)?;
 
         let utxos: Vec<Value> = self
             .query
@@ -310,7 +306,7 @@ impl Connection {
                     json!({
                         "jsonrpc": "2.0",
                         "method": "blockchain.scripthash.subscribe",
-                        "params": [encode_script_hash(&scripthash), new_status_hash]
+                        "params": [scripthash, new_status_hash]
                     })
                 } else {
                     return Ok(None);
@@ -434,23 +430,6 @@ fn electrum_height(status: &TxStatus) -> u32 {
             unreachable!("electrum_height() should not be called on conflicted txs")
         }
     }
-}
-
-// TODO use bitcoin-hashes's new reverse encoding option
-fn encode_script_hash(hash: &ScriptHash) -> String {
-    reverse_hash(*hash).to_hex()
-}
-
-fn decode_script_hash(s: &str) -> Result<ScriptHash> {
-    Ok(reverse_hash(
-        ScriptHash::from_hex(s).context("invalid script hash")?,
-    ))
-}
-
-fn reverse_hash(hash: ScriptHash) -> ScriptHash {
-    let mut inner = hash.into_inner();
-    inner.reverse();
-    ScriptHash::from_slice(&inner).unwrap()
 }
 
 #[derive(Debug)]

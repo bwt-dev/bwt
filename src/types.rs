@@ -6,7 +6,13 @@ use serde_json::Value;
 use bitcoin::{Address, BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
 
-hash_newtype!(ScriptHash, sha256::Hash, 32, doc = "The hash of an spk.");
+hash_newtype!(
+    ScriptHash,
+    sha256::Hash,
+    32,
+    doc = "The hash of an spk.",
+    true
+);
 
 impl From<&Address> for ScriptHash {
     fn from(address: &Address) -> Self {
