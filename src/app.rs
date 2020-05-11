@@ -1,7 +1,7 @@
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 
-use bitcoincore_rpc::Client as RpcClient;
+use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::util::debounce_sender;
 use crate::{Config, HDWallet, HDWatcher, Indexer, Query, Result};
@@ -43,11 +43,13 @@ impl App {
         )?);
         let indexer = Arc::new(RwLock::new(Indexer::new(Arc::clone(&rpc), watcher)));
         let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&indexer)));
-        let (sync_tx, sync_rx) = mpsc::channel();
+
+        wait_ibd(&rpc)?;
 
         // do an initial sync without keeping track of updates
         indexer.write().unwrap().sync(false)?;
 
+        let (sync_tx, sync_rx) = mpsc::channel();
         // debounce sync message rate to avoid excessive indexing when bitcoind catches up
         let sync_tx = debounce_sender(sync_tx, DEBOUNCE_SEC);
 
@@ -107,4 +109,31 @@ impl App {
             self.sync_rx.recv_timeout(self.config.poll_interval).ok();
         }
     }
+}
+
+fn wait_ibd(rpc: &RpcClient) -> Result<()> {
+    let netinfo = rpc.get_network_info()?;
+    let mut bcinfo = rpc.get_blockchain_info()?;
+    info!(
+        "connected to {} on {}, protocolversion={}, pruned={}, bestblock={}",
+        netinfo.subversion,
+        bcinfo.chain,
+        netinfo.protocol_version,
+        bcinfo.pruned,
+        bcinfo.best_block_hash
+    );
+
+    trace!("{:?}", netinfo);
+    trace!("{:?}", bcinfo);
+
+    while bcinfo.initial_block_download {
+        /* || bcinfo.blocks < bcinfo.headers */
+        info!(
+            "waiting for bitcoind to sync [{}/{} blocks, ibd={}]",
+            bcinfo.blocks, bcinfo.headers, bcinfo.initial_block_download
+        );
+        bcinfo = rpc.get_blockchain_info()?;
+    }
+
+    Ok(())
 }
