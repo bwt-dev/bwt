@@ -104,7 +104,6 @@ impl App {
             }
 
             // wait for poll_interval seconds, or until we receive a sync notification message
-            // TODO debounce messages to avoid excessive indexing
             self.sync_rx.recv_timeout(self.config.poll_interval).ok();
         }
     }
