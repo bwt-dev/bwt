@@ -37,16 +37,14 @@ fn setup_logger(verbose: usize) {
         .filter_module(
             "warp",
             match verbose {
-                0 | 1 => Level::Info,
-                2 => Level::Debug,
+                0 | 1 => Level::Warn,
+                2 => Level::Info,
+                3 => Level::Debug,
                 _ => Level::Trace,
             }
             .to_level_filter(),
         )
-        .filter_module(
-            "hyper",
-            Level::Warn.to_level_filter(),
-        )
+        .filter_module("hyper", Level::Warn.to_level_filter())
         .filter_level(
             match verbose {
                 0 | 1 => Level::Warn,

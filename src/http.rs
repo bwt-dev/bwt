@@ -214,7 +214,7 @@ async fn run(
         .map(|sync_tx: SyncChanSender| {
             info!("received sync notification");
             sync_tx.lock().unwrap().send(())?;
-            Ok("syncing in progress")
+            Ok("syncing queued")
         })
         .map(handle_error);
 
@@ -233,9 +233,9 @@ async fn run(
         .or(dump_handler)
         .or(debug_handler)
         .or(sync_handler)
-        .with(warp::log("pxt"));
+        .with(warp::log("pxt::http"));
 
-    info!("HTTP REST API server starting on {}", addr);
+    info!("HTTP REST API server starting on http://{}/", addr);
 
     warp::serve(handlers).run(addr).await
 }
