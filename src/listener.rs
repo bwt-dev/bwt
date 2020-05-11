@@ -20,11 +20,11 @@ fn bind_listener(socket_path: PathBuf, sync_tx: mpsc::Sender<()>) -> std::io::Re
         }
     }
 
-    info!("[unix socket] binding on {:?}", socket_path);
+    info!("binding unix socket on {:?}", socket_path);
 
     let listener = UnixListener::bind(socket_path)?;
     for stream in listener.incoming() {
-        info!("[unix socket] received sync notification");
+        info!("received sync notification via unix socket");
         sync_tx.send(()).unwrap();
         // drop the connection, ignore any errors
         stream.and_then(|s| s.shutdown(net::Shutdown::Both)).ok();

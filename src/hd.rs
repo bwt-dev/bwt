@@ -66,7 +66,7 @@ impl HDWatcher {
                 };
 
                 debug!(
-                    "[hd] importing range {}-{} of xpub {} rescan={:?}",
+                    "importing range {}-{} of xpub {} rescan={:?}",
                     start_index, watch_index, wallet.master, rescan,
                 );
 
@@ -74,7 +74,7 @@ impl HDWatcher {
                 pending_updates.push((wallet, watch_index));
             } else if !wallet.done_initial_import {
                 debug!(
-                    "[hd] done initial import for xpub {} (up to index {:?})",
+                    "done initial import for xpub {} (up to index {:?})",
                     wallet.master, wallet.max_imported_index
                 );
                 wallet.done_initial_import = true;
@@ -82,14 +82,14 @@ impl HDWatcher {
         }
 
         if !import_reqs.is_empty() {
-            info!("[hd] importing batch of {} addresses", import_reqs.len());
+            info!("importing batch of {} addresses", import_reqs.len());
             batch_import(rpc, import_reqs)?;
-            info!("[hd] done importing batch");
+            info!("done importing batch");
         }
 
         for (wallet, watched_index) in pending_updates {
             debug!(
-                "[hd] imported xpub {} up to index {}",
+                "imported xpub {} up to index {}",
                 wallet.master, watched_index
             );
             wallet.max_imported_index = Some(watched_index);
@@ -237,7 +237,7 @@ fn batch_import(
                 let label = origin.to_label();
 
                 trace!(
-                    "[hd] importing {} as {} with rescan {:?}",
+                    "importing {} as {} with rescan {:?}",
                     address,
                     label,
                     rescan

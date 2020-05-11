@@ -211,7 +211,7 @@ async fn run(
         .and(warp::path!("sync"))
         .and(sync_tx.clone())
         .map(|sync_tx: SyncChanSender| {
-            info!("[http] received sync notification");
+            info!("received sync notification");
             sync_tx.lock().unwrap().send(())?;
             Ok("syncing in progress")
         })
@@ -234,7 +234,7 @@ async fn run(
         .or(sync_handler)
         .with(warp::log("pxt"));
 
-    info!("[http] HTTP REST API server starting on {}", addr);
+    info!("HTTP REST API server starting on {}", addr);
 
     warp::serve(handlers).run(addr).await
 }
@@ -265,7 +265,7 @@ impl HttpServer {
             return;
         }
         info!(
-            "[http] sending {} updates to {} sse clients",
+            "sending {} updates to {} sse clients",
             updates.len(),
             listeners.len()
         );
@@ -290,7 +290,7 @@ fn make_connection_sse_stream(
     listeners: UpdateListeners,
     filter: UpdatesFilter,
 ) -> impl Stream<Item = Result<impl ServerSentEvent, warp::Error>> {
-    debug!("[http] subscribing sse client with {:?}", filter);
+    debug!("subscribing sse client with {:?}", filter);
     let (tx, rx) = tmpsc::unbounded_channel();
     listeners
         .lock()
@@ -343,11 +343,12 @@ impl UpdatesFilter {
 struct UtxoOptions {
     #[serde(default)]
     min_conf: usize,
+    include_unsafe: Option<bool>,
 }
 
 async fn reject_error<T>(result: Result<T, Error>) -> Result<T, warp::Rejection> {
     result.map_err(|err| {
-        warn!("[http] pre-processing failed: {:?}", err);
+        warn!("pre-processing failed: {:?}", err);
         warp::reject::custom(WarpError::Error(err))
     })
 }
@@ -359,7 +360,7 @@ where
     match result {
         Ok(x) => x.into_response(),
         Err(e) => {
-            warn!("[http] processing failed: {:#?}", e);
+            warn!("processing failed: {:#?}", e);
             let status = StatusCode::INTERNAL_SERVER_ERROR;
             let body = fmt_error_chain(&e);
             reply::with_status(body, status).into_response()

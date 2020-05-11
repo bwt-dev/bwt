@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use bitcoin::Txid;
-use bitcoin_hashes::{hex::FromHex, hex::ToHex, Hash};
+use bitcoin_hashes::{hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
 use crate::error::{fmt_error_chain, Result, ResultExt};
@@ -241,10 +241,10 @@ impl Connection {
             "blockchain.scripthash.subscribe"
             | "blockchain.estimatefee"
             | "mempool.get_fee_histogram" => {
-                trace!("[electrum] rpc #{} <--- {} {}", id, method, params);
+                trace!("rpc #{} <--- {} {}", id, method, params);
             }
             _ => {
-                debug!("[electrum] rpc #{} <--- {} {}", id, method, params);
+                debug!("rpc #{} <--- {} {}", id, method, params);
             }
         }
 
@@ -273,11 +273,11 @@ impl Connection {
 
         Ok(match result {
             Ok(result) => {
-                trace!("[electrum] rpc #{} ---> {} {}", id, method, result);
+                trace!("rpc #{} ---> {} {}", id, method, result);
                 json!({"jsonrpc": "2.0", "id": id, "result": result})
             }
             Err(e) => {
-                warn!("[electrum] rpc #{} {} failed: {:?}", id, method, e,);
+                warn!("rpc #{} {} failed: {:?}", id, method, e,);
                 json!({"jsonrpc": "2.0", "id": id, "error": fmt_error_chain(&e)})
             }
         })
@@ -296,9 +296,9 @@ impl Connection {
             IndexUpdate::History(scripthash, _) => {
                 if let Some(status_hash) = self.status_hashes.get_mut(&scripthash) {
                     let new_status_hash = get_status_hash(&self.query, &scripthash);
-                    debug!("[electrum] status hash updated for {:?}", scripthash);
+                    debug!("status hash updated for {:?}", scripthash);
                     trace!(
-                        "[electrum] old_status_hash={:?} new_status_hash={:?}",
+                        "old_status_hash={:?} new_status_hash={:?}",
                         status_hash,
                         new_status_hash
                     );
@@ -343,7 +343,7 @@ impl Connection {
                 }
                 Message::IndexUpdate(update) => {
                     if let Some(value) = self.update_subscriptions(update)? {
-                        debug!("[electrum] sending notification: {}", value);
+                        debug!("sending notification: {}", value);
                         self.send_values(&[value])?
                     }
                 }
@@ -481,7 +481,7 @@ impl ElectrumServer {
             let listener =
                 TcpListener::bind(addr).unwrap_or_else(|e| panic!("bind({}) failed: {}", addr, e));
             info!(
-                "[electrum] Electrum RPC server running on {} (protocol {})",
+                "Electrum RPC server running on {} (protocol {})",
                 addr, PROTOCOL_VERSION
             );
             loop {
@@ -508,11 +508,11 @@ impl ElectrumServer {
                     let query = query.clone();
                     let senders = senders.clone();
                     children.push(spawn_thread("peer", move || {
-                        info!("[electrum] [{}] connected peer", addr);
+                        info!("[{}] connected peer", addr);
                         let conn = Connection::new(query, stream, addr);
                         senders.lock().unwrap().push(conn.chan.sender());
                         conn.run();
-                        info!("[electrum] [{}] disconnected peer", addr);
+                        info!("[{}] disconnected peer", addr);
                     }));
                 }
                 trace!("closing {} RPC connections", senders.lock().unwrap().len());
@@ -529,7 +529,7 @@ impl ElectrumServer {
     }
 
     pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
-        info!("[electrum] sending {} updates to rpc client", updates.len());
+        info!("sending {} updates to rpc client", updates.len());
         for update in updates {
             match update {
                 IndexUpdate::ChainTip(..) | IndexUpdate::History(..) => self

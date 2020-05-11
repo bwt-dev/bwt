@@ -25,7 +25,7 @@ serde_derive = "1.0.106"
 lazy_static = "1.4.0"
 failure = "0.1.8"
 log = "0.4.8"
-stderrlog = "0.4.3"
+pretty_env_logger = "0.4.0"
 structopt = "0.3.13"
 
 tokio = { version = "0.2.20", features = ["macros"], optional = true }

@@ -84,7 +84,7 @@ impl MemoryStore {
         address: &Address,
     ) -> bool {
         trace!(
-            "[store] tracking scripthash={:?} address={:?} origin={:?}",
+            "tracking scripthash={:?} address={:?} origin={:?}",
             scripthash,
             address,
             origin
@@ -110,7 +110,7 @@ impl MemoryStore {
 
         if !existed {
             debug!(
-                "[store] new script entry: scripthash={} address={} origin={:?}",
+                "new script entry: scripthash={} address={} origin={:?}",
                 scripthash, address, origin
             );
         }
@@ -119,7 +119,7 @@ impl MemoryStore {
     }
 
     pub fn index_tx_entry(&mut self, txid: &Txid, mut txentry: TxEntry) -> bool {
-        trace!("[store] index tx entry {:?}: {:?}", txid, txentry);
+        trace!("index tx entry {:?}: {:?}", txid, txentry);
 
         assert!(
             txentry.status.is_viable(),
@@ -148,10 +148,7 @@ impl MemoryStore {
                 }
             })
             .or_insert_with(|| {
-                debug!(
-                    "[store] new transaction: txid={} status={:?}",
-                    txid, txentry.status
-                );
+                debug!("new transaction: txid={} status={:?}", txid, txentry.status);
                 updated = true;
                 txentry
             });
@@ -165,7 +162,7 @@ impl MemoryStore {
 
     pub fn index_history_entry(&mut self, scripthash: &ScriptHash, txhist: HistoryEntry) -> bool {
         trace!(
-            "[store] index history entry: scripthash={} txid={} status={:?}",
+            "index history entry: scripthash={} txid={} status={:?}",
             scripthash,
             txhist.txid,
             txhist.status
@@ -179,7 +176,7 @@ impl MemoryStore {
             .insert(txhist);
 
         if added {
-            debug!("[store] new history entry for {:?}", scripthash);
+            debug!("new history entry for {:?}", scripthash);
         }
 
         added
@@ -188,7 +185,7 @@ impl MemoryStore {
     #[cfg(feature = "track-spends")]
     pub fn index_txo_spend(&mut self, spent_prevout: OutPoint, spending_input: TxInput) -> bool {
         trace!(
-            "[store] index txo spend: prevout={:?} spending={:?}",
+            "index txo spend: prevout={:?} spending={:?}",
             spent_prevout,
             spending_input
         );
@@ -199,7 +196,7 @@ impl MemoryStore {
             .is_none();
 
         if added {
-            debug!("[store] new txo spend: {:?}", spent_prevout);
+            debug!("new txo spend: {:?}", spent_prevout);
         }
 
         added
@@ -212,7 +209,7 @@ impl MemoryStore {
         }
 
         debug!(
-            "[store] transition tx {:?} from={:?} to={:?}",
+            "transition tx {:?} from={:?} to={:?}",
             txid, old_status, new_status
         );
 
@@ -251,7 +248,7 @@ impl MemoryStore {
     pub fn purge_tx(&mut self, txid: &Txid) -> bool {
         // XXX should replaced transactions be kept around instead of purged entirely?
         if let Some(old_entry) = self.transactions.remove(txid) {
-            info!("[store] purge tx {:?}", txid);
+            info!("purge tx {:?}", txid);
 
             let old_txhist = HistoryEntry {
                 status: old_entry.status,

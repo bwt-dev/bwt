@@ -31,7 +31,7 @@ pub struct App {
 
 impl App {
     pub fn boot(config: Config) -> Result<Self> {
-        info!("[app] {:?}", config);
+        info!("{:?}", config);
 
         let wallets = HDWallet::from_xpubs(&config.xpubs[..], config.network)?;
         let watcher = HDWatcher::new(wallets);

@@ -47,7 +47,7 @@ impl Indexer {
             let best_chain_hash = self.rpc.get_block_hash(tip_height as u64)?;
             if best_chain_hash != tip_hash {
                 warn!(
-                    "[indexer] reorg detected, block height {} was {} and now is {}. fetching history from scratch...",
+                    "reorg detected, block height {} was {} and now is {}. fetching history from scratch...",
                     tip_height, tip_hash, best_chain_hash
                 );
 
@@ -63,7 +63,7 @@ impl Indexer {
         self.watcher.watch(&self.rpc)?;
 
         if self.tip.as_ref() != Some(&synced_tip) {
-            info!("[indexer] synced up to {:?}", synced_tip);
+            info!("synced up to {:?}", synced_tip);
             updates.push(|| IndexUpdate::ChainTip(synced_tip.clone()));
             self.tip = Some(synced_tip);
         }
@@ -71,8 +71,8 @@ impl Indexer {
         let updates = updates.into_vec();
 
         if !updates.is_empty() {
-            info!("[indexer] sync resulted in {} index updates", updates.len());
-            debug!("[indexer] {:#?}", updates);
+            info!("sync resulted in {} index updates", updates.len());
+            debug!("{:#?}", updates);
         }
 
         Ok(updates)
@@ -118,7 +118,7 @@ impl Indexer {
 
         for (txid, txentry) in pending_outgoing {
             self.process_outgoing(txid, txentry, updates)
-                .map_err(|err| warn!("[indexer] failed processing outgoing payment: {:?}", err))
+                .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
         }
 
@@ -149,7 +149,7 @@ impl Indexer {
         let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts
 
         trace!(
-            "[indexer] processing incoming txout {}:{} scripthash={} address={} origin={:?} status={:?} amount={}",
+            "processing incoming txout {}:{} scripthash={} address={} origin={:?} status={:?} amount={}",
             txid, ltx.detail.vout, scripthash, ltx.detail.address, origin, status, amount
         );
 
@@ -186,7 +186,7 @@ impl Indexer {
         updates: &mut IndexUpdates,
     ) -> Result<()> {
         trace!(
-            "[indexer] processing outgoing tx txid={} status={:?}",
+            "processing outgoing tx txid={} status={:?}",
             txid,
             txentry.status
         );
@@ -360,16 +360,16 @@ fn load_transactions_since(
 
     if start_height <= tip_height {
         info!(
-            "[indexer] syncing transactions from blocks {}..{} + mempool",
+            "syncing transactions from block(s) {}..{} + mempool",
             start_height, tip_height,
         );
     } else {
-        info!("[indexer] syncing mempool transactions");
+        info!("syncing mempool transactions");
     }
 
     loop {
         trace!(
-            "[indexer] fetching {} transactions starting at index {}",
+            "fetching {} transactions starting at index {}",
             per_page,
             start_index
         );
@@ -380,7 +380,7 @@ fn load_transactions_since(
         // this is necessary because we rely on the tip height to derive the confirmed height
         // from the number of confirmations
         if tip_hash != rpc.get_best_block_hash()? {
-            warn!("[indexer] tip changed while fetching transactions, retrying...");
+            warn!("tip changed while fetching transactions, retrying...");
             return load_transactions_since(rpc, start_height, Some(per_page), chunk_handler);
         }
 
@@ -390,7 +390,7 @@ fn load_transactions_since(
             let marker = chunk.pop().or_err("missing marker tx")?;
 
             if oldest_seen != &(marker.info.txid, marker.detail.vout) {
-                warn!("[indexer] transaction set changed while fetching transactions, retrying...");
+                warn!("transaction set changed while fetching transactions, retrying...");
                 return load_transactions_since(rpc, start_height, Some(per_page), chunk_handler);
             }
         }

@@ -23,15 +23,13 @@ impl WebHookNotifier {
                 let client = reqwest::Client::new();
                 while let Ok(update) = rx.recv() {
                     for url in &urls {
-                        debug!("[webhook] notifying {}: {:?}", url, update);
+                        debug!("notifying {}: {:?}", url, update);
                         client
                             .post(url)
                             .json(&update)
                             .send()
-                            .map(|r| {
-                                debug!("[webhook] notifying {} succeed: {:#?}", url, r.status())
-                            })
-                            .map_err(|e| warn!("[webhook] notifying {} failed: {:?}", url, e))
+                            .map(|r| debug!("notifying {} succeed: {:#?}", url, r.status()))
+                            .map_err(|e| warn!("notifying {} failed: {:?}", url, e))
                             .ok();
                     }
                 }
@@ -43,7 +41,7 @@ impl WebHookNotifier {
 
     pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
         info!(
-            "[webhook] sending {} updates to {} urls",
+            "sending {} updates to {} urls",
             updates.len(),
             self.num_urls
         );
