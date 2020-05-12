@@ -58,6 +58,18 @@ async fn run(
         })
         .map(handle_error);
 
+    // GET /address/:address/info
+    // GET /scripthash/:scripthash/info
+    let spk_info_handler = warp::get()
+        .and(spk_route)
+        .and(warp::path!("info"))
+        .and(query.clone())
+        .map(|scripthash, query: Arc<Query>| {
+            let script_info = query.get_script_info(&scripthash).or_err("not found")?;
+            Ok(reply::json(&script_info))
+        })
+        .map(handle_error);
+
     // GET /address/:address/utxo
     // GET /scripthash/:scripthash/utxo
     let spk_utxo_handler = warp::get()
@@ -86,11 +98,11 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /address/:address/history/minimal
-    // GET /scripthash/:scripthash/history/minimal
-    let spk_minimal_history_handler = warp::get()
+    // GET /address/:address/history/compact
+    // GET /scripthash/:scripthash/history/compact
+    let spk_compact_history_handler = warp::get()
         .and(spk_route)
-        .and(warp::path!("history" / "minimal"))
+        .and(warp::path!("history" / "compact"))
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
             let txs = query.get_history(&scripthash);
@@ -220,8 +232,9 @@ async fn run(
 
     let handlers = spk_handler
         .or(spk_utxo_handler)
+        .or(spk_info_handler)
         .or(spk_history_handler)
-        .or(spk_minimal_history_handler)
+        .or(spk_compact_history_handler)
         .or(tx_handler)
         .or(tx_verbose_handler)
         .or(tx_hex_handler)
