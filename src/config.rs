@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::{net, path, time};
 
 use bitcoin::Network;
@@ -8,6 +9,7 @@ use structopt::StructOpt;
 
 use crate::error::{OptionExt, Result, ResultExt};
 use crate::types::KeyRescan;
+use crate::util::XyzPubKey;
 
 #[derive(StructOpt, Debug)]
 pub struct Config {
@@ -64,14 +66,29 @@ pub struct Config {
     )]
     pub bitcoind_cookie: Option<path::PathBuf>,
 
-    // wallets to watch
     #[structopt(
-        short,
+        short = "x",
         long = "xpub",
         help = "xpubs to scan and since when (<xpub>, <xpub>:all, <xpub>:none, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
         parse(try_from_str = parse_xpub)
     )]
-    pub xpubs: Vec<(String, KeyRescan)>,
+    pub xpubs: Vec<(XyzPubKey, KeyRescan)>,
+
+    #[structopt(
+        short = "g",
+        long = "gap-limit",
+        help = "gap limit for importing hd addresses",
+        default_value = "20"
+    )]
+    pub gap_limit: u32,
+
+    #[structopt(
+        short = "G",
+        long = "initial-gap-limit",
+        help = "gap limit to be used during the initial sync (higher to reduce number of rescans)",
+        default_value = "50"
+    )]
+    pub initial_gap_limit: u32,
 
     //// TODO
     //#[structopt(
@@ -156,11 +173,11 @@ impl Config {
     }
 }
 
-fn parse_xpub(s: &str) -> Result<(String, KeyRescan)> {
+fn parse_xpub(s: &str) -> Result<(XyzPubKey, KeyRescan)> {
     let mut parts = s.splitn(2, ":");
-    let xpub = parts.next().or_err("missing xpub")?;
+    let xpub = XyzPubKey::from_str(parts.next().or_err("missing xpub")?)?;
     let rescan = parts.next().map_or(Ok(KeyRescan::Since(0)), parse_rescan)?;
-    Ok((xpub.into(), rescan))
+    Ok((xpub, rescan))
 }
 
 fn parse_rescan(s: &str) -> Result<KeyRescan> {

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use serde_json::Value;
 
@@ -62,7 +61,7 @@ impl HDWatcher {
                 let rescan = if wallet.done_initial_import {
                     KeyRescan::None
                 } else {
-                    wallet.initial_rescan
+                    wallet.rescan_policy
                 };
 
                 debug!(
@@ -75,7 +74,8 @@ impl HDWatcher {
             } else if !wallet.done_initial_import {
                 debug!(
                     "done initial import for xpub {} (up to index {:?})",
-                    wallet.master, wallet.max_imported_index.unwrap_or(0)
+                    wallet.master,
+                    wallet.max_imported_index.unwrap_or(0)
                 );
                 wallet.done_initial_import = true;
             }
@@ -104,9 +104,9 @@ pub struct HDWallet {
     master: ExtendedPubKey,
     network: Network,
     script_type: ScriptType,
-    initial_rescan: KeyRescan,
-    buffer_size: u32,
-    initial_buffer_size: u32,
+    gap_limit: u32,
+    initial_gap_limit: u32,
+    rescan_policy: KeyRescan,
 
     done_initial_import: bool,
     max_used_index: Option<u32>,
@@ -121,29 +121,36 @@ impl HDWallet {
         master: ExtendedPubKey,
         network: Network,
         script_type: ScriptType,
-        initial_rescan: KeyRescan,
+        gap_limit: u32,
+        initial_gap_limit: u32,
+        rescan_policy: KeyRescan,
     ) -> Self {
         Self {
             master,
             network,
             script_type,
-            initial_rescan,
-            buffer_size: 5,          // TODO configurable
-            initial_buffer_size: 10, // TODO configurable
+            gap_limit,
+            // setting initial_gap_limit < gap_limit makes no sense, the user probably meant to increase both
+            initial_gap_limit: initial_gap_limit.max(gap_limit),
+            rescan_policy,
             done_initial_import: false,
             max_used_index: None,
             max_imported_index: None,
         }
     }
 
-    pub fn from_xpub(s: &str, network: Network, initial_rescan: KeyRescan) -> Result<Vec<Self>> {
-        let xyzpub = XyzPubKey::from_str(s)?;
-
+    pub fn from_xpub(
+        xpub: XyzPubKey,
+        network: Network,
+        gap_limit: u32,
+        initial_gap_limit: u32,
+        rescan_policy: KeyRescan,
+    ) -> Result<Vec<Self>> {
         ensure!(
-            xyzpub.matches_network(network),
+            xpub.matches_network(network),
             "xpub network mismatch, {} is {} and not {}",
-            s,
-            xyzpub.network,
+            xpub,
+            xpub.network,
             network
         );
 
@@ -151,7 +158,7 @@ impl HDWallet {
             extended_pubkey: key,
             script_type,
             ..
-        } = xyzpub;
+        } = xpub;
 
         Ok(vec![
             // external chain (receive)
@@ -159,23 +166,32 @@ impl HDWallet {
                 key.derive_pub(&*EC, &[ChildNumber::from(0)])?,
                 network,
                 script_type,
-                initial_rescan,
+                gap_limit,
+                initial_gap_limit,
+                rescan_policy,
             ),
             // internal chain (change)
             Self::new(
                 key.derive_pub(&*EC, &[ChildNumber::from(1)])?,
                 network,
                 script_type,
-                initial_rescan,
+                gap_limit,
+                initial_gap_limit,
+                rescan_policy,
             ),
         ])
     }
 
-    pub fn from_xpubs(xpubs: &[(String, KeyRescan)], network: Network) -> Result<Vec<Self>> {
+    pub fn from_xpubs(
+        xpubs: &[(XyzPubKey, KeyRescan)],
+        network: Network,
+        gap_limit: u32,
+        initial_gap_limit: u32,
+    ) -> Result<Vec<Self>> {
         let mut wallets = vec![];
         for (xpub, rescan) in xpubs {
             wallets.append(
-                &mut Self::from_xpub(xpub, network, *rescan)
+                &mut Self::from_xpub(xpub.clone(), network, gap_limit, initial_gap_limit, *rescan)
                     .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
             );
         }
@@ -190,14 +206,14 @@ impl HDWallet {
 
     /// Returns the maximum index that needs to be watched
     fn watch_index(&self) -> u32 {
-        let buffer_size = if self.done_initial_import {
-            self.buffer_size
+        let gap_limit = if self.done_initial_import {
+            self.gap_limit
         } else {
-            self.initial_buffer_size
+            self.initial_gap_limit
         };
 
         self.max_used_index
-            .map_or(buffer_size - 1, |max| max + buffer_size)
+            .map_or(gap_limit - 1, |max| max + gap_limit)
     }
 
     fn make_imports(
@@ -210,8 +226,8 @@ impl HDWallet {
             .map(|index| {
                 let key = self.derive(index);
                 let address = self.to_address(&key);
-                let deriviation = KeyOrigin::Derived(key.parent_fingerprint, index);
-                (address, rescan, deriviation)
+                let origin = KeyOrigin::Derived(key.parent_fingerprint, index);
+                (address, rescan, origin)
             })
             .collect()
     }
@@ -259,7 +275,7 @@ pub enum KeyOrigin {
     Standalone,
 }
 
-serde_string_serializer_impl!(
+impl_string_serializer!(
     KeyOrigin,
     origin,
     match origin {

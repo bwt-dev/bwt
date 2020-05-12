@@ -32,7 +32,7 @@ pub struct TxInput {
     pub vin: u32,
 }
 
-serde_string_serializer_impl!(TxInput, input, format!("{}:{}", input.txid, input.vin));
+impl_string_serializer!(TxInput, input, format!("{}:{}", input.txid, input.vin));
 
 impl TxInput {
     pub fn new(txid: Txid, vin: u32) -> Self {

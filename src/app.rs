@@ -34,7 +34,12 @@ impl App {
     pub fn boot(config: Config) -> Result<Self> {
         info!("{:?}", config);
 
-        let wallets = HDWallet::from_xpubs(&config.xpubs[..], config.network)?;
+        let wallets = HDWallet::from_xpubs(
+            &config.xpubs[..],
+            config.network,
+            config.gap_limit,
+            config.initial_gap_limit,
+        )?;
         let watcher = HDWatcher::new(wallets);
 
         let rpc = Arc::new(RpcClient::new(

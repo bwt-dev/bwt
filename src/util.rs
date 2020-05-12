@@ -58,6 +58,7 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct XyzPubKey {
     pub network: Network,
     pub script_type: ScriptType,
@@ -103,6 +104,8 @@ impl XyzPubKey {
         self.network == network || (self.network == Network::Testnet && network == Network::Regtest)
     }
 }
+
+impl_string_serializer!(XyzPubKey, xpub, xpub.extended_pubkey.to_string());
 
 fn parse_xyz_version(version: &[u8]) -> Result<(Network, ScriptType), base58::Error> {
     Ok(match version {
