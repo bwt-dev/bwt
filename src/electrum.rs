@@ -1,5 +1,5 @@
 use std::cmp;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySendError};
@@ -25,24 +25,38 @@ const MAX_HEADERS: u32 = 2016;
 
 struct Connection {
     query: Arc<Query>,
-    subscriptions: HashSet<ScriptHash>,
     stream: TcpStream,
     addr: SocketAddr,
     chan: SyncChannel<Message>,
+    subman: Arc<Mutex<SubscriptionManager>>,
+    subscriber_id: usize,
 }
 
 impl Connection {
-    pub fn new(query: Arc<Query>, stream: TcpStream, addr: SocketAddr) -> Connection {
+    pub fn new(
+        query: Arc<Query>,
+        stream: TcpStream,
+        addr: SocketAddr,
+        subman: Arc<Mutex<SubscriptionManager>>,
+    ) -> Connection {
+        let chan = SyncChannel::new(10);
+        let subscriber_id = subman.lock().unwrap().register(chan.sender());
         Connection {
             query,
-            subscriptions: HashSet::new(),
+            subman,
+            subscriber_id,
             stream,
             addr,
-            chan: SyncChannel::new(10),
+            chan,
         }
     }
 
     fn blockchain_headers_subscribe(&mut self) -> Result<Value> {
+        self.subman
+            .lock()
+            .unwrap()
+            .subscribe_blocks(self.subscriber_id);
+
         let BlockId(tip_height, tip_hash) = self.query.get_tip()?;
         let tip_hex = self.query.get_header_by_hash(&tip_hash)?;
         Ok(json!({ "height": tip_height, "hex": tip_hex }))
@@ -53,7 +67,7 @@ impl Connection {
     }
 
     fn server_banner(&self) -> Result<Value> {
-        Ok(json!("Welcome to pxt"))
+        Ok(json!("Welcome to pxt 🚀🌑"))
     }
 
     fn server_donation_address(&self) -> Result<Value> {
@@ -138,9 +152,12 @@ impl Connection {
     fn blockchain_scripthash_subscribe(&mut self, params: Value) -> Result<Value> {
         let (script_hash,): (ScriptHash,) = from_value(params)?;
 
-        let status_hash = get_status_hash(&self.query, &script_hash);
-        self.subscriptions.insert(script_hash.clone());
+        self.subman
+            .lock()
+            .unwrap()
+            .subscribe_scripthash(self.subscriber_id, script_hash);
 
+        let status_hash = get_status_hash(&self.query, &script_hash);
         Ok(json!(status_hash))
     }
 
@@ -284,8 +301,8 @@ impl Connection {
         })
     }
 
-    fn update_subscriptions(&mut self, update: IndexUpdate) -> Result<Option<Value>> {
-        Ok(Some(match update {
+    fn jsonrpc_notification(&mut self, update: IndexUpdate) -> Result<Value> {
+        Ok(match update {
             IndexUpdate::ChainTip(BlockId(tip_height, tip_hash)) => {
                 let hex_header = self.query.get_header_by_hash(&tip_hash)?;
                 let header = json!({"hex": hex_header, "height": tip_height });
@@ -295,20 +312,19 @@ impl Connection {
                     "params": [header]})
             }
             IndexUpdate::History(scripthash, _) => {
-                if self.subscriptions.contains(&scripthash) {
-                    let new_status_hash = get_status_hash(&self.query, &scripthash);
-                    debug!("status hash updated for {} to {:?}", scripthash, new_status_hash);
-                    json!({
-                        "jsonrpc": "2.0",
-                        "method": "blockchain.scripthash.subscribe",
-                        "params": [scripthash, new_status_hash]
-                    })
-                } else {
-                    return Ok(None);
-                }
+                let new_status_hash = get_status_hash(&self.query, &scripthash);
+                debug!(
+                    "status hash updated for {} to {:?}",
+                    scripthash, new_status_hash
+                );
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "blockchain.scripthash.subscribe",
+                    "params": [scripthash, new_status_hash]
+                })
             }
             _ => unreachable!(), // we're not supposed to receive anything else
-        }))
+        })
     }
 
     fn send_values(&mut self, values: &[Value]) -> Result<()> {
@@ -337,10 +353,9 @@ impl Connection {
                     self.send_values(&[reply])?
                 }
                 Message::IndexUpdate(update) => {
-                    if let Some(value) = self.update_subscriptions(update)? {
-                        debug!("sending notification: {}", value);
-                        self.send_values(&[value])?
-                    }
+                    let value = self.jsonrpc_notification(update)?;
+                    debug!("sending jsonrpc notification: {}", value);
+                    self.send_values(&[value])?;
                 }
                 Message::Done => return Ok(()),
             }
@@ -381,6 +396,7 @@ impl Connection {
             error!("[{}] connection handling failed: {:#?}", self.addr, e,)
         }
         trace!("[{}] shutting down connection", self.addr);
+        self.subman.lock().unwrap().remove(self.subscriber_id);
         let _ = self.stream.shutdown(Shutdown::Both);
         if let Err(err) = child.join().expect("receiver panicked") {
             error!("[{}] receiver failed: {:?}", self.addr, err);
@@ -447,21 +463,14 @@ pub struct ElectrumServer {
 impl ElectrumServer {
     fn start_notifier(
         notification: Channel<Notification>,
-        senders: Arc<Mutex<Vec<SyncSender<Message>>>>,
+        subman: Arc<Mutex<SubscriptionManager>>,
         acceptor: Sender<Option<(TcpStream, SocketAddr)>>,
     ) {
         spawn_thread("notification", move || {
             for msg in notification.receiver().iter() {
-                let mut senders = senders.lock().unwrap();
                 match msg {
                     Notification::IndexUpdate(update) => {
-                        for sender in senders.split_off(0) {
-                            let msg = Message::IndexUpdate(update.clone());
-                            if let Err(TrySendError::Disconnected(_)) = sender.try_send(msg) {
-                                continue;
-                            }
-                            senders.push(sender);
-                        }
+                        subman.lock().unwrap().dispatch(update);
                     }
                     Notification::Exit => acceptor.send(None).unwrap(),
                 }
@@ -495,24 +504,27 @@ impl ElectrumServer {
         Self {
             notification: notification.sender(),
             server: Some(spawn_thread("rpc", move || {
-                let senders = Arc::new(Mutex::new(Vec::<SyncSender<Message>>::new()));
+                let subman = Arc::new(Mutex::new(SubscriptionManager {
+                    next_id: 0,
+                    subscribers: HashMap::new(),
+                }));
                 let acceptor = Self::start_acceptor(addr);
-                Self::start_notifier(notification, senders.clone(), acceptor.sender());
+                Self::start_notifier(notification, subman.clone(), acceptor.sender());
                 let mut children = vec![];
                 while let Some((stream, addr)) = acceptor.receiver().recv().unwrap() {
                     let query = query.clone();
-                    let senders = senders.clone();
+                    let subman = subman.clone();
                     children.push(spawn_thread("peer", move || {
                         info!("[{}] connected peer", addr);
-                        let conn = Connection::new(query, stream, addr);
-                        senders.lock().unwrap().push(conn.chan.sender());
+                        let conn = Connection::new(query, stream, addr, subman);
                         conn.run();
                         info!("[{}] disconnected peer", addr);
                     }));
                 }
-                trace!("closing {} RPC connections", senders.lock().unwrap().len());
-                for sender in senders.lock().unwrap().iter() {
-                    let _ = sender.send(Message::Done);
+                let subman = subman.lock().unwrap();
+                trace!("closing {} RPC connections", subman.subscribers.len());
+                for (_, subscriber) in subman.subscribers.iter() {
+                    let _ = subscriber.sender.send(Message::Done);
                 }
                 trace!("waiting for {} RPC handling threads", children.len());
                 for child in children {
@@ -524,7 +536,7 @@ impl ElectrumServer {
     }
 
     pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
-        info!("sending {} updates to rpc client", updates.len());
+        info!("sending {} updates to rpc clients", updates.len());
         for update in updates {
             match update {
                 IndexUpdate::ChainTip(..) | IndexUpdate::History(..) => self
@@ -552,6 +564,69 @@ impl Drop for ElectrumServer {
             handle.join().unwrap();
         }
         trace!("RPC server is stopped");
+    }
+}
+
+// unite with the http server subscription implementation?
+struct SubscriptionManager {
+    next_id: usize,
+    subscribers: HashMap<usize, Subscriber>,
+}
+
+struct Subscriber {
+    sender: SyncSender<Message>,
+    // wants new blocks
+    blocks: bool,
+    // wants updates for these scripthashes
+    scripthashes: HashSet<ScriptHash>,
+}
+
+impl SubscriptionManager {
+    pub fn register(&mut self, sender: SyncSender<Message>) -> usize {
+        let id = self.next_id;
+        self.next_id = self.next_id + 1;
+        self.subscribers.insert(
+            id,
+            Subscriber {
+                sender,
+                blocks: false,
+                scripthashes: HashSet::new(),
+            },
+        );
+        id
+    }
+    pub fn subscribe_blocks(&mut self, subscriber_id: usize) {
+        self.subscribers
+            .get_mut(&subscriber_id)
+            .map(|s| s.blocks = true);
+    }
+    pub fn subscribe_scripthash(&mut self, subscriber_id: usize, scripthash: ScriptHash) {
+        self.subscribers
+            .get_mut(&subscriber_id)
+            .map(|s| s.scripthashes.insert(scripthash));
+    }
+    pub fn remove(&mut self, subscriber_id: usize) {
+        self.subscribers.remove(&subscriber_id);
+    }
+    pub fn dispatch(&mut self, update: IndexUpdate) {
+        self.subscribers.retain(|subscriber_id, subscriber| {
+            let is_interested = match update {
+                IndexUpdate::ChainTip(..) => subscriber.blocks,
+                IndexUpdate::History(sh, ..) => subscriber.scripthashes.contains(&sh),
+                _ => unreachable!(), //we're not suppoed to be sent anything else
+            };
+            if is_interested {
+                // TODO determine status hash here, so its only computed once when there are multiple
+                // subscribers to the same scripthash. could also send the header hex directly, so
+                // bitcoind is only queried for it once.
+                let msg = Message::IndexUpdate(update.clone());
+                if let Err(TrySendError::Disconnected(_)) = subscriber.sender.try_send(msg) {
+                    warn!("dropping disconnected subscriber #{}", subscriber_id);
+                    return false;
+                }
+            }
+            true
+        });
     }
 }
 
