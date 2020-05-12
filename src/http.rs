@@ -13,7 +13,7 @@ use warp::{reply, Filter, Reply};
 use bitcoin::{Address, OutPoint, Txid};
 
 use crate::error::{fmt_error_chain, Error, OptionExt};
-use crate::indexer::IndexUpdate;
+use crate::indexer::IndexChange;
 use crate::types::ScriptHash;
 use crate::Query;
 
@@ -24,7 +24,7 @@ async fn run(
     addr: net::SocketAddr,
     query: Arc<Query>,
     sync_tx: SyncChanSender,
-    listeners: UpdateListeners,
+    listeners: Listeners,
 ) {
     let query = warp::any().map(move || Arc::clone(&query));
     let sync_tx = warp::any().map(move || Arc::clone(&sync_tx));
@@ -80,7 +80,7 @@ async fn run(
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
             let txs = query.map_history(&scripthash, |txhist| {
-                query.get_tx_info(&txhist.txid).unwrap()
+                query.get_tx_detail(&txhist.txid).unwrap()
             });
             Ok(reply::json(&txs))
         })
@@ -112,7 +112,7 @@ async fn run(
         .and(warp::path::end())
         .and(query.clone())
         .map(|txid: Txid, query: Arc<Query>| {
-            let tx_info = query.get_tx_info(&txid).or_err("tx not found")?;
+            let tx_info = query.get_tx_detail(&txid).or_err("tx not found")?;
             Ok(reply::json(&tx_info))
         })
         .map(handle_error);
@@ -145,7 +145,7 @@ async fn run(
         .and(query.clone())
         .map(|min_block_height: u32, query: Arc<Query>| {
             let txs = query.map_history_since(min_block_height, |txhist| {
-                query.get_tx_info(&txhist.txid).unwrap()
+                query.get_tx_detail(&txhist.txid).unwrap()
             });
             reply::json(&txs)
         });
@@ -153,9 +153,9 @@ async fn run(
     // GET /stream
     let sse_handler = warp::get()
         .and(warp::path!("stream"))
-        .and(warp::query::<UpdatesFilter>())
+        .and(warp::query::<ChangelogFilter>())
         .and(listeners.clone())
-        .map(|filter: UpdatesFilter, listeners: UpdateListeners| {
+        .map(|filter: ChangelogFilter, listeners: Listeners| {
             let stream = make_connection_sse_stream(listeners, filter);
             warp::sse::reply(warp::sse::keep_alive().stream(stream))
         });
@@ -165,10 +165,10 @@ async fn run(
     let spk_sse_handler = warp::get()
         .and(spk_route)
         .and(warp::path!("stream"))
-        .and(warp::query::<UpdatesFilter>())
+        .and(warp::query::<ChangelogFilter>())
         .and(listeners.clone())
         .map(
-            |scripthash: ScriptHash, mut filter: UpdatesFilter, listeners: UpdateListeners| {
+            |scripthash: ScriptHash, mut filter: ChangelogFilter, listeners: Listeners| {
                 filter.scripthash = Some(scripthash);
                 let stream = make_connection_sse_stream(listeners, filter);
                 warp::sse::reply(warp::sse::keep_alive().stream(stream))
@@ -242,14 +242,14 @@ async fn run(
 
 pub struct HttpServer {
     _thread: task::JoinHandle<()>,
-    listeners: UpdateListeners,
+    listeners: Listeners,
 }
 
 impl HttpServer {
     pub fn start(addr: net::SocketAddr, query: Arc<Query>, sync_tx: mpsc::Sender<()>) -> Self {
         let sync_tx = Arc::new(Mutex::new(sync_tx));
 
-        let listeners: UpdateListeners = Arc::new(Mutex::new(Vec::new()));
+        let listeners: Listeners = Arc::new(Mutex::new(Vec::new()));
         let thr_listeners = Arc::clone(&listeners);
 
         HttpServer {
@@ -260,48 +260,45 @@ impl HttpServer {
         }
     }
 
-    pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
+    pub fn send_updates(&self, changelog: &Vec<IndexChange>) {
         let mut listeners = self.listeners.lock().unwrap();
         if listeners.is_empty() {
             return;
         }
         info!(
             "sending {} updates to {} sse clients",
-            updates.len(),
+            changelog.len(),
             listeners.len()
         );
         // send updates while dropping unresponsive listeners
         listeners.retain(|listener| {
-            updates
+            changelog
                 .iter()
-                .filter(|update| listener.filter.matches(update))
-                .all(|update| listener.tx.send(update.clone()).is_ok())
+                .filter(|change| listener.filter.matches(change))
+                .all(|change| listener.tx.send(change.clone()).is_ok())
         })
     }
 }
 
-type UpdateListeners = Arc<Mutex<Vec<UpdateListener>>>;
+type Listeners = Arc<Mutex<Vec<Listener>>>;
 
-struct UpdateListener {
-    tx: tmpsc::UnboundedSender<IndexUpdate>,
-    filter: UpdatesFilter, // None means subscribing to everything
+struct Listener {
+    tx: tmpsc::UnboundedSender<IndexChange>,
+    filter: ChangelogFilter, // None means subscribing to everything
 }
 
 fn make_connection_sse_stream(
-    listeners: UpdateListeners,
-    filter: UpdatesFilter,
+    listeners: Listeners,
+    filter: ChangelogFilter,
 ) -> impl Stream<Item = Result<impl ServerSentEvent, warp::Error>> {
     debug!("subscribing sse client with {:?}", filter);
     let (tx, rx) = tmpsc::unbounded_channel();
-    listeners
-        .lock()
-        .unwrap()
-        .push(UpdateListener { tx, filter });
-    rx.map(|update: IndexUpdate| Ok(warp::sse::json(update)))
+    listeners.lock().unwrap().push(Listener { tx, filter });
+    rx.map(|change: IndexChange| Ok(warp::sse::json(change)))
 }
 
 #[derive(Debug, Deserialize)]
-struct UpdatesFilter {
+struct ChangelogFilter {
     scripthash: Option<ScriptHash>,
     outpoint: Option<OutPoint>,
     category: Option<String>,
@@ -310,32 +307,32 @@ struct UpdatesFilter {
     //pub category: Option<Vec<String>>,
 }
 
-impl UpdatesFilter {
-    fn matches(&self, update: &IndexUpdate) -> bool {
-        self.scripthash_matches(update)
-            && self.category_matches(update)
-            && self.outpoint_matches(update)
+impl ChangelogFilter {
+    fn matches(&self, change: &IndexChange) -> bool {
+        self.scripthash_matches(change)
+            && self.category_matches(change)
+            && self.outpoint_matches(change)
     }
-    fn scripthash_matches(&self, update: &IndexUpdate) -> bool {
+    fn scripthash_matches(&self, change: &IndexChange) -> bool {
         self.scripthash.as_ref().map_or(true, |filter_sh| {
-            update
+            change
                 .scripthash()
-                .map_or(false, |update_sh| filter_sh == update_sh)
-            //.map_or(false, |update_sh| filter_sh.contains(update_sh))
+                .map_or(false, |change_sh| filter_sh == change_sh)
+            //.map_or(false, |change_sh| filter_sh.contains(change_sh))
         })
     }
-    fn category_matches(&self, update: &IndexUpdate) -> bool {
+    fn category_matches(&self, change: &IndexChange) -> bool {
         self.category.as_ref().map_or(true, |filter_cat| {
-            update.category_str() == filter_cat
-            //let update_cat = update.category_str();
-            //filter_cat.iter().any(|filter_cat| filter_cat == update_cat)
+            change.category_str() == filter_cat
+            //let change_cat = change.category_str();
+            //filter_cat.iter().any(|filter_cat| filter_cat == change_cat)
         })
     }
-    fn outpoint_matches(&self, update: &IndexUpdate) -> bool {
+    fn outpoint_matches(&self, change: &IndexChange) -> bool {
         self.outpoint.as_ref().map_or(true, |filter_outpoint| {
-            update
+            change
                 .outpoint()
-                .map_or(false, |update_outpoint| filter_outpoint == update_outpoint)
+                .map_or(false, |change_outpoint| filter_outpoint == change_outpoint)
         })
     }
 }

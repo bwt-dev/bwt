@@ -283,7 +283,7 @@ impl Query {
         })
     }
 
-    pub fn get_tx_info(&self, txid: &Txid) -> Option<TxInfo> {
+    pub fn get_tx_detail(&self, txid: &Txid) -> Option<TxDetail> {
         let index = self.indexer.read().unwrap();
         let store = index.store();
         let tx_entry = store.get_tx_entry(txid)?;
@@ -292,7 +292,7 @@ impl Query {
             .funding
             .iter()
             .map(|(vout, FundingInfo(scripthash, amount))| {
-                TxInfoFunding {
+                TxDetailFunding {
                     vout: *vout,
                     script_info: store.get_script_info(scripthash).unwrap(), // must exists
                     #[cfg(feature = "track-spends")]
@@ -300,20 +300,20 @@ impl Query {
                     amount: *amount,
                 }
             })
-            .collect::<Vec<TxInfoFunding>>();
+            .collect::<Vec<TxDetailFunding>>();
 
         let spending = tx_entry
             .spending
             .iter()
             .map(|(vin, SpendingInfo(scripthash, prevout, amount))| {
-                TxInfoSpending {
+                TxDetailSpending {
                     vin: *vin,
                     script_info: store.get_script_info(scripthash).unwrap(), // must exists
                     amount: *amount,
                     prevout: *prevout,
                 }
             })
-            .collect::<Vec<TxInfoSpending>>();
+            .collect::<Vec<TxDetailSpending>>();
 
         let balance_change = {
             let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
@@ -321,7 +321,7 @@ impl Query {
             funding_sum as i64 - spending_sum as i64
         };
 
-        Some(TxInfo {
+        Some(TxDetail {
             txid: *txid,
             status: tx_entry.status,
             fee: tx_entry.fee,
@@ -355,18 +355,18 @@ impl Utxo {
 }
 
 #[derive(Serialize, Debug)]
-pub struct TxInfo {
+pub struct TxDetail {
     txid: Txid,
     #[serde(flatten)]
     status: TxStatus,
     fee: Option<u64>,
-    funding: Vec<TxInfoFunding>,
-    spending: Vec<TxInfoSpending>,
+    funding: Vec<TxDetailFunding>,
+    spending: Vec<TxDetailSpending>,
     balance_change: i64,
 }
 
 #[derive(Serialize, Debug)]
-struct TxInfoFunding {
+struct TxDetailFunding {
     vout: u32,
     #[serde(flatten)]
     script_info: ScriptInfo,
@@ -376,7 +376,7 @@ struct TxInfoFunding {
 }
 
 #[derive(Serialize, Debug)]
-struct TxInfoSpending {
+struct TxDetailSpending {
     vin: u32,
     #[serde(flatten)]
     script_info: ScriptInfo,

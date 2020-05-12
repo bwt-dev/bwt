@@ -36,8 +36,8 @@ impl Indexer {
         &self.store
     }
 
-    pub fn sync(&mut self, track_updates: bool) -> Result<Vec<IndexUpdate>> {
-        let mut updates = IndexUpdates::new(track_updates);
+    pub fn sync(&mut self, track_changelog: bool) -> Result<Vec<IndexChange>> {
+        let mut changelog = Changelog::new(track_changelog);
 
         // Detect reorgs and start syncing history from scratch when they happen
         if let Some(BlockId(tip_height, tip_hash)) = self.tip {
@@ -51,35 +51,35 @@ impl Indexer {
                 // XXX start syncing from N blocks backs instead of from the beginning?
                 self.tip = None;
 
-                updates.push(|| IndexUpdate::Reorg(tip_height, tip_hash, best_chain_hash));
+                changelog.push(|| IndexChange::Reorg(tip_height, tip_hash, best_chain_hash));
             }
         }
 
-        let synced_tip = self.sync_transactions(&mut updates)?;
+        let synced_tip = self.sync_transactions(&mut changelog)?;
 
         self.watcher.watch(&self.rpc)?;
 
         if self.tip.as_ref() != Some(&synced_tip) {
             info!("synced up to {:?}", synced_tip);
-            updates.push(|| IndexUpdate::ChainTip(synced_tip.clone()));
+            changelog.push(|| IndexChange::ChainTip(synced_tip.clone()));
             self.tip = Some(synced_tip);
         }
 
-        let updates = updates.into_vec();
+        let changelog = changelog.into_vec();
 
-        if !updates.is_empty() {
-            info!("sync resulted in {} index updates", updates.len());
+        if !changelog.is_empty() {
+            info!("sync resulted in {} index changelog", changelog.len());
             if log_enabled!(log::Level::Debug) {
-                for update in &updates {
+                for update in &changelog {
                     debug!("  - {:?}", update);
                 }
             }
         }
 
-        Ok(updates)
+        Ok(changelog)
     }
 
-    fn sync_transactions(&mut self, updates: &mut IndexUpdates) -> Result<BlockId> {
+    fn sync_transactions(&mut self, changelog: &mut Changelog) -> Result<BlockId> {
         let start_height = self
             .tip
             .as_ref()
@@ -95,13 +95,13 @@ impl Indexer {
                 for ltx in chunk {
                     if ltx.info.confirmations < 0 {
                         if self.store.purge_tx(&ltx.info.txid) {
-                            updates.push(|| IndexUpdate::TransactionReplaced(ltx.info.txid));
+                            changelog.push(|| IndexChange::TransactionReplaced(ltx.info.txid));
                         }
                         continue;
                     }
                     match ltx.detail.category {
                         TxCategory::Receive => {
-                            self.process_incoming_txo(ltx, tip_height, updates);
+                            self.process_incoming_txo(ltx, tip_height, changelog);
                         }
                         TxCategory::Send => {
                             // outgoing payments are buffered and processed later so that the
@@ -120,7 +120,7 @@ impl Indexer {
         )?;
 
         for (txid, (status, fee)) in pending_outgoing {
-            self.process_outgoing_tx(txid, status, fee, updates)
+            self.process_outgoing_tx(txid, status, fee, changelog)
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
         }
@@ -128,24 +128,24 @@ impl Indexer {
         Ok(synced_tip)
     }
 
-    // upsert the transaction while collecting updates messages
+    // upsert the transaction while collecting changelog
     fn upsert_tx(
         &mut self,
         txid: &Txid,
         status: TxStatus,
         fee: Option<u64>,
-        updates: &mut IndexUpdates,
+        changelog: &mut Changelog,
     ) {
         let tx_updated = self.store.upsert_tx(txid, status, fee);
         if tx_updated {
-            updates.with(|updates| {
-                updates.push(IndexUpdate::Transaction(*txid, status.height()));
+            changelog.with(|changelog| {
+                changelog.push(IndexChange::Transaction(*txid, status.height()));
 
                 // create an update entry for every affected scripthash
                 let tx_entry = self.store.get_tx_entry(&txid).unwrap();
-                updates.extend(
+                changelog.extend(
                     tx_entry.scripthashes().into_iter().map(|scripthash| {
-                        IndexUpdate::History(*scripthash, *txid, status.height())
+                        IndexChange::History(*scripthash, *txid, status.height())
                     }),
                 );
             });
@@ -156,7 +156,7 @@ impl Indexer {
         &mut self,
         ltx: ListTransactionResult,
         tip_height: u32,
-        updates: &mut IndexUpdates,
+        changelog: &mut Changelog,
     ) {
         // XXX stop early if we're familiar with this txid and its long confirmed
 
@@ -180,7 +180,7 @@ impl Indexer {
             txid, vout, scripthash, ltx.detail.address, origin, status, amount
         );
 
-        self.upsert_tx(&txid, status, None, updates);
+        self.upsert_tx(&txid, status, None, changelog);
 
         // XXX make sure this origin really belongs to a known wallet?
         self.store
@@ -191,8 +191,8 @@ impl Indexer {
                 .index_tx_output_funding(&txid, vout, FundingInfo(scripthash, amount));
 
         if txo_added {
-            updates.push(|| IndexUpdate::History(scripthash, txid, status.height()));
-            updates.push(|| IndexUpdate::TxoCreated(OutPoint::new(txid, vout), status.height()));
+            changelog.push(|| IndexChange::History(scripthash, txid, status.height()));
+            changelog.push(|| IndexChange::TxoCreated(OutPoint::new(txid, vout), status.height()));
             self.watcher.mark_funded(&origin);
         }
     }
@@ -202,11 +202,11 @@ impl Indexer {
         txid: Txid,
         status: TxStatus,
         fee: u64,
-        updates: &mut IndexUpdates,
+        changelog: &mut Changelog,
     ) -> Result<()> {
         trace!("processing outgoing tx txid={} status={:?}", txid, status);
 
-        self.upsert_tx(&txid, status, Some(fee), updates);
+        self.upsert_tx(&txid, status, Some(fee), changelog);
 
         let tx_entry = self.store.get_tx_entry(&txid).unwrap();
         if !tx_entry.spending.is_empty() {
@@ -229,9 +229,9 @@ impl Indexer {
                 self.store
                     .index_txo_spend(input.previous_output, input_point);
 
-                updates.push(|| IndexUpdate::History(scripthash, txid, status.height()));
-                updates.push(|| {
-                    IndexUpdate::TxoSpent(input.previous_output, input_point, status.height())
+                changelog.push(|| IndexChange::History(scripthash, txid, status.height()));
+                changelog.push(|| {
+                    IndexChange::TxoSpent(input.previous_output, input_point, status.height())
                 });
 
                 // we could keep just the previous_output and lookup the scripthash and amount
@@ -251,7 +251,7 @@ impl Indexer {
 
 #[derive(Clone, Serialize, Debug)]
 #[serde(tag = "category", content = "params")]
-pub enum IndexUpdate {
+pub enum IndexChange {
     ChainTip(BlockId),
     Reorg(u32, BlockHash, BlockHash),
 
@@ -263,44 +263,44 @@ pub enum IndexUpdate {
     TxoSpent(OutPoint, TxInput, Option<u32>),
 }
 
-enum IndexUpdates {
-    Stored(Vec<IndexUpdate>),
+enum Changelog {
+    Stored(Vec<IndexChange>),
     Void,
 }
 
-impl IndexUpdates {
+impl Changelog {
     fn new(stored: bool) -> Self {
         if stored {
-            IndexUpdates::Stored(vec![])
+            Changelog::Stored(vec![])
         } else {
-            IndexUpdates::Void
+            Changelog::Void
         }
     }
-    fn push(&mut self, make_update: impl Fn() -> IndexUpdate) {
+    fn push(&mut self, make_update: impl Fn() -> IndexChange) {
         match self {
-            IndexUpdates::Stored(updates) => updates.push(make_update()),
-            IndexUpdates::Void => (),
+            Changelog::Stored(changes) => changes.push(make_update()),
+            Changelog::Void => (),
         }
     }
-    fn with(&mut self, closure: impl Fn(&mut Vec<IndexUpdate>)) {
+    fn with(&mut self, closure: impl Fn(&mut Vec<IndexChange>)) {
         match self {
-            IndexUpdates::Stored(updates) => closure(updates),
-            IndexUpdates::Void => (),
+            Changelog::Stored(changes) => closure(changes),
+            Changelog::Void => (),
         }
     }
 
-    fn into_vec(self) -> Vec<IndexUpdate> {
+    fn into_vec(self) -> Vec<IndexChange> {
         match self {
-            IndexUpdates::Stored(updates) => updates,
-            IndexUpdates::Void => vec![],
+            Changelog::Stored(changes) => changes,
+            Changelog::Void => vec![],
         }
     }
 }
-impl IndexUpdate {
+impl IndexChange {
     // the scripthash affected by the update, if any
     pub fn scripthash(&self) -> Option<&ScriptHash> {
         match self {
-            IndexUpdate::History(ref scripthash, ..) => Some(scripthash),
+            IndexChange::History(ref scripthash, ..) => Some(scripthash),
             _ => None,
         }
     }
@@ -308,7 +308,7 @@ impl IndexUpdate {
     // the (previously) utxo spent by the update, if any
     pub fn outpoint(&self) -> Option<&OutPoint> {
         match self {
-            IndexUpdate::TxoSpent(ref outpoint, ..) | IndexUpdate::TxoCreated(ref outpoint, ..) => {
+            IndexChange::TxoSpent(ref outpoint, ..) | IndexChange::TxoCreated(ref outpoint, ..) => {
                 Some(outpoint)
             }
             _ => None,
@@ -330,7 +330,7 @@ impl IndexUpdate {
     }
 }
 
-impl fmt::Display for IndexUpdate {
+impl fmt::Display for IndexChange {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }

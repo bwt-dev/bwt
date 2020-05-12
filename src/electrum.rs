@@ -11,7 +11,7 @@ use bitcoin_hashes::{hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
 use crate::error::{fmt_error_chain, Result, ResultExt};
-use crate::indexer::IndexUpdate;
+use crate::indexer::IndexChange;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
 use crate::types::{BlockId, ScriptHash, StatusHash, TxStatus};
@@ -301,9 +301,9 @@ impl Connection {
         })
     }
 
-    fn jsonrpc_notification(&mut self, update: IndexUpdate) -> Result<Value> {
-        Ok(match update {
-            IndexUpdate::ChainTip(BlockId(tip_height, tip_hash)) => {
+    fn jsonrpc_notification(&mut self, change: IndexChange) -> Result<Value> {
+        Ok(match change {
+            IndexChange::ChainTip(BlockId(tip_height, tip_hash)) => {
                 let hex_header = self.query.get_header_by_hash(&tip_hash)?;
                 let header = json!({"hex": hex_header, "height": tip_height });
                 json!({
@@ -311,7 +311,7 @@ impl Connection {
                     "method": "blockchain.headers.subscribe",
                     "params": [header]})
             }
-            IndexUpdate::History(scripthash, ..) => {
+            IndexChange::History(scripthash, ..) => {
                 let new_status_hash = get_status_hash(&self.query, &scripthash);
                 debug!(
                     "status hash updated for {} to {:?}",
@@ -352,8 +352,8 @@ impl Connection {
                     };
                     self.send_values(&[reply])?
                 }
-                Message::IndexUpdate(update) => {
-                    let value = self.jsonrpc_notification(update)?;
+                Message::IndexChange(change) => {
+                    let value = self.jsonrpc_notification(change)?;
                     debug!("sending jsonrpc notification: {}", value);
                     self.send_values(&[value])?;
                 }
@@ -446,12 +446,12 @@ fn electrum_height(status: &TxStatus) -> u32 {
 #[derive(Debug)]
 pub enum Message {
     Request(String),
-    IndexUpdate(IndexUpdate),
+    IndexChange(IndexChange),
     Done,
 }
 
 pub enum Notification {
-    IndexUpdate(IndexUpdate),
+    IndexChange(IndexChange),
     Exit,
 }
 
@@ -469,8 +469,8 @@ impl ElectrumServer {
         spawn_thread("notification", move || {
             for msg in notification.receiver().iter() {
                 match msg {
-                    Notification::IndexUpdate(update) => {
-                        subman.lock().unwrap().dispatch(update);
+                    Notification::IndexChange(change) => {
+                        subman.lock().unwrap().dispatch(change);
                     }
                     Notification::Exit => acceptor.send(None).unwrap(),
                 }
@@ -535,15 +535,15 @@ impl ElectrumServer {
         }
     }
 
-    pub fn send_updates(&self, updates: &Vec<IndexUpdate>) {
-        info!("sending {} updates to rpc clients", updates.len());
-        for update in updates {
-            match update {
-                IndexUpdate::ChainTip(..) | IndexUpdate::History(..) => self
+    pub fn send_updates(&self, changelog: &Vec<IndexChange>) {
+        info!("sending {} updates to rpc clients", changelog.len());
+        for change in changelog {
+            match change {
+                IndexChange::ChainTip(..) | IndexChange::History(..) => self
                     .notification
-                    .send(Notification::IndexUpdate(update.clone()))
+                    .send(Notification::IndexChange(change.clone()))
                     .unwrap(),
-                // we don't care about other updates
+                // we don't care about other index changes
                 _ => (),
             }
         }
@@ -608,18 +608,18 @@ impl SubscriptionManager {
     pub fn remove(&mut self, subscriber_id: usize) {
         self.subscribers.remove(&subscriber_id);
     }
-    pub fn dispatch(&mut self, update: IndexUpdate) {
+    pub fn dispatch(&mut self, change: IndexChange) {
         self.subscribers.retain(|subscriber_id, subscriber| {
-            let is_interested = match update {
-                IndexUpdate::ChainTip(..) => subscriber.blocks,
-                IndexUpdate::History(sh, ..) => subscriber.scripthashes.contains(&sh),
+            let is_interested = match change {
+                IndexChange::ChainTip(..) => subscriber.blocks,
+                IndexChange::History(sh, ..) => subscriber.scripthashes.contains(&sh),
                 _ => unreachable!(), //we're not suppoed to be sent anything else
             };
             if is_interested {
                 // TODO determine status hash here, so its only computed once when there are multiple
                 // subscribers to the same scripthash. could also send the header hex directly, so
                 // bitcoind is only queried for it once.
-                let msg = Message::IndexUpdate(update.clone());
+                let msg = Message::IndexChange(change.clone());
                 if let Err(TrySendError::Disconnected(_)) = subscriber.sender.try_send(msg) {
                     warn!("dropping disconnected subscriber #{}", subscriber_id);
                     return false;
