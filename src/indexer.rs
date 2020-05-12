@@ -72,7 +72,11 @@ impl Indexer {
 
         if !updates.is_empty() {
             info!("sync resulted in {} index updates", updates.len());
-            debug!("{:#?}", updates);
+            if log_enabled!(log::Level::Debug) {
+                for update in &updates {
+                    debug!("  - {:?}", update);
+                }
+            }
         }
 
         Ok(updates)
@@ -360,11 +364,14 @@ fn load_transactions_since(
 
     if start_height <= tip_height {
         info!(
-            "syncing transactions from block(s) {}..{} + mempool",
-            start_height, tip_height,
+            "syncing transactions from {} block(s) since height {} + mempool transactions (best={} height={})",
+            tip_height-start_height+1, start_height, tip_hash, tip_height,
         );
     } else {
-        info!("syncing mempool transactions");
+        info!(
+            "syncing mempool transactions (best={} height={})",
+            tip_hash, tip_height
+        );
     }
 
     loop {

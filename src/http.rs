@@ -214,7 +214,7 @@ async fn run(
         .map(|sync_tx: SyncChanSender| {
             info!("received sync notification");
             sync_tx.lock().unwrap().send(())?;
-            Ok("syncing queued")
+            Ok(reply::with_status("syncing queued", StatusCode::ACCEPTED))
         })
         .map(handle_error);
 

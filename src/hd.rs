@@ -75,7 +75,7 @@ impl HDWatcher {
             } else if !wallet.done_initial_import {
                 debug!(
                     "done initial import for xpub {} (up to index {:?})",
-                    wallet.master, wallet.max_imported_index
+                    wallet.master, wallet.max_imported_index.unwrap_or(0)
                 );
                 wallet.done_initial_import = true;
             }

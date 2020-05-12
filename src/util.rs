@@ -153,7 +153,7 @@ pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sen
                     }
                 }
             }
-            info!("unix socket triggering index sync");
+            info!(target: "pxt::real-time", "triggering real-time index sync");
             forward_tx.send(()).unwrap();
         }
     });
