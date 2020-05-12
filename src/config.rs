@@ -8,8 +8,8 @@ use dirs::home_dir;
 use structopt::StructOpt;
 
 use crate::error::{OptionExt, Result, ResultExt};
+use crate::hd::XyzPubKey;
 use crate::types::KeyRescan;
-use crate::util::XyzPubKey;
 
 #[derive(StructOpt, Debug)]
 pub struct Config {
