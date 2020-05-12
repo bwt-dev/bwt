@@ -1,5 +1,5 @@
-use std::sync::mpsc;
-use std::sync::{Arc, RwLock};
+use std::sync::{mpsc, Arc, RwLock};
+use std::{thread, time};
 
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
@@ -131,12 +131,14 @@ fn wait_ibd(rpc: &RpcClient) -> Result<()> {
     trace!("{:?}", netinfo);
     trace!("{:?}", bcinfo);
 
+    let dur = time::Duration::from_secs(15);
     while bcinfo.initial_block_download {
         /* || bcinfo.blocks < bcinfo.headers */
         info!(
             "waiting for bitcoind to sync [{}/{} blocks, ibd={}]",
             bcinfo.blocks, bcinfo.headers, bcinfo.initial_block_download
         );
+        thread::sleep(dur);
         bcinfo = rpc.get_blockchain_info()?;
     }
 
