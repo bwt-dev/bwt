@@ -311,7 +311,7 @@ impl Connection {
                     "method": "blockchain.headers.subscribe",
                     "params": [header]})
             }
-            IndexUpdate::History(scripthash, _) => {
+            IndexUpdate::History(scripthash, ..) => {
                 let new_status_hash = get_status_hash(&self.query, &scripthash);
                 debug!(
                     "status hash updated for {} to {:?}",

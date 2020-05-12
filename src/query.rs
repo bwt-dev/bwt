@@ -10,12 +10,12 @@ use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::indexer::Indexer;
-use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, TxEntry};
+use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
 use crate::types::{BlockId, ScriptHash, TxStatus};
 use crate::util::make_fee_histogram;
 
 #[cfg(feature = "track-spends")]
-use crate::{store::SpendingInfo, types::TxInput};
+use crate::types::TxInput;
 
 lazy_static! {
     static ref FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(60);
@@ -302,7 +302,6 @@ impl Query {
             })
             .collect::<Vec<TxInfoFunding>>();
 
-        #[cfg(feature = "track-spends")]
         let spending = tx_entry
             .spending
             .iter()
@@ -316,7 +315,6 @@ impl Query {
             })
             .collect::<Vec<TxInfoSpending>>();
 
-        #[cfg(feature = "track-spends")]
         let balance_change = {
             let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
             let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
@@ -328,9 +326,7 @@ impl Query {
             status: tx_entry.status,
             fee: tx_entry.fee,
             funding: funding,
-            #[cfg(feature = "track-spends")]
             spending: spending,
-            #[cfg(feature = "track-spends")]
             balance_change: balance_change,
         })
     }
@@ -365,9 +361,7 @@ pub struct TxInfo {
     status: TxStatus,
     fee: Option<u64>,
     funding: Vec<TxInfoFunding>,
-    #[cfg(feature = "track-spends")]
     spending: Vec<TxInfoSpending>,
-    #[cfg(feature = "track-spends")]
     balance_change: i64,
 }
 
@@ -375,7 +369,7 @@ pub struct TxInfo {
 struct TxInfoFunding {
     vout: u32,
     #[serde(flatten)]
-    script_info: ScriptInfo, // scripthash, address & origin
+    script_info: ScriptInfo,
     amount: u64,
     #[cfg(feature = "track-spends")]
     spent_by: Option<TxInput>,
@@ -385,7 +379,7 @@ struct TxInfoFunding {
 struct TxInfoSpending {
     vin: u32,
     #[serde(flatten)]
-    script_info: ScriptInfo, // scripthash, address & origin
+    script_info: ScriptInfo,
     amount: u64,
     prevout: OutPoint,
 }

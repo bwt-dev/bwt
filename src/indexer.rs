@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use serde::Serialize;
 
-use bitcoin::{BlockHash, OutPoint, SignedAmount, Txid};
+use bitcoin::{BlockHash, OutPoint, Txid};
 use bitcoincore_rpc::json::{
     GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
 };
@@ -12,11 +12,8 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWatcher, KeyOrigin};
-use crate::store::{FundingInfo, HistoryEntry, MemoryStore, TxEntry};
-use crate::types::{BlockId, ScriptHash, TxStatus};
-
-#[cfg(feature = "track-spends")]
-use crate::{store::SpendingInfo, types::TxInput};
+use crate::store::{FundingInfo, MemoryStore, SpendingInfo};
+use crate::types::{BlockId, ScriptHash, TxInput, TxStatus};
 
 pub struct Indexer {
     rpc: Arc<RpcClient>,
@@ -88,7 +85,7 @@ impl Indexer {
             .as_ref()
             .map_or(0, |BlockId(tip_height, _)| tip_height + 1);
 
-        let mut pending_outgoing: HashMap<Txid, TxEntry> = HashMap::new();
+        let mut pending_outgoing: HashMap<Txid, (TxStatus, u64)> = HashMap::new();
 
         let synced_tip = load_transactions_since(
             &self.rpc.clone(),
@@ -104,14 +101,16 @@ impl Indexer {
                     }
                     match ltx.detail.category {
                         TxCategory::Receive => {
-                            self.process_incoming(ltx, tip_height, updates);
+                            self.process_incoming_txo(ltx, tip_height, updates);
                         }
                         TxCategory::Send => {
                             // outgoing payments are buffered and processed later so that the
                             // parent funding transaction is guaranteed to get indexed first
                             pending_outgoing.entry(ltx.info.txid).or_insert_with(|| {
                                 let status = TxStatus::new(ltx.info.confirmations, tip_height);
-                                TxEntry::new(status, parse_fee(ltx.detail.fee))
+                                // "send" transactions must have a fee
+                                let fee = ltx.detail.fee.unwrap().abs().as_sat() as u64;
+                                (status, fee)
                             });
                         }
                         TxCategory::Generate | TxCategory::Immature => (),
@@ -120,8 +119,8 @@ impl Indexer {
             },
         )?;
 
-        for (txid, txentry) in pending_outgoing {
-            self.process_outgoing(txid, txentry, updates)
+        for (txid, (status, fee)) in pending_outgoing {
+            self.process_outgoing_tx(txid, status, fee, updates)
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
         }
@@ -129,7 +128,31 @@ impl Indexer {
         Ok(synced_tip)
     }
 
-    fn process_incoming(
+    // upsert the transaction while collecting updates messages
+    fn upsert_tx(
+        &mut self,
+        txid: &Txid,
+        status: TxStatus,
+        fee: Option<u64>,
+        updates: &mut IndexUpdates,
+    ) {
+        let tx_updated = self.store.upsert_tx(txid, status, fee);
+        if tx_updated {
+            updates.with(|updates| {
+                updates.push(IndexUpdate::Transaction(*txid, status.height()));
+
+                // create an update entry for every affected scripthash
+                let tx_entry = self.store.get_tx_entry(&txid).unwrap();
+                updates.extend(
+                    tx_entry.scripthashes().into_iter().map(|scripthash| {
+                        IndexUpdate::History(*scripthash, *txid, status.height())
+                    }),
+                );
+            });
+        }
+    }
+
+    fn process_incoming_txo(
         &mut self,
         ltx: ListTransactionResult,
         tip_height: u32,
@@ -146,96 +169,81 @@ impl Indexer {
             Some(origin) => origin,
             None => return,
         };
-        let status = TxStatus::new(ltx.info.confirmations, tip_height);
-
         let txid = ltx.info.txid;
+        let vout = ltx.detail.vout;
         let scripthash = ScriptHash::from(&ltx.detail.address);
+        let status = TxStatus::new(ltx.info.confirmations, tip_height);
         let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts
 
         trace!(
             "processing incoming txout {}:{} scripthash={} address={} origin={:?} status={:?} amount={}",
-            txid, ltx.detail.vout, scripthash, ltx.detail.address, origin, status, amount
+            txid, vout, scripthash, ltx.detail.address, origin, status, amount
         );
 
-        let mut txentry = TxEntry::new(status, None);
-        let funding_info = FundingInfo(scripthash, amount);
-        txentry.funding.insert(ltx.detail.vout, funding_info);
+        self.upsert_tx(&txid, status, None, updates);
 
-        if self.store.index_tx_entry(&txid, txentry) {
-            updates.push(|| IndexUpdate::Transaction(txid));
+        // XXX make sure this origin really belongs to a known wallet?
+        self.store
+            .track_scripthash(&scripthash, &origin, &ltx.detail.address);
+
+        let txo_added =
+            self.store
+                .index_tx_output_funding(&txid, vout, FundingInfo(scripthash, amount));
+
+        if txo_added {
+            updates.push(|| IndexUpdate::History(scripthash, txid, status.height()));
+            updates.push(|| IndexUpdate::TxoCreated(OutPoint::new(txid, vout), status.height()));
+            self.watcher.mark_funded(&origin);
         }
-
-        if self
-            .store
-            .track_scripthash(&scripthash, &origin, &ltx.detail.address)
-        {
-            updates.push(|| IndexUpdate::FirstFunding(scripthash));
-        }
-
-        if self
-            .store
-            .index_history_entry(&scripthash, HistoryEntry::new(txid, status))
-        {
-            updates.push(|| IndexUpdate::History(scripthash, txid));
-        }
-
-        self.watcher.mark_funded(&origin);
     }
 
-    #[cfg_attr(not(feature = "track-spends"), allow(unused_variables, unused_mut))]
-    fn process_outgoing(
+    fn process_outgoing_tx(
         &mut self,
         txid: Txid,
-        mut txentry: TxEntry,
+        status: TxStatus,
+        fee: u64,
         updates: &mut IndexUpdates,
     ) -> Result<()> {
-        trace!(
-            "processing outgoing tx txid={} status={:?}",
-            txid,
-            txentry.status
-        );
+        trace!("processing outgoing tx txid={} status={:?}", txid, status);
+
+        self.upsert_tx(&txid, status, Some(fee), updates);
+
+        let tx_entry = self.store.get_tx_entry(&txid).unwrap();
+        if !tx_entry.spending.is_empty() {
+            trace!("skipping outgoing tx {}, already indexed", txid);
+            return Ok(());
+        }
 
         let tx = self.rpc.get_transaction(&txid, Some(true))?.transaction()?;
 
-        for (vin, input) in tx.input.iter().enumerate() {
-            if let Some(FundingInfo(scripthash, amount)) =
-                self.store.lookup_txo_fund(&input.previous_output)
-            {
-                if self
-                    .store
-                    .index_history_entry(&scripthash, HistoryEntry::new(txid, txentry.status))
-                {
-                    updates.push(|| IndexUpdate::History(scripthash, txid));
-                }
+        let spending: HashMap<u32, SpendingInfo> = tx
+            .input
+            .iter()
+            .enumerate()
+            .filter_map(|(vin, input)| {
+                let FundingInfo(scripthash, amount) =
+                    self.store.lookup_txo_fund(&input.previous_output)?;
+                let input_point = TxInput::new(txid, vin as u32);
 
                 #[cfg(feature = "track-spends")]
-                {
-                    // we could keep just the previous_output and lookup the scripthash and amount
-                    // from the corrospanding FundingInfo, but we keep it here anyway for quick access
-                    #[cfg(feature = "track-spends")]
-                    txentry.spending.insert(
-                        vin as u32,
-                        SpendingInfo(scripthash, input.previous_output, amount),
-                    );
+                self.store
+                    .index_txo_spend(input.previous_output, input_point);
 
-                    if self
-                        .store
-                        .index_txo_spend(input.previous_output, TxInput::new(txid, vin as u32))
-                    {
-                        updates.push(|| IndexUpdate::TxoSpent(input.previous_output));
-                    }
-                }
-            }
-        }
+                updates.push(|| IndexUpdate::History(scripthash, txid, status.height()));
+                updates.push(|| {
+                    IndexUpdate::TxoSpent(input.previous_output, input_point, status.height())
+                });
 
-        #[cfg(feature = "track-spends")]
-        {
-            if !txentry.spending.is_empty() {
-                if self.store.index_tx_entry(&txid, txentry) {
-                    updates.push(|| IndexUpdate::Transaction(txid));
-                }
-            }
-        }
+                // we could keep just the previous_output and lookup the scripthash and amount
+                // from the corrospanding FundingInfo, but we keep it here anyway for quick access
+                Some((
+                    vin as u32,
+                    SpendingInfo(scripthash, input.previous_output, amount),
+                ))
+            })
+            .collect();
+
+        self.store.index_tx_inputs_spending(&txid, spending);
 
         Ok(())
     }
@@ -247,14 +255,12 @@ pub enum IndexUpdate {
     ChainTip(BlockId),
     Reorg(u32, BlockHash, BlockHash),
 
-    Transaction(Txid),
+    Transaction(Txid, Option<u32>),
     TransactionReplaced(Txid),
 
-    History(ScriptHash, Txid),
-    FirstFunding(ScriptHash),
-
-    #[cfg(feature = "track-spends")]
-    TxoSpent(OutPoint),
+    History(ScriptHash, Txid, Option<u32>),
+    TxoCreated(OutPoint, Option<u32>),
+    TxoSpent(OutPoint, TxInput, Option<u32>),
 }
 
 enum IndexUpdates {
@@ -276,6 +282,13 @@ impl IndexUpdates {
             IndexUpdates::Void => (),
         }
     }
+    fn with(&mut self, closure: impl Fn(&mut Vec<IndexUpdate>)) {
+        match self {
+            IndexUpdates::Stored(updates) => closure(updates),
+            IndexUpdates::Void => (),
+        }
+    }
+
     fn into_vec(self) -> Vec<IndexUpdate> {
         match self {
             IndexUpdates::Stored(updates) => updates,
@@ -287,9 +300,7 @@ impl IndexUpdate {
     // the scripthash affected by the update, if any
     pub fn scripthash(&self) -> Option<&ScriptHash> {
         match self {
-            IndexUpdate::History(ref scripthash, _) | IndexUpdate::FirstFunding(ref scripthash) => {
-                Some(scripthash)
-            }
+            IndexUpdate::History(ref scripthash, ..) => Some(scripthash),
             _ => None,
         }
     }
@@ -297,25 +308,24 @@ impl IndexUpdate {
     // the (previously) utxo spent by the update, if any
     pub fn outpoint(&self) -> Option<&OutPoint> {
         match self {
-            #[cfg(feature = "track-spends")]
-            IndexUpdate::TxoSpent(ref outpoint) => Some(outpoint),
+            IndexUpdate::TxoSpent(ref outpoint, ..) | IndexUpdate::TxoCreated(ref outpoint, ..) => {
+                Some(outpoint)
+            }
             _ => None,
         }
     }
 
     pub fn category_str(&self) -> &str {
         match self {
-            Self::ChainTip(_) => "ChainTip",
+            Self::ChainTip(..) => "ChainTip",
             Self::Reorg(..) => "Reorg",
 
-            Self::Transaction(_) => "Transaction",
-            Self::TransactionReplaced(_) => "TransactionReplaced",
+            Self::Transaction(..) => "Transaction",
+            Self::TransactionReplaced(..) => "TransactionReplaced",
 
             Self::History(..) => "History",
-            Self::FirstFunding(_) => "FirstFunding",
-
-            #[cfg(feature = "track-spends")]
-            Self::TxoSpent(_) => "TxoSpent",
+            Self::TxoCreated(..) => "TxoCreated",
+            Self::TxoSpent(..) => "TxoSpent",
         }
     }
 }
@@ -324,11 +334,6 @@ impl fmt::Display for IndexUpdate {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }
-}
-
-// convert to a positive satoshi amount
-fn parse_fee(fee: Option<SignedAmount>) -> Option<u64> {
-    fee.map(|fee| fee.abs().as_sat() as u64)
 }
 
 const INIT_TX_PER_PAGE: usize = 150;

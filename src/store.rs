@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use serde::Serialize;
 
@@ -44,7 +44,6 @@ pub struct TxEntry {
     pub status: TxStatus,
     pub fee: Option<u64>,
     pub funding: HashMap<u32, FundingInfo>,
-    #[cfg(feature = "track-spends")]
     pub spending: HashMap<u32, SpendingInfo>,
 }
 
@@ -54,16 +53,19 @@ impl TxEntry {
             status,
             fee,
             funding: HashMap::new(),
-            #[cfg(feature = "track-spends")]
             spending: HashMap::new(),
         }
+    }
+    pub fn scripthashes(&self) -> HashSet<&ScriptHash> {
+        let funding_scripthashes = self.funding.iter().map(|(_, f)| &f.0);
+        let spending_scripthashes = self.spending.iter().map(|(_, s)| &s.0);
+        funding_scripthashes.chain(spending_scripthashes).collect()
     }
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FundingInfo(pub ScriptHash, pub u64);
 
-#[cfg(feature = "track-spends")]
 #[derive(Debug, Clone, Serialize)]
 pub struct SpendingInfo(pub ScriptHash, pub OutPoint, pub u64);
 
@@ -118,49 +120,86 @@ impl MemoryStore {
         !existed
     }
 
-    pub fn index_tx_entry(&mut self, txid: &Txid, mut txentry: TxEntry) -> bool {
-        trace!("index tx entry {:?}: {:?}", txid, txentry);
-
-        assert!(
-            txentry.status.is_viable(),
-            "should not index non-viable tx entries"
-        );
-
-        let new_status = txentry.status;
+    pub fn upsert_tx(&mut self, txid: &Txid, status: TxStatus, fee: Option<u64>) -> bool {
+        let mut status_change = None;
         let mut updated = false;
-        let mut changed_from = None;
 
         self.transactions
             .entry(*txid)
             .and_modify(|curr_entry| {
-                if let (None, &Some(_)) = (curr_entry.fee, &txentry.fee) {
-                    curr_entry.fee = txentry.fee;
+                if let (None, &Some(_)) = (curr_entry.fee, &fee) {
+                    curr_entry.fee = fee;
                 }
 
-                curr_entry.funding.extend(txentry.funding.drain());
-                #[cfg(feature = "track-spends")]
-                curr_entry.spending.extend(txentry.spending.drain());
-
-                if &curr_entry.status != &txentry.status {
-                    changed_from = Some(curr_entry.status);
-                    curr_entry.status = new_status;
+                if curr_entry.status != status {
+                    status_change = Some(curr_entry.status);
+                    curr_entry.status = status;
                     updated = true;
                 }
             })
             .or_insert_with(|| {
-                debug!("new transaction: txid={} status={:?}", txid, txentry.status);
+                debug!("new transaction: txid={} status={:?}", txid, status);
                 updated = true;
-                txentry
+                TxEntry::new(status, fee)
             });
 
-        if let Some(old_status) = changed_from {
-            self.tx_status_changed(txid, old_status, new_status);
+        if let Some(old_status) = status_change {
+            self.update_tx_status(txid, old_status, status);
         }
 
         updated
     }
 
-    pub fn index_history_entry(&mut self, scripthash: &ScriptHash, txhist: HistoryEntry) -> bool {
+    // index a single txo received by the wallet (there may be more txos from the same tx coming)
+    pub fn index_tx_output_funding(
+        &mut self,
+        txid: &Txid,
+        vout: u32,
+        funding_info: FundingInfo,
+    ) -> bool {
+        trace!("index tx output {}:{}: {:?}", txid, vout, funding_info);
+        let mut added = None;
+
+        {
+            // the tx must already exists by now
+            let tx_entry = self.transactions.get_mut(txid).unwrap();
+            let status = tx_entry.status;
+            tx_entry.funding.entry(vout).or_insert_with(|| {
+                debug!("new txo added {}:{}: {:?}", txid, vout, funding_info);
+                added = Some((funding_info.0.clone(), status));
+                funding_info
+            });
+        }
+
+        if let Some((scripthash, status)) = added {
+            self.index_history_entry(&scripthash, HistoryEntry::new(*txid, status));
+            true
+        } else {
+            false
+        }
+    }
+
+    // index the full set of spending inputs for this transaction
+    pub fn index_tx_inputs_spending(&mut self, txid: &Txid, spending: HashMap<u32, SpendingInfo>) {
+        debug!("index new tx inputs spends {}: {:?}", txid, spending);
+
+        let (status, added_scripthashes) = {
+            // the tx must already exists by now
+            let tx_entry = self.transactions.get_mut(txid).unwrap();
+            assert!(tx_entry.spending.is_empty());
+            tx_entry.spending = spending;
+            let scripthashes: Vec<_> = tx_entry.scripthashes().into_iter().cloned().collect();
+            (tx_entry.status, scripthashes)
+            // drop mutable ref
+        };
+
+        let tx_hist = HistoryEntry::new(*txid, status);
+        for scripthash in added_scripthashes {
+            self.index_history_entry(&scripthash, tx_hist.clone());
+        }
+    }
+
+    fn index_history_entry(&mut self, scripthash: &ScriptHash, txhist: HistoryEntry) -> bool {
         trace!(
             "index history entry: scripthash={} txid={} status={:?}",
             scripthash,
@@ -203,45 +242,27 @@ impl MemoryStore {
     }
 
     /// Update the scripthash history index to reflect the new tx status
-    pub fn tx_status_changed(&mut self, txid: &Txid, old_status: TxStatus, new_status: TxStatus) {
-        if old_status == new_status {
-            return;
-        }
-
+    fn update_tx_status(&mut self, txid: &Txid, old_status: TxStatus, new_status: TxStatus) {
         debug!(
             "transition tx {:?} from={:?} to={:?}",
             txid, old_status, new_status
         );
 
-        let old_txhist = HistoryEntry::new(*txid, old_status);
-        let new_txhist = HistoryEntry::new(*txid, new_status);
-
-        /*
-        let txentry = self
+        let tx_entry = self
             .transactions
             .get(txid)
             .expect("missing expected tx entry");
-        let affected_scripthashes = txentry
-            .funding
-            .iter()
-            .map(|(_, scripthash)| scripthash)
-            .chain(txentry.spending.iter().map(|(_, scripthash)| scripthash));
 
-        for scripthash in affected_scripthashes {
+        let old_txhist = HistoryEntry::new(*txid, old_status);
+        let new_txhist = HistoryEntry::new(*txid, new_status);
+
+        for scripthash in tx_entry.scripthashes() {
             let scriptentry = self
                 .scripthashes
-                .get(scripthash)
+                .get_mut(scripthash)
                 .expect("missing expected script entry");
             assert!(scriptentry.history.remove(&old_txhist));
             assert!(scriptentry.history.insert(new_txhist.clone()));
-        }
-        */
-
-        // TODO optimize, keep txid->scripthashes map
-        for (_scripthash, ScriptEntry { history, .. }) in &mut self.scripthashes {
-            if history.remove(&old_txhist) {
-                history.insert(new_txhist.clone());
-            }
         }
     }
 
@@ -254,36 +275,24 @@ impl MemoryStore {
                 status: old_entry.status,
                 txid: *txid,
             };
+            for scripthash in old_entry.scripthashes() {
+                assert!(self
+                    .scripthashes
+                    .get_mut(scripthash)
+                    .expect("missing expected script entry")
+                    .history
+                    .remove(&old_txhist));
+                // TODO remove the scripthashes entirely if have no more history entries
+            }
 
             #[cfg(feature = "track-spends")]
-            for (_, SpendingInfo(scripthash, prevout, _)) in old_entry.spending {
+            for (_, SpendingInfo(_, prevout, _)) in old_entry.spending {
                 // remove prevout spending edge, but only if it still references the purged tx
-                #[cfg(feature = "track-spends")]
                 remove_if(&mut self.txo_spends, prevout, |spending_input| {
                     spending_input.txid == *txid
                 });
-
-                self.scripthashes
-                    .get_mut(&scripthash)
-                    .map(|s| s.history.remove(&old_txhist));
             }
 
-            // if we don't track spends, we have to iterate over the entire scripthash set in order
-            // to purge history entries of transactions spending the removed tx.
-            #[cfg(not(feature = "track-spends"))]
-            self.scripthashes
-                .retain(|_scripthash, ScriptEntry { history, .. }| {
-                    history.remove(&old_txhist);
-                    history.len() > 0
-                });
-
-            for (_, FundingInfo(scripthash, _)) in old_entry.funding {
-                self.scripthashes
-                    .get_mut(&scripthash)
-                    .map(|s| s.history.remove(&old_txhist));
-            }
-
-            // TODO remove the scripthashes entirely if have no more history entries
             true
         } else {
             false

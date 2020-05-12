@@ -87,6 +87,13 @@ impl TxStatus {
             TxStatus::Confirmed(_) | TxStatus::Conflicted => false,
         }
     }
+
+    pub fn height(&self) -> Option<u32> {
+        match self {
+            TxStatus::Confirmed(height) => Some(*height),
+            TxStatus::Unconfirmed | TxStatus::Conflicted => None,
+        }
+    }
 }
 
 impl Ord for TxStatus {
