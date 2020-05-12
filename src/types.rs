@@ -40,7 +40,7 @@ impl TxInput {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize)]
 pub enum ScriptType {
     P2pkh,
     P2wpkh,
@@ -118,7 +118,7 @@ impl PartialOrd for TxStatus {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize)]
 pub enum KeyRescan {
     None,
     All,

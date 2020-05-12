@@ -36,6 +36,10 @@ impl Indexer {
         &self.store
     }
 
+    pub fn watcher(&self) -> &HDWatcher {
+        &self.watcher
+    }
+
     pub fn sync(&mut self, track_changelog: bool) -> Result<Vec<IndexChange>> {
         let mut changelog = Changelog::new(track_changelog);
 

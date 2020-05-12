@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
+use serde::Serialize;
 use serde_json::Value;
 
 use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
@@ -41,8 +42,8 @@ impl HDWatcher {
                     wallet.max_imported_index = Some(*index);
                 }
 
-                if wallet.max_used_index.map_or(true, |max| *index > max) {
-                    wallet.max_used_index = Some(*index);
+                if wallet.max_funded_index.map_or(true, |max| *index > max) {
+                    wallet.max_funded_index = Some(*index);
                 }
             }
         }
@@ -98,9 +99,13 @@ impl HDWatcher {
 
         Ok(())
     }
+
+    pub fn get(&self, fingerprint: &Fingerprint) -> Option<&HDWallet> {
+        self.wallets.get(fingerprint)
+    }
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct HDWallet {
     master: ExtendedPubKey,
     network: Network,
@@ -110,7 +115,7 @@ pub struct HDWallet {
     rescan_policy: KeyRescan,
 
     done_initial_import: bool,
-    max_used_index: Option<u32>,
+    max_funded_index: Option<u32>,
     max_imported_index: Option<u32>,
 }
 
@@ -135,7 +140,7 @@ impl HDWallet {
             initial_gap_limit: initial_gap_limit.max(gap_limit),
             rescan_policy,
             done_initial_import: false,
-            max_used_index: None,
+            max_funded_index: None,
             max_imported_index: None,
         }
     }
@@ -213,7 +218,7 @@ impl HDWallet {
             self.initial_gap_limit
         };
 
-        self.max_used_index
+        self.max_funded_index
             .map_or(gap_limit - 1, |max| max + gap_limit)
     }
 

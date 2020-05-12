@@ -1,5 +1,4 @@
 use std::net;
-use std::str::FromStr;
 use std::sync::{mpsc, Arc, Mutex};
 
 use async_std::task;
@@ -10,6 +9,7 @@ use warp::http::StatusCode;
 use warp::sse::ServerSentEvent;
 use warp::{reply, Filter, Reply};
 
+use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{Address, OutPoint, Txid};
 
 use crate::error::{fmt_error_chain, Error, OptionExt};
@@ -30,20 +30,23 @@ async fn run(
     let sync_tx = warp::any().map(move || Arc::clone(&sync_tx));
     let listeners = warp::any().map(move || Arc::clone(&listeners));
 
+    // GET /hd/:fingerprint
+    let hd_wallet_handler = warp::get()
+        .and(warp::path!("hd" / Fingerprint))
+        .and(query.clone())
+        .map(|fingerprint: Fingerprint, query: Arc<Query>| {
+            let wallet = query.get_hd_wallet(&fingerprint).or_err("not found")?;
+            Ok(reply::json(&wallet))
+        })
+        .map(handle_error);
+
     // Pre-processing
     // GET /address/:address/*
     // GET /scripthash/:scripthash/*
-    let address_route = warp::path!("address" / String / ..)
-        .map(|address: String| {
-            let address = Address::from_str(&address)?;
-            // TODO ensure!(address.network == config.network);
-            let scripthash = ScriptHash::from(&address);
-            Ok(scripthash)
-        })
-        .and_then(reject_error);
-    let scripthash_route = warp::path!("scripthash" / String / ..)
-        .map(|scripthash: String| Ok(ScriptHash::from_str(&scripthash)?))
-        .and_then(reject_error);
+    let address_route = warp::path!("address" / Address / ..)
+        // TODO ensure!(address.network == config.network);
+        .map(|address: Address| ScriptHash::from(&address));
+    let scripthash_route = warp::path!("scripthash" / ScriptHash / ..);
     let spk_route = address_route.or(scripthash_route).unify();
 
     // GET /address/:address
@@ -112,11 +115,7 @@ async fn run(
 
     // Pre-processing
     // GET /tx/:txid/*
-    let tx_route = warp::path("tx").and(
-        warp::path::param()
-            .map(|txid: String| Ok(Txid::from_str(&txid)?))
-            .and_then(reject_error),
-    );
+    let tx_route = warp::path!("tx" / Txid);
 
     // GET /tx/:txid
     let tx_handler = warp::get()
@@ -239,7 +238,8 @@ async fn run(
         })
         .map(handle_error);
 
-    let handlers = spk_handler
+    let handlers = hd_wallet_handler
+        .or(spk_handler)
         .or(spk_utxo_handler)
         .or(spk_info_handler)
         .or(spk_history_handler)
@@ -367,13 +367,6 @@ struct UtxoOptions {
     include_unsafe: Option<bool>,
 }
 
-async fn reject_error<T>(result: Result<T, Error>) -> Result<T, warp::Rejection> {
-    result.map_err(|err| {
-        warn!("pre-processing failed: {:?}", err);
-        warp::reject::custom(WarpError::Error(err))
-    })
-}
-
 fn handle_error<T>(result: Result<T, Error>) -> impl Reply
 where
     T: Reply + Send,
@@ -388,10 +381,3 @@ where
         }
     }
 }
-
-#[derive(Debug)]
-enum WarpError {
-    Error(Error),
-}
-
-impl warp::reject::Reject for WarpError {}

@@ -6,6 +6,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use bitcoin::{BlockHash, OutPoint, Txid};
+use bitcoin::util::bip32::Fingerprint;
 use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
@@ -13,6 +14,7 @@ use crate::indexer::Indexer;
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
 use crate::types::{BlockId, ScriptHash, TxStatus};
 use crate::util::make_fee_histogram;
+use crate::hd::HDWallet;
 
 #[cfg(feature = "track-spends")]
 use crate::types::TxInput;
@@ -285,6 +287,15 @@ impl Query {
             confirmed_balance,
             unconfirmed_balance,
         })
+    }
+
+    pub fn get_hd_wallet(&self, fingerprint: &Fingerprint) -> Option<HDWallet> {
+        self.indexer
+            .read()
+            .unwrap()
+            .watcher()
+            .get(fingerprint)
+            .cloned()
     }
 
     pub fn get_tx_detail(&self, txid: &Txid) -> Option<TxDetail> {
