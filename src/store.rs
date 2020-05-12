@@ -329,7 +329,7 @@ impl MemoryStore {
 
     pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
         let script_entry = self.scripthashes.get(scripthash)?;
-        Some(ScriptInfo::new(*scripthash, script_entry))
+        Some(ScriptInfo::from_entry(*scripthash, script_entry))
     }
 
     pub fn get_script_address(&self, scripthash: &ScriptHash) -> Option<Address> {
@@ -360,14 +360,21 @@ impl MemoryStore {
 
 #[derive(Serialize, Debug)]
 pub struct ScriptInfo {
-    scripthash: ScriptHash,
-    address: Address,
+    pub scripthash: ScriptHash,
+    pub address: Address,
     #[serde(skip_serializing_if = "KeyOrigin::is_standalone")]
-    origin: KeyOrigin,
+    pub origin: KeyOrigin,
 }
 
 impl ScriptInfo {
-    fn new(scripthash: ScriptHash, script_entry: &ScriptEntry) -> Self {
+    pub fn new(scripthash: ScriptHash, address: Address, origin: KeyOrigin) -> Self {
+        ScriptInfo {
+            scripthash,
+            address,
+            origin,
+        }
+    }
+    fn from_entry(scripthash: ScriptHash, script_entry: &ScriptEntry) -> Self {
         ScriptInfo {
             scripthash: scripthash,
             address: script_entry.address.clone(),

@@ -30,6 +30,16 @@ async fn run(
     let sync_tx = warp::any().map(move || Arc::clone(&sync_tx));
     let listeners = warp::any().map(move || Arc::clone(&listeners));
 
+    // GET /hd
+    let hd_wallets_handler =
+        warp::get()
+            .and(warp::path!("hd"))
+            .and(query.clone())
+            .map(|query: Arc<Query>| {
+                let wallets = query.get_hd_wallets();
+                reply::json(&wallets)
+            });
+
     // GET /hd/:fingerprint
     let hd_wallet_handler = warp::get()
         .and(warp::path!("hd" / Fingerprint))
@@ -39,6 +49,17 @@ async fn run(
             Ok(reply::json(&wallet))
         })
         .map(handle_error);
+
+    // GET /hd/:fingerprint/:index
+    let hd_key_handler = warp::get()
+        .and(warp::path!("hd" / Fingerprint / u32))
+        .and(query.clone())
+        .map(
+            |fingerprint: Fingerprint, derivation_index: u32, query: Arc<Query>| {
+                let script_info = query.get_hd_script_info(&fingerprint, derivation_index);
+                reply::json(&script_info)
+            },
+        );
 
     // Pre-processing
     // GET /address/:address/*
@@ -238,7 +259,9 @@ async fn run(
         })
         .map(handle_error);
 
-    let handlers = hd_wallet_handler
+    let handlers = hd_wallets_handler
+        .or(hd_wallet_handler)
+        .or(hd_key_handler)
         .or(spk_handler)
         .or(spk_utxo_handler)
         .or(spk_info_handler)

@@ -41,6 +41,7 @@ impl TxInput {
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ScriptType {
     P2pkh,
     P2wpkh,
@@ -119,6 +120,7 @@ impl PartialOrd for TxStatus {
 }
 
 #[derive(Copy, Clone, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum KeyRescan {
     None,
     All,

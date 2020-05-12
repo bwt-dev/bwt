@@ -34,6 +34,14 @@ impl HDWatcher {
         }
     }
 
+    pub fn wallets(&self) -> &HashMap<Fingerprint, HDWallet> {
+        &self.wallets
+    }
+
+    pub fn get(&self, fingerprint: &Fingerprint) -> Option<&HDWallet> {
+        self.wallets.get(fingerprint)
+    }
+
     /// Mark an address as imported and optionally used
     pub fn mark_funded(&mut self, origin: &KeyOrigin) {
         if let KeyOrigin::Derived(parent_fingerprint, index) = origin {
@@ -99,14 +107,11 @@ impl HDWatcher {
 
         Ok(())
     }
-
-    pub fn get(&self, fingerprint: &Fingerprint) -> Option<&HDWallet> {
-        self.wallets.get(fingerprint)
-    }
 }
 
 #[derive(Serialize, Debug, Clone)]
 pub struct HDWallet {
+    #[serde(rename = "xpub")]
     master: ExtendedPubKey,
     network: Network,
     script_type: ScriptType,
@@ -114,9 +119,9 @@ pub struct HDWallet {
     initial_gap_limit: u32,
     rescan_policy: KeyRescan,
 
-    done_initial_import: bool,
     max_funded_index: Option<u32>,
     max_imported_index: Option<u32>,
+    done_initial_import: bool,
 }
 
 // TODO figure out the imported indexes, either with listreceivedbyaddress (lots of data)
@@ -204,7 +209,7 @@ impl HDWallet {
         Ok(wallets)
     }
 
-    fn derive(&self, index: u32) -> ExtendedPubKey {
+    pub fn derive(&self, index: u32) -> ExtendedPubKey {
         self.master
             .derive_pub(&*EC, &[ChildNumber::from(index)])
             .unwrap()
@@ -238,7 +243,7 @@ impl HDWallet {
             .collect()
     }
 
-    fn to_address(&self, key: &ExtendedPubKey) -> Address {
+    pub fn to_address(&self, key: &ExtendedPubKey) -> Address {
         match self.script_type {
             ScriptType::P2pkh => Address::p2pkh(&key.public_key, self.network),
             ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, self.network),

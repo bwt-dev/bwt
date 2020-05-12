@@ -5,16 +5,16 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::Value;
 
-use bitcoin::{BlockHash, OutPoint, Txid};
 use bitcoin::util::bip32::Fingerprint;
+use bitcoin::{BlockHash, OutPoint, Txid};
 use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
+use crate::hd::{HDWallet, KeyOrigin};
 use crate::indexer::Indexer;
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
 use crate::types::{BlockId, ScriptHash, TxStatus};
 use crate::util::make_fee_histogram;
-use crate::hd::HDWallet;
 
 #[cfg(feature = "track-spends")]
 use crate::types::TxInput;
@@ -289,6 +289,10 @@ impl Query {
         })
     }
 
+    pub fn get_hd_wallets(&self) -> HashMap<Fingerprint, HDWallet> {
+        self.indexer.read().unwrap().watcher().wallets().clone()
+    }
+
     pub fn get_hd_wallet(&self, fingerprint: &Fingerprint) -> Option<HDWallet> {
         self.indexer
             .read()
@@ -296,6 +300,17 @@ impl Query {
             .watcher()
             .get(fingerprint)
             .cloned()
+    }
+
+    // get the ScriptInfo entry of a derived hd key, without it necessarily being indexed
+    pub fn get_hd_script_info(&self, fingerprint: &Fingerprint, index: u32) -> Option<ScriptInfo> {
+        let indexer = self.indexer.read().unwrap();
+        let wallet = indexer.watcher().get(fingerprint)?;
+        let key = wallet.derive(index);
+        let address = wallet.to_address(&key);
+        let scripthash = ScriptHash::from(&address);
+        let origin = KeyOrigin::Derived(key.parent_fingerprint, index);
+        Some(ScriptInfo::new(scripthash, address, origin))
     }
 
     pub fn get_tx_detail(&self, txid: &Txid) -> Option<TxDetail> {
