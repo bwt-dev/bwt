@@ -100,7 +100,7 @@ async fn run(
 
     // GET /address/:address/history/compact
     // GET /scripthash/:scripthash/history/compact
-    let spk_compact_history_handler = warp::get()
+    let spk_history_compact_handler = warp::get()
         .and(spk_route)
         .and(warp::path!("history" / "compact"))
         .and(query.clone())
@@ -159,6 +159,15 @@ async fn run(
             let txs = query.map_history_since(min_block_height, |txhist| {
                 query.get_tx_detail(&txhist.txid).unwrap()
             });
+            reply::json(&txs)
+        });
+
+    // GET /txs/since/:block_height/compact
+    let txs_since_compact_handler = warp::get()
+        .and(warp::path!("txs" / "since" / u32 / "compact"))
+        .and(query.clone())
+        .map(|min_block_height: u32, query: Arc<Query>| {
+            let txs = query.get_history_since(min_block_height);
             reply::json(&txs)
         });
 
@@ -234,11 +243,12 @@ async fn run(
         .or(spk_utxo_handler)
         .or(spk_info_handler)
         .or(spk_history_handler)
-        .or(spk_compact_history_handler)
+        .or(spk_history_compact_handler)
         .or(tx_handler)
         .or(tx_verbose_handler)
         .or(tx_hex_handler)
         .or(txs_since_handler)
+        .or(txs_since_compact_handler)
         .or(sse_handler)
         .or(spk_sse_handler)
         .or(mempool_histogram_handler)

@@ -266,6 +266,10 @@ impl Query {
             .collect()
     }
 
+    pub fn get_history_since(&self, min_block_height: u32) -> Vec<HistoryEntry> {
+        self.map_history_since(min_block_height, |history_entry| history_entry.clone())
+    }
+
     pub fn get_script_stats(&self, scripthash: &ScriptHash) -> Result<ScriptStats> {
         let indexer = self.indexer.read().unwrap();
         let store = indexer.store();
