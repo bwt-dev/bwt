@@ -286,6 +286,11 @@ impl HDWallet {
     pub fn with_origin(&self) -> HDWalletOrigin {
         HDWalletOrigin::new(self)
     }
+
+    pub fn get_next_index(&self) -> u32 {
+        self.max_funded_index
+            .map_or(0, |max_funded_index| max_funded_index + 1)
+    }
 }
 fn batch_import(
     rpc: &RpcClient,

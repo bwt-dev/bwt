@@ -6,9 +6,9 @@ use async_std::task;
 use serde_derive::Deserialize;
 use tokio::stream::{Stream, StreamExt};
 use tokio::sync::mpsc as tmpsc;
-use warp::http::StatusCode;
+use warp::http::{header, StatusCode};
 use warp::sse::ServerSentEvent;
-use warp::{http::header, reply, Filter, Reply};
+use warp::{reply, Filter, Reply};
 
 use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{Address, OutPoint, Txid};
@@ -84,6 +84,24 @@ async fn run(
             let gap = query.find_hd_gap(&fingerprint);
             reply::json(&gap)
         });
+
+    // GET /hd/:fingerprint/next
+    let hd_next_handler = warp::get()
+        .and(warp::path!("hd" / Fingerprint / "next"))
+        .and(query.clone())
+        .map(|fingerprint: Fingerprint, query: Arc<Query>| {
+            let wallet = query.get_hd_wallet(&fingerprint).or_err("not found")?;
+            let next_index = wallet.get_next_index();
+            let uri = format!("/hd/{}/{}", fingerprint, next_index);
+            // issue a 307 redirect to the hdkey resource uri, and also include the derivation
+            // index in the response
+            Ok(reply::with_header(
+                reply::with_status(next_index.to_string(), StatusCode::TEMPORARY_REDIRECT),
+                header::LOCATION,
+                header::HeaderValue::from_str(&uri)?,
+            ))
+        })
+        .map(handle_error);
 
     // Pre-processing
     // GET /address/:address/*
@@ -320,6 +338,7 @@ async fn run(
         .or(hd_wallet_handler)
         .or(hd_key_handler)
         .or(hd_gap_handler)
+        .or(hd_next_handler)
         .or(spk_handler)
         .or(spk_utxo_handler)
         .or(spk_info_handler)
