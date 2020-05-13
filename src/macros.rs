@@ -53,13 +53,15 @@ macro_rules! ttl_cache {
 macro_rules! cache_forever {
     // cache a single value, only works with Copy
     ($field:expr, $make_value:expr) => {
-        let cache = $field.read().unwrap();
-        if let Some(cached_val) = *cache {
-            return Ok(cached_val);
+        //
+        {
+            let cache = $field.read().unwrap();
+            if let Some(cached_val) = *cache {
+                return Ok(cached_val);
+            }
         }
         let value = $make_value()?;
-        let mut cache = $field.write().unwrap();
-        *cache = Some(value);
+        *$field.write().unwrap() = Some(value);
         return Ok(value);
     };
 }
