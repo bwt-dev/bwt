@@ -31,18 +31,35 @@ macro_rules! ttl_cache {
             .insert($key, v));
     };
 
-    ($field:expr, $ttl:expr, $make_value:expr, $cache:ident, $read_cache_item:expr, $write_cache_item:expr) => {{
-        let $cache = $field.read().unwrap();
-        if let Some((cached_val, cached_time)) = $read_cache_item {
-            if cached_time.elapsed() < $ttl {
-                return Ok(cached_val.clone());
+    ($field:expr, $ttl:expr, $make_value:expr, $cache:ident, $read_cache_item:expr, $write_cache_item:expr) => {
+        // this comment intentionally left blank
+        {
+            let $cache = $field.read().unwrap();
+            if let Some((cached_val, cached_time)) = $read_cache_item {
+                if cached_time.elapsed() < $ttl {
+                    return Ok(cached_val.clone());
+                }
             }
+        };
+
+        let value = $make_value()?;
+        let mut $cache = $field.write().unwrap();
+        $write_cache_item((value.clone(), Instant::now()));
+
+        return Ok(value);
+    };
+}
+
+macro_rules! cache_forever {
+    // cache a single value, only works with Copy
+    ($field:expr, $make_value:expr) => {
+        let cache = $field.read().unwrap();
+        if let Some(cached_val) = *cache {
+            return Ok(cached_val);
         }
-    }
-
-    let value = $make_value()?;
-    let mut $cache = $field.write().unwrap();
-    $write_cache_item((value.clone(), Instant::now()));
-
-    return Ok(value);};
+        let value = $make_value()?;
+        let mut cache = $field.write().unwrap();
+        *cache = Some(value);
+        return Ok(value);
+    };
 }

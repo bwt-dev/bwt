@@ -28,6 +28,7 @@ pub struct Query {
     rpc: Arc<RpcClient>,
     indexer: Arc<RwLock<Indexer>>,
 
+    cached_relayfee: RwLock<Option<f64>>,
     cached_histogram: RwLock<Option<(FeeHistogram, Instant)>>,
     cached_estimates: RwLock<HashMap<u16, (Option<f64>, Instant)>>,
 }
@@ -39,6 +40,7 @@ impl Query {
         Query {
             rpc,
             indexer,
+            cached_relayfee: RwLock::new(None),
             cached_histogram: RwLock::new(None),
             cached_estimates: RwLock::new(HashMap::new()),
         }
@@ -108,12 +110,14 @@ impl Query {
     }
 
     pub fn relay_fee(&self) -> Result<f64> {
-        let feerate = self.rpc.call::<Value>("getmempoolinfo", &[])?["minrelaytxfee"]
-            .as_f64()
-            .or_err("invalid getmempoolinfo reply")?;
+        cache_forever!(self.cached_relayfee, || -> Result<f64> {
+            let feerate = self.rpc.call::<Value>("getmempoolinfo", &[])?["minrelaytxfee"]
+                .as_f64()
+                .or_err("invalid getmempoolinfo reply")?;
 
-        // from BTC/kB to sat/b
-        Ok((feerate * 100_000f64) as f64)
+            // from BTC/kB to sat/b
+            Ok((feerate * 100_000f64) as f64)
+        });
     }
 
     pub fn fee_histogram(&self) -> Result<FeeHistogram> {
