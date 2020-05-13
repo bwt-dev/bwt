@@ -226,7 +226,6 @@ impl Query {
             amount,
             script_info,
             status,
-            safe: None,
             #[cfg(feature = "track-spends")]
             spent_by: store.lookup_txo_spend(outpoint),
         })
@@ -419,8 +418,6 @@ pub struct Txo {
     pub script_info: ScriptInfo,
     #[serde(flatten)]
     pub status: TxStatus,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub safe: Option<bool>, // not be available for txos we get from bwt's internal index
     #[cfg(feature = "track-spends")]
     pub spent_by: Option<TxInput>,
 }
@@ -437,7 +434,6 @@ impl Txo {
             amount: unspent.amount.as_sat(),
             script_info: script_info,
             status: TxStatus::new(unspent.confirmations as i32, tip_height),
-            safe: Some(unspent.safe),
             #[cfg(feature = "track-spends")]
             spent_by: None,
         }
