@@ -9,14 +9,14 @@ use crate::hd::KeyOrigin;
 use crate::types::{ScriptHash, TxStatus};
 
 #[cfg(feature = "track-spends")]
-use crate::{types::TxInput, util::remove_if};
+use crate::{types::InPoint, util::remove_if};
 
 #[derive(Debug, Serialize)]
 pub struct MemoryStore {
     scripthashes: HashMap<ScriptHash, ScriptEntry>,
     transactions: HashMap<Txid, TxEntry>,
     #[cfg(feature = "track-spends")]
-    txo_spends: HashMap<OutPoint, TxInput>,
+    txo_spends: HashMap<OutPoint, InPoint>,
 }
 
 #[derive(Debug, Serialize)]
@@ -222,7 +222,7 @@ impl MemoryStore {
     }
 
     #[cfg(feature = "track-spends")]
-    pub fn index_txo_spend(&mut self, spent_prevout: OutPoint, spending_input: TxInput) -> bool {
+    pub fn index_txo_spend(&mut self, spent_prevout: OutPoint, spending_input: InPoint) -> bool {
         trace!(
             "index txo spend: prevout={:?} spending={:?}",
             spent_prevout,
@@ -308,7 +308,7 @@ impl MemoryStore {
     }
 
     #[cfg(feature = "track-spends")]
-    pub fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<TxInput> {
+    pub fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<InPoint> {
         // XXX don't return non-viabla (double-spent) spends?
         self.txo_spends.get(outpoint).copied()
     }

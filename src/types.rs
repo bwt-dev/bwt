@@ -27,16 +27,16 @@ hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
 pub struct BlockId(pub u32, pub BlockHash);
 
 #[derive(Debug, Copy, Clone)]
-pub struct TxInput {
+pub struct InPoint {
     pub txid: Txid,
     pub vin: u32,
 }
 
-impl_string_serializer!(TxInput, input, format!("{}:{}", input.txid, input.vin));
+impl_string_serializer!(InPoint, input, format!("{}:{}", input.txid, input.vin));
 
-impl TxInput {
+impl InPoint {
     pub fn new(txid: Txid, vin: u32) -> Self {
-        TxInput { txid, vin }
+        InPoint { txid, vin }
     }
 }
 

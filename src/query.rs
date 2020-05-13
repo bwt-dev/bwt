@@ -17,7 +17,7 @@ use crate::types::{BlockId, ScriptHash, TxStatus};
 use crate::util::make_fee_histogram;
 
 #[cfg(feature = "track-spends")]
-use crate::types::TxInput;
+use crate::types::InPoint;
 
 lazy_static! {
     static ref FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(60);
@@ -419,7 +419,7 @@ pub struct Txo {
     #[serde(flatten)]
     pub status: TxStatus,
     #[cfg(feature = "track-spends")]
-    pub spent_by: Option<TxInput>,
+    pub spent_by: Option<InPoint>,
 }
 
 impl Txo {
@@ -458,7 +458,7 @@ struct TxDetailFunding {
     script_info: ScriptInfo,
     amount: u64,
     #[cfg(feature = "track-spends")]
-    spent_by: Option<TxInput>,
+    spent_by: Option<InPoint>,
 }
 
 #[derive(Serialize, Debug)]

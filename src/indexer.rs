@@ -13,7 +13,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWatcher, KeyOrigin};
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo};
-use crate::types::{BlockId, ScriptHash, TxInput, TxStatus};
+use crate::types::{BlockId, InPoint, ScriptHash, TxStatus};
 
 pub struct Indexer {
     rpc: Arc<RpcClient>,
@@ -228,7 +228,7 @@ impl Indexer {
             .filter_map(|(vin, input)| {
                 let FundingInfo(scripthash, amount) =
                     self.store.lookup_txo_fund(&input.previous_output)?;
-                let input_point = TxInput::new(txid, vin as u32);
+                let input_point = InPoint::new(txid, vin as u32);
 
                 #[cfg(feature = "track-spends")]
                 self.store
@@ -265,7 +265,7 @@ pub enum IndexChange {
 
     History(ScriptHash, Txid, Option<u32>),
     TxoCreated(OutPoint, Option<u32>),
-    TxoSpent(OutPoint, TxInput, Option<u32>),
+    TxoSpent(OutPoint, InPoint, Option<u32>),
 }
 
 enum Changelog {
