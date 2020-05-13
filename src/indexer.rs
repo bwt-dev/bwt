@@ -395,7 +395,7 @@ fn load_transactions_since(
             tip_height-start_height+1, start_height, tip_hash, tip_height,
         );
     } else {
-        info!(
+        debug!(
             "syncing mempool transactions (best={} height={})",
             tip_hash, tip_height
         );
