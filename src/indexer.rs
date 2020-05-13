@@ -264,7 +264,9 @@ impl Indexer {
             })
             .collect();
 
-        self.store.index_tx_inputs_spending(&txid, spending);
+        if !spending.is_empty() {
+            self.store.index_tx_inputs_spending(&txid, spending);
+        }
 
         Ok(())
     }
