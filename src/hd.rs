@@ -256,6 +256,10 @@ impl HDWallet {
     pub fn derive_address(&self, index: u32) -> Address {
         self.to_address(&self.derive(index))
     }
+
+    pub fn with_origin(&self) -> HDWalletOrigin {
+        HDWalletOrigin::new(self)
+    }
 }
 fn batch_import(
     rpc: &RpcClient,
@@ -328,6 +332,14 @@ impl KeyOrigin {
             (Some(&LABEL_PREFIX), None, None) => Some(KeyOrigin::Standalone),
             _ => None,
         }
+    }
+
+    pub fn from_extkey(key: &ExtendedPubKey) -> Self {
+        let derivation_index = match key.child_number {
+            ChildNumber::Normal { index } => index,
+            ChildNumber::Hardened { .. } => unreachable!("unexpected hardened derivation"),
+        };
+        KeyOrigin::Derived(key.parent_fingerprint, derivation_index)
     }
 
     pub fn is_standalone(origin: &KeyOrigin) -> bool {
@@ -405,5 +417,23 @@ fn get_xpub_p2pkh_version(network: Network) -> [u8; 4] {
     match network {
         Network::Bitcoin => [0x04u8, 0x88, 0xB2, 0x1E],
         Network::Testnet | Network::Regtest => [0x04u8, 0x35, 0x87, 0xCF],
+    }
+}
+
+// Serialize an HDWallet struct, but with an additional virtual "origin" field
+// there must be some easier way to do this?
+#[derive(Serialize)]
+pub struct HDWalletOrigin<'a> {
+    #[serde(flatten)]
+    wallet: &'a HDWallet,
+    origin: KeyOrigin,
+}
+
+impl<'a> HDWalletOrigin<'a> {
+    pub fn new(wallet: &'a HDWallet) -> Self {
+        HDWalletOrigin {
+            wallet,
+            origin: KeyOrigin::from_extkey(&wallet.master),
+        }
     }
 }
