@@ -36,6 +36,7 @@ impl App {
 
         let wallets = HDWallet::from_xpubs(
             &config.xpubs[..],
+            &config.bare_xpubs[..],
             config.network,
             config.gap_limit,
             config.initial_gap_limit,

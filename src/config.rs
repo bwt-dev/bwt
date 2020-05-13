@@ -69,10 +69,18 @@ pub struct Config {
     #[structopt(
         short = "x",
         long = "xpub",
-        help = "xpubs to scan and since when (<xpub>, <xpub>:all, <xpub>:none, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
+        help = "xpubs to track and since when (<xpub>, <xpub>:all, <xpub>:none, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
         parse(try_from_str = parse_xpub)
     )]
     pub xpubs: Vec<(XyzPubKey, KeyRescan)>,
+
+    #[structopt(
+        short = "X",
+        long = "bare-xpub",
+        help = "bare xpubs to track; like --xpub but does not derive separate internal and external chains",
+        parse(try_from_str = parse_xpub)
+    )]
+    pub bare_xpubs: Vec<(XyzPubKey, KeyRescan)>,
 
     #[structopt(
         short = "g",

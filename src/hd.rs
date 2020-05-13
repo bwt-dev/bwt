@@ -152,6 +152,30 @@ impl HDWallet {
         }
     }
 
+    pub fn from_bare_xpub(
+        xpub: XyzPubKey,
+        network: Network,
+        gap_limit: u32,
+        initial_gap_limit: u32,
+        rescan_policy: KeyRescan,
+    ) -> Result<Self> {
+        ensure!(
+            xpub.matches_network(network),
+            "xpub network mismatch, {} is {} and not {}",
+            xpub,
+            xpub.network,
+            network
+        );
+        Ok(Self::new(
+            xpub.extended_pubkey,
+            network,
+            xpub.script_type,
+            gap_limit,
+            initial_gap_limit,
+            rescan_policy,
+        ))
+    }
+
     pub fn from_xpub(
         xpub: XyzPubKey,
         network: Network,
@@ -166,28 +190,23 @@ impl HDWallet {
             xpub.network,
             network
         );
-
-        let XyzPubKey {
-            extended_pubkey: key,
-            script_type,
-            ..
-        } = xpub;
-
         Ok(vec![
             // external chain (receive)
             Self::new(
-                key.derive_pub(&*EC, &[ChildNumber::from(0)])?,
+                xpub.extended_pubkey
+                    .derive_pub(&*EC, &[ChildNumber::from(0)])?,
                 network,
-                script_type,
+                xpub.script_type,
                 gap_limit,
                 initial_gap_limit,
                 rescan_policy,
             ),
             // internal chain (change)
             Self::new(
-                key.derive_pub(&*EC, &[ChildNumber::from(1)])?,
+                xpub.extended_pubkey
+                    .derive_pub(&*EC, &[ChildNumber::from(1)])?,
                 network,
-                script_type,
+                xpub.script_type,
                 gap_limit,
                 initial_gap_limit,
                 rescan_policy,
@@ -197,6 +216,7 @@ impl HDWallet {
 
     pub fn from_xpubs(
         xpubs: &[(XyzPubKey, KeyRescan)],
+        bare_xpubs: &[(XyzPubKey, KeyRescan)],
         network: Network,
         gap_limit: u32,
         initial_gap_limit: u32,
@@ -205,6 +225,12 @@ impl HDWallet {
         for (xpub, rescan) in xpubs {
             wallets.append(
                 &mut Self::from_xpub(xpub.clone(), network, gap_limit, initial_gap_limit, *rescan)
+                    .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
+            );
+        }
+        for (xpub, rescan) in bare_xpubs {
+            wallets.push(
+                Self::from_bare_xpub(xpub.clone(), network, gap_limit, initial_gap_limit, *rescan)
                     .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
             );
         }
