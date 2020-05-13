@@ -178,8 +178,6 @@ impl Indexer {
         tip_height: u32,
         changelog: &mut Changelog,
     ) {
-        // XXX stop early if we're familiar with this txid and its long confirmed
-
         let origin = match ltx
             .detail
             .label
@@ -227,12 +225,12 @@ impl Indexer {
     ) -> Result<()> {
         trace!("processing outgoing tx txid={} status={:?}", txid, status);
 
-        self.upsert_tx(&txid, status, Some(fee), changelog);
-
-        let tx_entry = self.store.get_tx_entry(&txid).unwrap();
-        if !tx_entry.spending.is_empty() {
-            trace!("skipping outgoing tx {}, already indexed", txid);
-            return Ok(());
+        if let Some(tx_entry) = self.store.get_tx_entry(&txid) {
+            if !tx_entry.spending.is_empty() {
+                // TODO keep a marker for processed transactions that had no spending inputs
+                trace!("skipping outgoing tx {}, already indexed", txid);
+                return Ok(());
+            }
         }
 
         let tx = self.rpc.get_transaction(&txid, Some(true))?.transaction()?;
@@ -265,6 +263,7 @@ impl Indexer {
             .collect();
 
         if !spending.is_empty() {
+            self.upsert_tx(&txid, status, Some(fee), changelog);
             self.store.index_tx_inputs_spending(&txid, spending);
         }
 
