@@ -40,7 +40,25 @@ impl Indexer {
         &self.watcher
     }
 
-    pub fn sync(&mut self, track_changelog: bool) -> Result<Vec<IndexChange>> {
+    // continue to sync transactions and import addresses until no more new addresses need to be
+    // imported. the initial sync does not collect the Changelog and does not emit updates.
+    pub fn initial_sync(&mut self) -> Result<()> {
+        info!("starting initial sync");
+        while {
+            self._sync(false)?;
+            self.watcher.watch(&self.rpc)?
+        } { /* do while */ }
+        Ok(())
+    }
+
+    // initiate a regular sync to catch up with updates and import new look-ahead addresses
+    pub fn sync(&mut self) -> Result<Vec<IndexChange>> {
+        let changelog = self._sync(true)?;
+        self.watcher.watch(&self.rpc)?;
+        Ok(changelog)
+    }
+
+    fn _sync(&mut self, track_changelog: bool) -> Result<Vec<IndexChange>> {
         let mut changelog = Changelog::new(track_changelog);
 
         // Detect reorgs and start syncing history from scratch when they happen
@@ -60,8 +78,6 @@ impl Indexer {
         }
 
         let synced_tip = self.sync_transactions(&mut changelog)?;
-
-        self.watcher.watch(&self.rpc)?;
 
         if self.tip.as_ref() != Some(&synced_tip) {
             info!("synced up to {:?}", synced_tip);

@@ -57,7 +57,7 @@ impl HDWatcher {
         }
     }
 
-    pub fn watch(&mut self, rpc: &RpcClient) -> Result<()> {
+    pub fn watch(&mut self, rpc: &RpcClient) -> Result<bool> {
         let mut import_reqs = vec![];
         let mut pending_updates = vec![];
 
@@ -91,7 +91,9 @@ impl HDWatcher {
             }
         }
 
-        if !import_reqs.is_empty() {
+        let has_imports = !import_reqs.is_empty();
+
+        if has_imports {
             info!("importing batch of {} addresses", import_reqs.len());
             batch_import(rpc, import_reqs)?;
             info!("done importing batch");
@@ -105,7 +107,7 @@ impl HDWatcher {
             wallet.max_imported_index = Some(watched_index);
         }
 
-        Ok(())
+        Ok(has_imports)
     }
 }
 
@@ -259,7 +261,9 @@ fn batch_import(
     rpc: &RpcClient,
     import_reqs: Vec<(Address, KeyRescan, KeyOrigin)>,
 ) -> Result<Vec<Value>> {
-    // TODO: parse result, detect errors
+    // TODO parse result, detect errors
+    // TODO use importmulti with ranged descriptors? the key derivation info won't be
+    // directly available on `listtransactions` and would require an additional rpc all.
     Ok(rpc.call(
         "importmulti",
         &[json!(import_reqs

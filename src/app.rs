@@ -1,5 +1,5 @@
-use std::{thread, time};
 use std::sync::{mpsc, Arc, RwLock};
+use std::{thread, time};
 
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
@@ -52,7 +52,7 @@ impl App {
         wait_ibd(&rpc)?;
 
         // do an initial sync without keeping track of updates
-        indexer.write().unwrap().sync(false)?;
+        indexer.write().unwrap().initial_sync()?;
 
         let (sync_tx, sync_rx) = mpsc::channel();
         // debounce sync message rate to avoid excessive indexing when bitcoind catches up
@@ -93,7 +93,7 @@ impl App {
     /// Start a sync loop blocking the current thread
     pub fn sync(self) {
         loop {
-            match self.indexer.write().unwrap().sync(true) {
+            match self.indexer.write().unwrap().sync() {
                 Ok(updates) if updates.len() > 0 => {
                     #[cfg(feature = "electrum")]
                     self.electrum.send_updates(&updates);
