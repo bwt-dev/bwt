@@ -359,7 +359,7 @@ async fn run(
         .or(dump_handler)
         .or(debug_handler)
         .or(sync_handler)
-        .with(warp::log("pxt::http"))
+        .with(warp::log("bwt::http"))
         .with(warp::reply::with::headers(headers));
 
     info!("HTTP REST API server starting on http://{}/", addr);

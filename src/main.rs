@@ -1,7 +1,7 @@
 use log::Level;
 use structopt::StructOpt;
 
-use pxt::{App, Config, Result};
+use bwt::{App, Config, Result};
 
 #[allow(unreachable_code)]
 fn main() -> Result<()> {
@@ -18,7 +18,7 @@ fn main() -> Result<()> {
 fn setup_logger(verbose: usize) {
     pretty_env_logger::formatted_builder()
         .filter_module(
-            "pxt",
+            "bwt",
             match verbose {
                 0 => Level::Info,
                 1 => Level::Debug,

@@ -70,7 +70,7 @@ pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sen
             if tick_start.elapsed() < duration {
                 // if duration hasn't passed, debounce for another `duration` seconds
                 loop {
-                    trace!("debouncing sync for {:?}", duration);
+                    trace!(target: "bwt::real-time", "debouncing sync for {:?}", duration);
                     match debounce_rx.recv_timeout(duration) {
                         // if we receive another message within the `duration`, debounce and start over again
                         Ok(()) => continue,
@@ -80,7 +80,7 @@ pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sen
                     }
                 }
             }
-            info!(target: "pxt::real-time", "triggering real-time index sync");
+            info!(target: "bwt::real-time", "triggering real-time index sync");
             forward_tx.send(()).unwrap();
         }
     });

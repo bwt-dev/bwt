@@ -63,11 +63,11 @@ impl Connection {
     }
 
     fn server_version(&self) -> Result<Value> {
-        Ok(json!([format!("pxt {}", PXT_VERSION), PROTOCOL_VERSION]))
+        Ok(json!([format!("bwt {}", PXT_VERSION), PROTOCOL_VERSION]))
     }
 
     fn server_banner(&self) -> Result<Value> {
-        Ok(json!("Welcome to pxt 🚀🌑"))
+        Ok(json!("Welcome to bwt 🚀🌑"))
     }
 
     fn server_donation_address(&self) -> Result<Value> {

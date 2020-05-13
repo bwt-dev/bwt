@@ -13,7 +13,7 @@ use secp256k1::Secp256k1;
 use crate::error::{Result, ResultExt};
 use crate::types::{KeyRescan, ScriptType};
 
-const LABEL_PREFIX: &str = "pxt";
+const LABEL_PREFIX: &str = "bwt";
 
 lazy_static! {
     static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
@@ -404,7 +404,7 @@ impl FromStr for XyzPubKey {
         //
         // NOTE: this does mean that the fingerprints will be computed using the fauxed version
         // bytes instead of the real ones. that's okay as long as the fingerprints as consistent
-        // within pxt, but does mean that they will mismatch the fingerprints reported by other
+        // within bwt, but does mean that they will mismatch the fingerprints reported by other
         // software.
 
         let version = &data[0..4];
