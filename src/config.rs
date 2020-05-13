@@ -118,10 +118,17 @@ pub struct Config {
     #[structopt(
         short,
         long = "http-server-addr",
-        help = "address to bind the http rest server (host:port)",
+        help = "address to bind the http api server (host:port)",
         default_value = "127.0.0.1:3060"
     )]
     pub http_server_addr: net::SocketAddr,
+
+    #[cfg(feature = "http")]
+    #[structopt(
+        long = "cors",
+        help = "allowed cross-origins for http api server (Access-Control-Allow-Origin)"
+    )]
+    pub cors: Option<String>,
 
     #[cfg(unix)]
     #[structopt(
@@ -133,7 +140,7 @@ pub struct Config {
     #[cfg(feature = "webhooks")]
     #[structopt(
         long = "webhook-url",
-        help = "url to send index update notifications to"
+        help = "webhook url to notify with index event updates"
     )]
     pub webhook_urls: Option<Vec<String>>,
 }

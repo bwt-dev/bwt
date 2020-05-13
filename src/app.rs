@@ -47,8 +47,8 @@ impl App {
             config.bitcoind_url(),
             config.bitcoind_auth()?,
         )?);
-        let indexer = Arc::new(RwLock::new(Indexer::new(Arc::clone(&rpc), watcher)));
-        let query = Arc::new(Query::new(Arc::clone(&rpc), Arc::clone(&indexer)));
+        let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)));
+        let query = Arc::new(Query::new(rpc.clone(), indexer.clone()));
 
         wait_ibd(&rpc)?;
 
@@ -60,10 +60,15 @@ impl App {
         let sync_tx = debounce_sender(sync_tx, DEBOUNCE_SEC);
 
         #[cfg(feature = "electrum")]
-        let electrum = ElectrumServer::start(config.electrum_rpc_addr(), Arc::clone(&query));
+        let electrum = ElectrumServer::start(config.electrum_rpc_addr(), query.clone());
 
         #[cfg(feature = "http")]
-        let http = HttpServer::start(config.http_server_addr, Arc::clone(&query), sync_tx.clone());
+        let http = HttpServer::start(
+            config.http_server_addr,
+            config.cors.clone(),
+            query.clone(),
+            sync_tx.clone(),
+        );
 
         #[cfg(unix)]
         {

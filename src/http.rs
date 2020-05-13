@@ -8,7 +8,7 @@ use tokio::stream::{Stream, StreamExt};
 use tokio::sync::mpsc as tmpsc;
 use warp::http::StatusCode;
 use warp::sse::ServerSentEvent;
-use warp::{reply, Filter, Reply};
+use warp::{http::header, reply, Filter, Reply};
 
 use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{Address, OutPoint, Txid};
@@ -23,6 +23,7 @@ type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
 #[tokio::main]
 async fn run(
     addr: net::SocketAddr,
+    cors: Option<String>,
     query: Arc<Query>,
     sync_tx: SyncChanSender,
     listeners: Listeners,
@@ -30,6 +31,14 @@ async fn run(
     let query = warp::any().map(move || Arc::clone(&query));
     let sync_tx = warp::any().map(move || Arc::clone(&sync_tx));
     let listeners = warp::any().map(move || Arc::clone(&listeners));
+
+    let mut headers = header::HeaderMap::new();
+    if let Some(cors) = cors {
+        headers.insert(
+            "Access-Control-Allow-Origin",
+            header::HeaderValue::from_str(&cors).unwrap(),
+        );
+    }
 
     // GET /hd
     let hd_wallets_handler =
@@ -331,7 +340,8 @@ async fn run(
         .or(dump_handler)
         .or(debug_handler)
         .or(sync_handler)
-        .with(warp::log("pxt::http"));
+        .with(warp::log("pxt::http"))
+        .with(warp::reply::with::headers(headers));
 
     info!("HTTP REST API server starting on http://{}/", addr);
 
@@ -344,7 +354,12 @@ pub struct HttpServer {
 }
 
 impl HttpServer {
-    pub fn start(addr: net::SocketAddr, query: Arc<Query>, sync_tx: mpsc::Sender<()>) -> Self {
+    pub fn start(
+        addr: net::SocketAddr,
+        cors: Option<String>,
+        query: Arc<Query>,
+        sync_tx: mpsc::Sender<()>,
+    ) -> Self {
         let sync_tx = Arc::new(Mutex::new(sync_tx));
 
         let listeners: Listeners = Arc::new(Mutex::new(Vec::new()));
@@ -352,7 +367,7 @@ impl HttpServer {
 
         HttpServer {
             _thread: task::spawn(async move {
-                run(addr, query, sync_tx, thr_listeners);
+                run(addr, cors, query, sync_tx, thr_listeners);
             }),
             listeners,
         }
