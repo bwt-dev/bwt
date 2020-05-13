@@ -61,6 +61,15 @@ async fn run(
             },
         );
 
+    // GET /hd/:fingerprint/gap
+    let hd_gap_handler = warp::get()
+        .and(warp::path!("hd" / Fingerprint / "gap"))
+        .and(query.clone())
+        .map(|fingerprint: Fingerprint, query: Arc<Query>| {
+            let gap = query.find_hd_gap(&fingerprint);
+            reply::json(&gap)
+        });
+
     // Pre-processing
     // GET /address/:address/*
     // GET /scripthash/:scripthash/*
@@ -285,6 +294,7 @@ async fn run(
     let handlers = hd_wallets_handler
         .or(hd_wallet_handler)
         .or(hd_key_handler)
+        .or(hd_gap_handler)
         .or(spk_handler)
         .or(spk_utxo_handler)
         .or(spk_info_handler)

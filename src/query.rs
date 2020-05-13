@@ -349,6 +349,25 @@ impl Query {
             .cloned()
     }
 
+    pub fn find_hd_gap(&self, fingerprint: &Fingerprint) -> Option<usize> {
+        let indexer = self.indexer.read().unwrap();
+        let store = indexer.store();
+        let wallet = indexer.watcher().get(fingerprint)?;
+        let max_funded_index = wallet.max_funded_index?; // return None if this wallet has no history at all
+
+        let gap = (0..=max_funded_index)
+            .map(|derivation_index| ScriptHash::from(&wallet.derive_address(derivation_index)))
+            .fold((0, 0), |(curr_gap, max_gap), scripthash| {
+                if store.has_history(&scripthash) {
+                    (0, curr_gap.max(max_gap))
+                } else {
+                    (curr_gap + 1, max_gap)
+                }
+            })
+            .1;
+        Some(gap)
+    }
+
     // get the ScriptInfo entry of a derived hd key, without it necessarily being indexed
     pub fn get_hd_script_info(&self, fingerprint: &Fingerprint, index: u32) -> Option<ScriptInfo> {
         let indexer = self.indexer.read().unwrap();
@@ -372,9 +391,9 @@ impl Query {
                 TxDetailFunding {
                     vout: *vout,
                     script_info: store.get_script_info(scripthash).unwrap(), // must exists
+                    amount: *amount,
                     #[cfg(feature = "track-spends")]
                     spent_by: store.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
-                    amount: *amount,
                 }
             })
             .collect::<Vec<TxDetailFunding>>();

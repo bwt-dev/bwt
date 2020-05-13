@@ -317,6 +317,12 @@ impl MemoryStore {
         Some(&self.scripthashes.get(scripthash)?.history)
     }
 
+    pub fn has_history(&self, scripthash: &ScriptHash) -> bool {
+        self.scripthashes
+            .get(scripthash)
+            .map_or(false, |script_entry| !script_entry.history.is_empty())
+    }
+
     pub fn get_tx_count(&self, scripthash: &ScriptHash) -> usize {
         self.scripthashes
             .get(scripthash)

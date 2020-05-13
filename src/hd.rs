@@ -119,9 +119,9 @@ pub struct HDWallet {
     initial_gap_limit: u32,
     rescan_policy: KeyRescan,
 
-    max_funded_index: Option<u32>,
-    max_imported_index: Option<u32>,
-    done_initial_import: bool,
+    pub max_funded_index: Option<u32>,
+    pub max_imported_index: Option<u32>,
+    pub done_initial_import: bool,
 }
 
 // TODO figure out the imported indexes, either with listreceivedbyaddress (lots of data)
@@ -249,6 +249,10 @@ impl HDWallet {
             ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, self.network),
             ScriptType::P2shP2wpkh => Address::p2shwpkh(&key.public_key, self.network),
         }
+    }
+
+    pub fn derive_address(&self, index: u32) -> Address {
+        self.to_address(&self.derive(index))
     }
 }
 fn batch_import(
