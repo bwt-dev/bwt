@@ -7,13 +7,13 @@ use crate::indexer::IndexChange;
 
 pub struct WebHookNotifier {
     _thread: thread::JoinHandle<()>,
-    tx: mpsc::Sender<IndexChange>,
+    tx: mpsc::Sender<Vec<IndexChange>>,
     num_urls: usize,
 }
 
 impl WebHookNotifier {
     pub fn start(urls: Vec<String>) -> Self {
-        let (tx, rx) = mpsc::channel::<IndexChange>();
+        let (tx, rx) = mpsc::channel::<Vec<IndexChange>>();
         let num_urls = urls.len();
 
         Self {
@@ -21,15 +21,15 @@ impl WebHookNotifier {
             // TODO use reqwest's non-blocking mode
             _thread: thread::spawn(move || {
                 let client = reqwest::Client::new();
-                while let Ok(change) = rx.recv() {
+                while let Ok(changelog) = rx.recv() {
                     for url in &urls {
                         // XXX attach full tx info json to webhook request?
-                        debug!("notifying {}: {:?}", url, change);
+                        debug!("notifying {} with {} events", url, changelog.len());
                         client
                             .post(url)
-                            .json(&change)
+                            .json(&changelog)
                             .send()
-                            .map(|r| debug!("notifying {} succeed: {:#?}", url, r.status()))
+                            .map(|r| debug!("notifying {} succeed: {:?}", url, r.status()))
                             .map_err(|e| warn!("notifying {} failed: {:?}", url, e))
                             .ok();
                     }
@@ -42,14 +42,12 @@ impl WebHookNotifier {
 
     pub fn send_updates(&self, changelog: &Vec<IndexChange>) {
         info!(
-            "sending {} updates to {} urls",
+            "sending {} events to {} urls",
             changelog.len(),
             self.num_urls
         );
 
         // TODO implement filter support
-        for change in changelog {
-            self.tx.send(change.clone()).unwrap();
-        }
+        self.tx.send(changelog.clone()).unwrap();
     }
 }
