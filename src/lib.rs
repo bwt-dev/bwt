@@ -40,5 +40,5 @@ pub use app::App;
 pub use config::Config;
 pub use error::{Error, Result};
 pub use hd::{HDWallet, HDWatcher};
-pub use indexer::Indexer;
+pub use indexer::{IndexChange, Indexer};
 pub use query::Query;

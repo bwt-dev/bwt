@@ -14,9 +14,8 @@ use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{Address, OutPoint, Txid};
 
 use crate::error::{fmt_error_chain, Error, OptionExt};
-use crate::indexer::IndexChange;
 use crate::types::ScriptHash;
-use crate::Query;
+use crate::{store, IndexChange, Query};
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
 
@@ -171,7 +170,7 @@ async fn run(
         .and(warp::path!("history" / "compact"))
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
-            let txs = query.get_history(&scripthash);
+            let txs = query.map_history(&scripthash, compact_history);
             Ok(reply::json(&txs))
         })
         .map(handle_error);
@@ -229,7 +228,7 @@ async fn run(
         .and(warp::path!("txs" / "since" / u32 / "compact"))
         .and(query.clone())
         .map(|min_block_height: u32, query: Arc<Query>| {
-            let txs = query.get_history_since(min_block_height);
+            let txs = query.map_history_since(min_block_height, compact_history);
             reply::json(&txs)
         });
 
@@ -494,4 +493,8 @@ where
             reply::with_status(body, status).into_response()
         }
     }
+}
+
+fn compact_history(tx_hist: &store::HistoryEntry) -> serde_json::Value {
+    json!([tx_hist.txid, tx_hist.status.height()])
 }
