@@ -94,16 +94,16 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /address/:address/utxo
-    // GET /scripthash/:scripthash/utxo
+    // GET /address/:address/utxos
+    // GET /scripthash/:scripthash/utxos
     let spk_utxo_handler = warp::get()
         .and(spk_route)
-        .and(warp::path!("utxo"))
+        .and(warp::path!("utxos"))
         .and(warp::query::<UtxoOptions>())
         .and(query.clone())
         .map(|scripthash, options: UtxoOptions, query: Arc<Query>| {
             let utxos =
-                query.list_unspent(&scripthash, options.min_conf, options.include_unsafe)?;
+                query.list_unspent(Some(&scripthash), options.min_conf, options.include_unsafe)?;
             Ok(reply::json(&utxos))
         })
         .map(handle_error);
@@ -191,6 +191,29 @@ async fn run(
             reply::json(&txs)
         });
 
+    // GET /txo/:txid/:vout
+    let txo_handler = warp::get()
+        .and(warp::path!("txo" / Txid / u32))
+        .and(query.clone())
+        .map(|txid: Txid, vout: u32, query: Arc<Query>| {
+            let txo = query
+                .lookup_txo(&OutPoint::new(txid, vout))
+                .or_err("not found")?;
+            Ok(reply::json(&txo))
+        })
+        .map(handle_error);
+
+    // GET /utxos
+    let utxos_handler = warp::get()
+        .and(warp::path!("utxos"))
+        .and(warp::query::<UtxoOptions>())
+        .and(query.clone())
+        .map(|options: UtxoOptions, query: Arc<Query>| {
+            let utxos = query.list_unspent(None, options.min_conf, options.include_unsafe)?;
+            Ok(reply::json(&utxos))
+        })
+        .map(handle_error);
+
     // GET /stream
     let sse_handler = warp::get()
         .and(warp::path!("stream"))
@@ -272,6 +295,8 @@ async fn run(
         .or(tx_hex_handler)
         .or(txs_since_handler)
         .or(txs_since_compact_handler)
+        .or(txo_handler)
+        .or(utxos_handler)
         .or(sse_handler)
         .or(spk_sse_handler)
         .or(mempool_histogram_handler)

@@ -327,6 +327,10 @@ impl MemoryStore {
         self.transactions.get(txid)
     }
 
+    pub fn get_tx_status(&self, txid: &Txid) -> Option<TxStatus> {
+        Some(self.transactions.get(txid)?.status.clone())
+    }
+
     pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
         let script_entry = self.scripthashes.get(scripthash)?;
         Some(ScriptInfo::from_entry(*scripthash, script_entry))
@@ -358,7 +362,7 @@ impl MemoryStore {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub struct ScriptInfo {
     pub scripthash: ScriptHash,
     pub address: Address,
@@ -371,6 +375,13 @@ impl ScriptInfo {
         ScriptInfo {
             scripthash,
             address,
+            origin,
+        }
+    }
+    pub fn from_address(address: &Address, origin: KeyOrigin) -> Self {
+        ScriptInfo {
+            scripthash: ScriptHash::from(address),
+            address: address.clone(),
             origin,
         }
     }

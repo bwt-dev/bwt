@@ -191,14 +191,14 @@ impl Connection {
 
         let utxos: Vec<Value> = self
             .query
-            .list_unspent(&script_hash, 0, None)?
+            .list_unspent(Some(&script_hash), 0, None)?
             .into_iter()
             .map(|utxo| {
                 json!({
                     "height": electrum_height(&utxo.status),
                     "tx_hash": utxo.txid,
                     "tx_pos": utxo.vout,
-                    "value": utxo.value
+                    "value": utxo.amount,
                 })
             })
             .collect();

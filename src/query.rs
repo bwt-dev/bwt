@@ -80,6 +80,14 @@ impl Query {
         Ok(info.tx)
     }
 
+    pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {
+        Ok(self.rpc.send_raw_transaction(tx_hex)?)
+    }
+
+    pub fn get_raw_mempool(&self) -> Result<HashMap<Txid, Value>> {
+        Ok(self.rpc.call("getrawmempool", &[json!(true)])?)
+    }
+
     pub fn estimate_fee(&self, target: u16) -> Result<Option<f64>> {
         ensure!(target < 1024, "target out of range");
 
@@ -138,17 +146,50 @@ impl Query {
 
     pub fn list_unspent(
         &self,
-        scripthash: &ScriptHash,
+        scripthash: Option<&ScriptHash>,
         min_conf: usize,
         include_unsafe: Option<bool>,
-    ) -> Result<Vec<Utxo>> {
-        let address = self
-            .indexer
-            .read()
-            .unwrap()
-            .store()
-            .get_script_address(scripthash)
-            .or_err("unknown scripthash")?;
+    ) -> Result<Vec<Txo>> {
+        let (BlockId(tip_height, _), unspents) =
+            self.list_unspent_raw(scripthash, min_conf, include_unsafe)?;
+
+        let req_script_info =
+            scripthash.map_or(Ok(None), |scripthash| -> Result<Option<ScriptInfo>> {
+                let indexer = self.indexer.read().unwrap();
+                let info = indexer.store().get_script_info(scripthash);
+                Ok(Some(info.or_err("unknown scripthash")?))
+            })?;
+
+        Ok(unspents
+            .into_iter()
+            .filter_map(|unspent| {
+                // XXX we assume that any unspent output with a "bwt/..." label is ours, this may not necessarily be true.
+                let script_info = req_script_info.clone().or_else(|| {
+                    let address = unspent.address.as_ref()?;
+                    let label = unspent.label.as_ref()?;
+                    let origin = KeyOrigin::from_label(label)?;
+                    Some(ScriptInfo::from_address(address, origin))
+                })?;
+                Some(Txo::from_unspent(unspent, script_info, tip_height))
+            })
+            .collect())
+    }
+
+    fn list_unspent_raw(
+        &self,
+        scripthash: Option<&ScriptHash>,
+        min_conf: usize,
+        include_unsafe: Option<bool>,
+    ) -> Result<(BlockId, Vec<rpcjson::ListUnspentResultEntry>)> {
+        let address =
+            scripthash.map_or(Ok(None), |scripthash| -> Result<Option<bitcoin::Address>> {
+                let indexer = self.indexer.read().unwrap();
+                let address = indexer.store().get_script_address(scripthash);
+                Ok(Some(address.or_err("unknown scripthash")?))
+            })?;
+
+        // an empty array indicates not to filter by the address
+        let addresses = address.as_ref().map_or(vec![], |address| vec![address]);
 
         loop {
             let tip_height = self.rpc.get_block_count()? as u32;
@@ -157,7 +198,7 @@ impl Query {
             let unspents = self.rpc.list_unspent(
                 Some(min_conf),
                 None,
-                Some(&[&address]),
+                Some(&addresses[..]),
                 include_unsafe,
                 None,
             )?;
@@ -167,12 +208,28 @@ impl Query {
                 continue;
             }
 
-            return Ok(unspents
-                .into_iter()
-                .map(|unspent| Utxo::from_unspent(unspent, tip_height))
-                .filter(|utxo| utxo.status.is_viable())
-                .collect());
+            return Ok((BlockId(tip_height, tip_hash), unspents));
         }
+    }
+
+    pub fn lookup_txo(&self, outpoint: &OutPoint) -> Option<Txo> {
+        let indexer = self.indexer.read().unwrap();
+        let store = indexer.store();
+
+        let FundingInfo(scripthash, amount) = store.lookup_txo_fund(outpoint)?;
+        let script_info = store.get_script_info(&scripthash).unwrap();
+        let status = store.get_tx_status(&outpoint.txid)?;
+
+        Some(Txo {
+            txid: outpoint.txid,
+            vout: outpoint.vout,
+            amount,
+            script_info,
+            status,
+            safe: None,
+            #[cfg(feature = "track-spends")]
+            spent_by: store.lookup_txo_spend(outpoint),
+        })
     }
 
     // avoid unnecessary copies by directly operating on the history entries as a reference
@@ -210,16 +267,15 @@ impl Query {
 
     /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)
     pub fn get_balance(&self, scripthash: &ScriptHash) -> Result<(u64, u64)> {
-        let utxos = self.list_unspent(scripthash, 0, None)?;
+        let (_, unspents) = self.list_unspent_raw(Some(scripthash), 0, None)?;
 
-        let (confirmed, unconfirmed): (Vec<Utxo>, Vec<Utxo>) = utxos
+        let (confirmed, unconfirmed): (Vec<_>, Vec<_>) = unspents
             .into_iter()
-            .filter(|utxo| utxo.status.is_viable())
-            .partition(|utxo| utxo.status.is_confirmed());
+            .partition(|utxo| utxo.confirmations > 0);
 
         Ok((
-            confirmed.iter().map(|u| u.value).sum(),
-            unconfirmed.iter().map(|u| u.value).sum(),
+            confirmed.iter().map(|u| u.amount.as_sat()).sum(),
+            unconfirmed.iter().map(|u| u.amount.as_sat()).sum(),
         ))
     }
 
@@ -234,14 +290,6 @@ impl Query {
             "getrawtransaction",
             &[json!(txid), true.into(), json!(blockhash)],
         )?)
-    }
-
-    pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {
-        Ok(self.rpc.send_raw_transaction(tx_hex)?)
-    }
-
-    pub fn get_raw_mempool(&self) -> Result<HashMap<Txid, Value>> {
-        Ok(self.rpc.call("getrawmempool", &[json!(true)])?)
     }
 
     pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
@@ -363,23 +411,35 @@ impl Query {
 }
 
 #[derive(Debug, Serialize)]
-pub struct Utxo {
-    #[serde(flatten)]
-    pub status: TxStatus,
+pub struct Txo {
     pub txid: Txid,
     pub vout: u32,
-    pub value: u64,
-    pub safe: bool,
+    pub amount: u64,
+    #[serde(flatten)]
+    pub script_info: ScriptInfo,
+    #[serde(flatten)]
+    pub status: TxStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safe: Option<bool>, // not be available for txos we get from bwt's internal index
+    #[cfg(feature = "track-spends")]
+    pub spent_by: Option<TxInput>,
 }
 
-impl Utxo {
-    pub fn from_unspent(unspent: rpcjson::ListUnspentResultEntry, tip_height: u32) -> Self {
+impl Txo {
+    pub fn from_unspent(
+        unspent: rpcjson::ListUnspentResultEntry,
+        script_info: ScriptInfo,
+        tip_height: u32,
+    ) -> Self {
         Self {
-            status: TxStatus::new(unspent.confirmations as i32, tip_height),
             txid: unspent.txid,
             vout: unspent.vout,
-            value: unspent.amount.as_sat(),
-            safe: unspent.safe,
+            amount: unspent.amount.as_sat(),
+            script_info: script_info,
+            status: TxStatus::new(unspent.confirmations as i32, tip_height),
+            safe: Some(unspent.safe),
+            #[cfg(feature = "track-spends")]
+            spent_by: None,
         }
     }
 }

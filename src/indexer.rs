@@ -171,6 +171,7 @@ impl Indexer {
             .and_then(|l| KeyOrigin::from_label(l))
         {
             Some(origin) => origin,
+            // XXX we assume that any address with a "bwt/..." label is ours, this may not necessarily be true.
             None => return,
         };
         let txid = ltx.info.txid;
