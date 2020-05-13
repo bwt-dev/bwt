@@ -145,7 +145,7 @@ async fn run(
 
     // Pre-processing
     // GET /tx/:txid/*
-    let tx_route = warp::path!("tx" / Txid);
+    let tx_route = warp::path!("tx" / Txid / ..);
 
     // GET /tx/:txid
     let tx_handler = warp::get()
@@ -199,6 +199,16 @@ async fn run(
             let txs = query.get_history_since(min_block_height);
             reply::json(&txs)
         });
+
+    // POST /tx
+    let tx_broadcast_handler = warp::post()
+        .and(warp::body::json())
+        .and(query.clone())
+        .map(|body: BroadcastBody, query: Arc<Query>| {
+            let txid = query.broadcast(&body.tx_hex)?;
+            Ok(txid.to_string())
+        })
+        .map(handle_error);
 
     // GET /txo/:txid/:vout
     let txo_handler = warp::get()
@@ -305,6 +315,7 @@ async fn run(
         .or(tx_hex_handler)
         .or(txs_since_handler)
         .or(txs_since_compact_handler)
+        .or(tx_broadcast_handler)
         .or(txo_handler)
         .or(utxos_handler)
         .or(sse_handler)
@@ -423,6 +434,11 @@ struct UtxoOptions {
     #[serde(default)]
     min_conf: usize,
     include_unsafe: Option<bool>,
+}
+
+#[derive(Deserialize, Debug)]
+struct BroadcastBody {
+    tx_hex: String,
 }
 
 fn handle_error<T>(result: Result<T, Error>) -> impl Reply
