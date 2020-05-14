@@ -20,7 +20,7 @@ const DEBOUNCE_SEC: u64 = 7;
 pub struct App {
     config: Config,
     indexer: Arc<RwLock<Indexer>>,
-    sync_rx: mpsc::Receiver<()>,
+    sync_chan: (mpsc::Sender<()>, mpsc::Receiver<()>),
 
     #[cfg(feature = "electrum")]
     electrum: ElectrumServer,
@@ -86,7 +86,7 @@ impl App {
         Ok(App {
             config,
             indexer,
-            sync_rx,
+            sync_chan: (sync_tx, sync_rx),
             #[cfg(feature = "electrum")]
             electrum,
             #[cfg(feature = "http")]
@@ -117,7 +117,10 @@ impl App {
             }
 
             // wait for poll_interval seconds, or until we receive a sync notification message
-            self.sync_rx.recv_timeout(self.config.poll_interval).ok();
+            self.sync_chan
+                .1
+                .recv_timeout(self.config.poll_interval)
+                .ok();
         }
     }
 }
