@@ -19,68 +19,67 @@ pub struct Config {
         short,
         long,
         help = "one of 'bitcoin', 'testnet' or 'regtest'",
-        default_value = "bitcoin"
+        default_value = "bitcoin",
+        display_order(1)
     )]
     pub network: Network,
 
     #[structopt(
         short,
         long,
-        help = "increase verbosity level (up to 3 times)",
-        parse(from_occurrences)
+        help = "increase verbosity level (up to 4 times)",
+        parse(from_occurrences),
+        display_order(99)
     )]
     pub verbose: usize,
 
     #[structopt(
-        short = "i",
-        long = "poll-interval",
-        help = "interval for checking new blocks/txs (in seconds)",
-        default_value = "5",
-        parse(try_from_str = parse_duration)
-    )]
-    pub poll_interval: time::Duration,
-
-    #[structopt(
         short = "d",
         long = "bitcoind-dir",
-        help = "path to bitcoind directory (used for cookie file, defaults to ~/.bitcoin/<network>)"
+        help = "path to bitcoind directory (used for cookie file, defaults to ~/.bitcoin/<network>)",
+        display_order(30)
     )]
     pub bitcoind_dir: Option<path::PathBuf>,
 
     #[structopt(
         short = "u",
         long = "bitcoind-url",
-        help = "url for the bitcoind rpc server (defaults to http://localhost:<network-rpc-port>)"
+        help = "url for the bitcoind rpc server (defaults to http://localhost:<network-rpc-port>)",
+        display_order(31)
     )]
     pub bitcoind_url: Option<String>,
 
     #[structopt(
-        short = "C",
+        short = "c",
         long = "bitcoind-cred",
-        help = "credentials for accessing the bitcoind rpc server (as <username>:<password>, instead of reading the cookie file)"
+        help = "credentials for accessing the bitcoind rpc server (as <username>:<password>, instead of reading the cookie file)",
+        display_order(32)
     )]
     pub bitcoind_cred: Option<String>,
 
     #[structopt(
-        short = "c",
+        short = "C",
         long = "bitcoind-cookie",
-        help = "cookie file for accessing the bitcoind rpc server (defaults to <bitcoind-dir>/.cookie)"
+        help = "cookie file for accessing the bitcoind rpc server (defaults to <bitcoind-dir>/.cookie)",
+        display_order(33)
     )]
     pub bitcoind_cookie: Option<path::PathBuf>,
 
     #[structopt(
         short = "x",
         long = "xpub",
-        help = "xpubs to track and since when (<xpub>, <xpub>:all, <xpub>:none, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
-        parse(try_from_str = parse_xpub)
+        help = "xpubs to track and since when (rescans from genesis by default, use <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch> to specify a timestmap, or <xpub>:none to disable rescanning)",
+        parse(try_from_str = parse_xpub),
+        display_order(20)
     )]
     pub xpubs: Vec<(XyzPubKey, RescanSince)>,
 
     #[structopt(
         short = "X",
         long = "bare-xpub",
-        help = "bare xpubs to track; like --xpub but does not derive separate internal and external chains",
-        parse(try_from_str = parse_xpub)
+        help = "bare xpubs to track (like --xpub but does not derive separate internal and external chains)",
+        parse(try_from_str = parse_xpub),
+        display_order(21)
     )]
     pub bare_xpubs: Vec<(XyzPubKey, RescanSince)>,
 
@@ -88,7 +87,8 @@ pub struct Config {
         short = "g",
         long = "gap-limit",
         help = "gap limit for importing hd addresses",
-        default_value = "20"
+        default_value = "20",
+        display_order(51)
     )]
     pub gap_limit: u32,
 
@@ -96,7 +96,8 @@ pub struct Config {
         short = "G",
         long = "initial-gap-limit",
         help = "gap limit to be used during the initial sync (higher to reduce number of rescans)",
-        default_value = "50"
+        default_value = "50",
+        display_order(52)
     )]
     pub initial_gap_limit: u32,
 
@@ -112,7 +113,8 @@ pub struct Config {
     #[structopt(
         short,
         long = "electrum-rpc-addr",
-        help = "address to bind the electrum rpc server (host:port)"
+        help = "address to bind the electrum rpc server (host:port) [default: 50001 for mainnet, 50001 for testnet or 60401 for regtest]",
+        display_order(40)
     )]
     pub electrum_rpc_addr: Option<net::SocketAddr>,
 
@@ -121,28 +123,44 @@ pub struct Config {
         short,
         long = "http-server-addr",
         help = "address to bind the http api server (host:port)",
-        default_value = "127.0.0.1:3060"
+        default_value = "127.0.0.1:3060",
+        display_order(41)
     )]
     pub http_server_addr: net::SocketAddr,
 
     #[cfg(feature = "http")]
     #[structopt(
         long = "http-cors",
-        help = "allowed cross-origins for http api server (Access-Control-Allow-Origin)"
+        help = "allowed cross-origins for http api server (Access-Control-Allow-Origin)",
+        display_order(42)
     )]
     pub http_cors: Option<String>,
+
+    #[structopt(
+        short = "i",
+        long = "poll-interval",
+        help = "interval for checking new blocks/txs (in seconds)",
+        default_value = "5",
+        parse(try_from_str = parse_duration),
+        display_order(90)
+    )]
+    pub poll_interval: time::Duration,
 
     #[cfg(unix)]
     #[structopt(
         long = "unix-listener-path",
-        help = "path for binding sync notification unix socket"
+        short = "U",
+        help = "path for binding sync notification unix socket",
+        display_order(91)
     )]
     pub unix_listener_path: Option<path::PathBuf>,
 
     #[cfg(feature = "webhooks")]
     #[structopt(
         long = "webhook-url",
-        help = "webhook url to notify with index event updates"
+        short = "w",
+        help = "webhook url(s) to notify with index event updates",
+        display_order(92)
     )]
     pub webhook_urls: Option<Vec<String>>,
 }
@@ -245,7 +263,6 @@ fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {
 fn parse_rescan(s: &str) -> Result<RescanSince> {
     Ok(match s {
         "none" => RescanSince::Now,
-        "all" => RescanSince::Timestamp(0),
         s => {
             // try as a unix timestamp first, then as a datetime string
             RescanSince::Timestamp(
