@@ -179,16 +179,11 @@ impl Indexer {
         tip_height: u32,
         changelog: &mut Changelog,
     ) {
-        let origin = match ltx
-            .detail
-            .label
-            .as_ref()
-            .and_then(|l| KeyOrigin::from_label(l))
-        {
-            Some(origin) => origin,
-            // XXX we assume that any address with a "bwt/..." label is ours, this may not necessarily be true.
-            None => return,
-        };
+        let label = ltx.detail.label.as_ref();
+        let origin = some_or_ret!(label.and_then(|l| KeyOrigin::from_label(l)));
+
+        // XXX we assume that any address with a "bwt/..." label is ours, this may not necessarily be true.
+
         let txid = ltx.info.txid;
         let vout = ltx.detail.vout;
         let scripthash = ScriptHash::from(&ltx.detail.address);
@@ -202,7 +197,6 @@ impl Indexer {
 
         self.upsert_tx(&txid, status, None, changelog);
 
-        // XXX make sure this origin really belongs to a known wallet?
         self.store
             .index_scripthash(&scripthash, &origin, &ltx.detail.address);
 
