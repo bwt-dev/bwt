@@ -1,11 +1,13 @@
 use std::str::FromStr;
 use std::{net, path, time};
 
-use bitcoin::Network;
-use bitcoincore_rpc::Auth as RpcAuth;
 use chrono::{TimeZone, Utc};
 use dirs::home_dir;
+use log::Level;
 use structopt::StructOpt;
+
+use bitcoin::Network;
+use bitcoincore_rpc::Auth as RpcAuth;
 
 use crate::error::{OptionExt, Result, ResultExt};
 use crate::hd::XyzPubKey;
@@ -185,6 +187,49 @@ impl Config {
                 },
             )
         })
+    }
+
+    pub fn setup_logger(&self) {
+        pretty_env_logger::formatted_builder()
+            .filter_module(
+                "bwt",
+                match self.verbose {
+                    0 => Level::Info,
+                    1 => Level::Debug,
+                    _ => Level::Trace,
+                }
+                .to_level_filter(),
+            )
+            .filter_module(
+                "bitcoincore_rpc",
+                match self.verbose {
+                    0 | 1 => Level::Warn,
+                    2 => Level::Debug,
+                    _ => Level::Trace,
+                }
+                .to_level_filter(),
+            )
+            .filter_module(
+                "warp",
+                match self.verbose {
+                    0 | 1 => Level::Warn,
+                    2 => Level::Info,
+                    3 => Level::Debug,
+                    _ => Level::Trace,
+                }
+                .to_level_filter(),
+            )
+            .filter_module("hyper", Level::Warn.to_level_filter())
+            .filter_level(
+                match self.verbose {
+                    0 | 1 => Level::Warn,
+                    2 | 3 => Level::Info,
+                    4 => Level::Debug,
+                    _ => Level::Trace,
+                }
+                .to_level_filter(),
+            )
+            .init();
     }
 }
 
