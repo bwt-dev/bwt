@@ -111,9 +111,8 @@ impl HDWatcher {
     }
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct HDWallet {
-    #[serde(rename = "xpub")]
     master: ExtendedPubKey,
     network: Network,
     script_type: ScriptType,
@@ -283,10 +282,6 @@ impl HDWallet {
         self.to_address(&self.derive(index))
     }
 
-    pub fn with_origin(&self) -> HDWalletOrigin {
-        HDWalletOrigin::new(self)
-    }
-
     pub fn get_next_index(&self) -> u32 {
         self.max_funded_index
             .map_or(0, |max_funded_index| max_funded_index + 1)
@@ -451,20 +446,25 @@ fn get_xpub_p2pkh_version(network: Network) -> [u8; 4] {
     }
 }
 
-// Serialize an HDWallet struct, but with an additional virtual "origin" field
-// there must be some easier way to do this?
-#[derive(Serialize)]
-pub struct HDWalletOrigin<'a> {
-    #[serde(flatten)]
-    wallet: &'a HDWallet,
-    origin: KeyOrigin,
-}
+use serde::ser::SerializeStruct;
 
-impl<'a> HDWalletOrigin<'a> {
-    pub fn new(wallet: &'a HDWallet) -> Self {
-        HDWalletOrigin {
-            wallet,
-            origin: KeyOrigin::from_extkey(&wallet.master),
-        }
+// Serialize the HDWallet struct with an additional virtual "origin" field
+impl Serialize for HDWallet {
+    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut rgb = serializer.serialize_struct("HDWallet", 3)?;
+        rgb.serialize_field("xpub", &self.master)?;
+        rgb.serialize_field("origin", &KeyOrigin::from_extkey(&self.master))?;
+        rgb.serialize_field("network", &self.network)?;
+        rgb.serialize_field("script_type", &self.script_type)?;
+        rgb.serialize_field("gap_limit", &self.gap_limit)?;
+        rgb.serialize_field("initial_gap_limit", &self.initial_gap_limit)?;
+        rgb.serialize_field("rescan_policy", &self.rescan_policy)?;
+        rgb.serialize_field("max_funded_index", &self.max_funded_index)?;
+        rgb.serialize_field("max_imported_index", &self.max_imported_index)?;
+        rgb.serialize_field("done_initial_import", &self.done_initial_import)?;
+        rgb.end()
     }
 }

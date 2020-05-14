@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::net;
 use std::sync::{mpsc, Arc, Mutex};
 
@@ -46,12 +45,7 @@ async fn run(
             .and(query.clone())
             .map(|query: Arc<Query>| {
                 let wallets = query.get_hd_wallets();
-                reply::json(
-                    &wallets
-                        .iter()
-                        .map(|(fp, wallet)| (fp, wallet.with_origin()))
-                        .collect::<HashMap<_, _>>(),
-                )
+                reply::json(&wallets)
             });
 
     // GET /hd/:fingerprint
@@ -60,7 +54,7 @@ async fn run(
         .and(query.clone())
         .map(|fingerprint: Fingerprint, query: Arc<Query>| {
             let wallet = query.get_hd_wallet(&fingerprint).or_err("not found")?;
-            Ok(reply::json(&wallet.with_origin()))
+            Ok(reply::json(&wallet))
         })
         .map(handle_error);
 
