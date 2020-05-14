@@ -26,7 +26,7 @@ impl Indexer {
     pub fn new(rpc: Arc<RpcClient>, watcher: HDWatcher) -> Self {
         Indexer {
             rpc,
-            watcher: watcher,
+            watcher,
             store: MemoryStore::new(),
             tip: None,
         }
@@ -48,6 +48,7 @@ impl Indexer {
             self._sync(false)?;
             self.watcher.watch(&self.rpc)?
         } { /* do while */ }
+        info!("done initial sync");
         Ok(())
     }
 
@@ -203,7 +204,7 @@ impl Indexer {
 
         // XXX make sure this origin really belongs to a known wallet?
         self.store
-            .track_scripthash(&scripthash, &origin, &ltx.detail.address);
+            .index_scripthash(&scripthash, &origin, &ltx.detail.address);
 
         let txo_added =
             self.store

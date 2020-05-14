@@ -42,7 +42,7 @@ impl HDWatcher {
         self.wallets.get(fingerprint)
     }
 
-    /// Mark an address as imported and optionally used
+    // Mark an address as funded
     pub fn mark_funded(&mut self, origin: &KeyOrigin) {
         if let KeyOrigin::Derived(parent_fingerprint, index) = origin {
             if let Some(wallet) = self.wallets.get_mut(parent_fingerprint) {
@@ -399,8 +399,8 @@ impl FromStr for XyzPubKey {
         //
         // NOTE: this does mean that the fingerprints will be computed using the fauxed version
         // bytes instead of the real ones. that's okay as long as the fingerprints as consistent
-        // within bwt, but does mean that they will mismatch the fingerprints reported by other
-        // software.
+        // within bwt, but does mean that they will mismatch the fingerprints reported by other software.
+        // This also means that it is impossible to export the same key chain using different script types.
 
         let version = &data[0..4];
         let (network, script_type) = parse_xyz_version(version)?;

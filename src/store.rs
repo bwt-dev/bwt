@@ -79,7 +79,7 @@ impl MemoryStore {
         }
     }
 
-    pub fn track_scripthash(
+    pub fn index_scripthash(
         &mut self,
         scripthash: &ScriptHash,
         origin: &KeyOrigin,
