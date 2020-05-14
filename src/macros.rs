@@ -65,3 +65,19 @@ macro_rules! cache_forever {
         return Ok(value);
     };
 }
+
+macro_rules! some_or_ret {
+    ($option:expr) => {
+        match $option {
+            Some(x) => x,
+            None => return,
+        }
+    };
+
+    ($option:expr, $ret:expr) => {
+        match $option {
+            Some(x) => x,
+            None => return $ret,
+        }
+    };
+}

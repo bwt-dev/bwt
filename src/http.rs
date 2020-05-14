@@ -96,13 +96,12 @@ async fn run(
         })
         .map(handle_error);
 
-    // Pre-processing
     // GET /address/:address/*
     // GET /scripthash/:scripthash/*
+    let scripthash_route = warp::path!("scripthash" / ScriptHash / ..);
     let address_route = warp::path!("address" / Address / ..)
         // TODO ensure!(address.network == config.network);
         .map(|address: Address| ScriptHash::from(&address));
-    let scripthash_route = warp::path!("scripthash" / ScriptHash / ..);
     let spk_route = address_route.or(scripthash_route).unify();
 
     // GET /address/:address
@@ -112,7 +111,7 @@ async fn run(
         .and(warp::path::end())
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
-            let script_stats = query.get_script_stats(&scripthash)?;
+            let script_stats = query.get_script_stats(&scripthash)?.or_err("not found")?;
             Ok(reply::json(&script_stats))
         })
         .map(handle_error);
@@ -169,7 +168,6 @@ async fn run(
         })
         .map(handle_error);
 
-    // Pre-processing
     // GET /tx/:txid/*
     let tx_route = warp::path!("tx" / Txid / ..);
 

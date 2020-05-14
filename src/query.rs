@@ -323,21 +323,20 @@ impl Query {
         self.map_history_since(min_block_height, |history_entry| history_entry.clone())
     }
 
-    pub fn get_script_stats(&self, scripthash: &ScriptHash) -> Result<ScriptStats> {
+    pub fn get_script_stats(&self, scripthash: &ScriptHash) -> Result<Option<ScriptStats>> {
         let indexer = self.indexer.read().unwrap();
         let store = indexer.store();
-        let script_info = store
-            .get_script_info(scripthash)
-            .or_err("scripthash not found")?;
+        let script_info = some_or_ret!(self.get_script_info(scripthash), Ok(None));
+
         let tx_count = store.get_tx_count(scripthash);
         let (confirmed_balance, unconfirmed_balance) = self.get_balance(scripthash)?;
 
-        Ok(ScriptStats {
+        Ok(Some(ScriptStats {
             script_info,
             tx_count,
             confirmed_balance,
             unconfirmed_balance,
-        })
+        }))
     }
 
     pub fn get_hd_wallets(&self) -> HashMap<Fingerprint, HDWallet> {
