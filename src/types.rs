@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
 
 use serde::Serialize;
-use serde_json::Value;
 
 use bitcoin::{Address, BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
+
+pub use bitcoincore_rpc::json::ImportMultiRescanSince as RescanSince;
 
 hash_newtype!(
     ScriptHash,
@@ -116,23 +117,5 @@ impl Ord for TxStatus {
 impl PartialOrd for TxStatus {
     fn partial_cmp(&self, other: &TxStatus) -> Option<Ordering> {
         Some(self.cmp(other))
-    }
-}
-
-#[derive(Copy, Clone, Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum KeyRescan {
-    None,
-    All,
-    Since(u32),
-}
-
-impl KeyRescan {
-    pub fn as_rpc_timestamp(&self) -> Value {
-        match self {
-            KeyRescan::None => json!("now"),
-            KeyRescan::All => json!(0),
-            KeyRescan::Since(epoch) => json!(epoch),
-        }
     }
 }

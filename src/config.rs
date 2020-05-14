@@ -9,7 +9,7 @@ use structopt::StructOpt;
 
 use crate::error::{OptionExt, Result, ResultExt};
 use crate::hd::XyzPubKey;
-use crate::types::KeyRescan;
+use crate::types::RescanSince;
 
 #[derive(StructOpt, Debug)]
 pub struct Config {
@@ -72,7 +72,7 @@ pub struct Config {
         help = "xpubs to track and since when (<xpub>, <xpub>:all, <xpub>:none, <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch>)",
         parse(try_from_str = parse_xpub)
     )]
-    pub xpubs: Vec<(XyzPubKey, KeyRescan)>,
+    pub xpubs: Vec<(XyzPubKey, RescanSince)>,
 
     #[structopt(
         short = "X",
@@ -80,7 +80,7 @@ pub struct Config {
         help = "bare xpubs to track; like --xpub but does not derive separate internal and external chains",
         parse(try_from_str = parse_xpub)
     )]
-    pub bare_xpubs: Vec<(XyzPubKey, KeyRescan)>,
+    pub bare_xpubs: Vec<(XyzPubKey, RescanSince)>,
 
     #[structopt(
         short = "g",
@@ -105,7 +105,7 @@ pub struct Config {
     //help = "addresses to track (address:yyyy-mm-dd)",
     //parse(try_from_str = "parse_address")
     //)]
-    //addresses: Vec<(String, KeyRescan)>,
+    //addresses: Vec<(String, RescanSince)>,
     #[cfg(feature = "electrum")]
     #[structopt(
         short,
@@ -188,21 +188,23 @@ impl Config {
     }
 }
 
-fn parse_xpub(s: &str) -> Result<(XyzPubKey, KeyRescan)> {
+fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {
     let mut parts = s.splitn(2, ":");
     let xpub = XyzPubKey::from_str(parts.next().or_err("missing xpub")?)?;
-    let rescan = parts.next().map_or(Ok(KeyRescan::Since(0)), parse_rescan)?;
+    let rescan = parts
+        .next()
+        .map_or(Ok(RescanSince::Timestamp(0)), parse_rescan)?;
     Ok((xpub, rescan))
 }
 
-fn parse_rescan(s: &str) -> Result<KeyRescan> {
+fn parse_rescan(s: &str) -> Result<RescanSince> {
     Ok(match s {
-        "none" => KeyRescan::None,
-        "all" => KeyRescan::All,
+        "none" => RescanSince::Now,
+        "all" => RescanSince::Timestamp(0),
         s => {
             // try as a unix timestamp first, then as a datetime string
-            KeyRescan::Since(
-                s.parse::<u32>()
+            RescanSince::Timestamp(
+                s.parse::<u64>()
                     .or_else(|_| parse_yyyymmdd(s))
                     .context("invalid rescan value")?,
             )
@@ -210,7 +212,7 @@ fn parse_rescan(s: &str) -> Result<KeyRescan> {
     })
 }
 
-fn parse_yyyymmdd(s: &str) -> Result<u32> {
+fn parse_yyyymmdd(s: &str) -> Result<u64> {
     let mut parts = s.splitn(3, "-");
     Ok(Utc
         .ymd_opt(
@@ -221,7 +223,7 @@ fn parse_yyyymmdd(s: &str) -> Result<u32> {
         .single()
         .req()?
         .and_hms(0, 0, 0)
-        .timestamp() as u32)
+        .timestamp() as u64)
 }
 
 fn parse_duration(s: &str) -> Result<time::Duration> {

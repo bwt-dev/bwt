@@ -3,15 +3,15 @@ use std::result::Result as StdResult;
 use std::str::FromStr;
 
 use serde::Serialize;
-use serde_json::Value;
 
 use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
 use bitcoin::{util::base58, Address, Network};
+use bitcoincore_rpc::json::{ImportMultiRequest, ImportMultiRequestScriptPubkey};
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use secp256k1::Secp256k1;
 
 use crate::error::{Result, ResultExt};
-use crate::types::{KeyRescan, ScriptType};
+use crate::types::{RescanSince, ScriptType};
 
 const LABEL_PREFIX: &str = "bwt";
 
@@ -69,7 +69,7 @@ impl HDWatcher {
                     .map_or(0, |max_imported| max_imported + 1);
 
                 let rescan = if wallet.done_initial_import {
-                    KeyRescan::None
+                    RescanSince::Now
                 } else {
                     wallet.rescan_policy
                 };
@@ -118,7 +118,7 @@ pub struct HDWallet {
     script_type: ScriptType,
     gap_limit: u32,
     initial_gap_limit: u32,
-    rescan_policy: KeyRescan,
+    rescan_policy: RescanSince,
 
     pub max_funded_index: Option<u32>,
     pub max_imported_index: Option<u32>,
@@ -135,7 +135,7 @@ impl HDWallet {
         script_type: ScriptType,
         gap_limit: u32,
         initial_gap_limit: u32,
-        rescan_policy: KeyRescan,
+        rescan_policy: RescanSince,
     ) -> Self {
         Self {
             master,
@@ -156,7 +156,7 @@ impl HDWallet {
         network: Network,
         gap_limit: u32,
         initial_gap_limit: u32,
-        rescan_policy: KeyRescan,
+        rescan_policy: RescanSince,
     ) -> Result<Self> {
         ensure!(
             xpub.matches_network(network),
@@ -180,7 +180,7 @@ impl HDWallet {
         network: Network,
         gap_limit: u32,
         initial_gap_limit: u32,
-        rescan_policy: KeyRescan,
+        rescan_policy: RescanSince,
     ) -> Result<Vec<Self>> {
         ensure!(
             xpub.matches_network(network),
@@ -214,8 +214,8 @@ impl HDWallet {
     }
 
     pub fn from_xpubs(
-        xpubs: &[(XyzPubKey, KeyRescan)],
-        bare_xpubs: &[(XyzPubKey, KeyRescan)],
+        xpubs: &[(XyzPubKey, RescanSince)],
+        bare_xpubs: &[(XyzPubKey, RescanSince)],
         network: Network,
         gap_limit: u32,
         initial_gap_limit: u32,
@@ -258,14 +258,14 @@ impl HDWallet {
         &self,
         start_index: u32,
         end_index: u32,
-        rescan: KeyRescan,
-    ) -> Vec<(Address, KeyRescan, KeyOrigin)> {
+        rescan: RescanSince,
+    ) -> Vec<(Address, RescanSince, String)> {
         (start_index..=end_index)
             .map(|index| {
                 let key = self.derive(index);
                 let address = self.to_address(&key);
                 let origin = KeyOrigin::Derived(key.parent_fingerprint, index);
-                (address, rescan, origin)
+                (address, rescan, origin.to_label())
             })
             .collect()
     }
@@ -287,20 +287,14 @@ impl HDWallet {
             .map_or(0, |max_funded_index| max_funded_index + 1)
     }
 }
-fn batch_import(
-    rpc: &RpcClient,
-    import_reqs: Vec<(Address, KeyRescan, KeyOrigin)>,
-) -> Result<Vec<Value>> {
-    // TODO parse result, detect errors
-    // TODO use importmulti with ranged descriptors? the key derivation info won't be
-    // directly available on `listtransactions` and would require an additional rpc all.
-    Ok(rpc.call(
-        "importmulti",
-        &[json!(import_reqs
-            .into_iter()
-            .map(|(address, rescan, origin)| {
-                let label = origin.to_label();
+fn batch_import(rpc: &RpcClient, import_reqs: Vec<(Address, RescanSince, String)>) -> Result<()> {
+    // XXX use importmulti with ranged descriptors? the key derivation info won't be
+    //     directly available on `listtransactions` and would require an additional rpc all.
 
+    let results = rpc.import_multi(
+        &import_reqs
+            .iter()
+            .map(|(address, rescan, label)| {
                 trace!(
                     "importing {} as {} with rescan {:?}",
                     address,
@@ -308,14 +302,28 @@ fn batch_import(
                     rescan
                 );
 
-                json!({
-                  "scriptPubKey": { "address": address },
-                  "timestamp": rescan.as_rpc_timestamp(),
-                  "label": label,
-                })
+                ImportMultiRequest {
+                    label: Some(&label),
+                    watchonly: Some(true),
+                    timestamp: *rescan,
+                    script_pubkey: Some(ImportMultiRequestScriptPubkey::Address(&address)),
+                    ..Default::default()
+                }
             })
-            .collect::<Vec<Value>>())],
-    )?)
+            .collect::<Vec<_>>(),
+        None,
+    )?;
+
+    for (i, result) in results.iter().enumerate() {
+        if !result.success {
+            let req = import_reqs.get(i).unwrap(); // should not fail unless bitcoind is messing with us
+            bail!("import for {:?} failed: {:?}", req, result);
+        } else if !result.warnings.is_empty() {
+            debug!("import succeed with warnings: {:?}", result);
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, PartialEq)]
