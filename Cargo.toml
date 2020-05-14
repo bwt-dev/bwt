@@ -1,8 +1,15 @@
 [package]
 name = "bwt"
 version = "0.1.0"
+description = "a lightweight wallet xpub tracker and query engine for Bitcoin"
 authors = ["Nadav Ivgi <nadav@shesek.info>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/shesek/bwt"
+repository = "https://github.com/shesek/bwt"
+keywords = [ "bitcoin", "wallet tracker", "electrum", "xpub" ]
 edition = "2018"
+include = [ "src", "LICENSE" ]
 
 [features]
 default = [ "electrum", "http", "webhooks", "track-spends" ]
