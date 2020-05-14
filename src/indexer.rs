@@ -106,7 +106,7 @@ impl Indexer {
             .as_ref()
             .map_or(0, |BlockId(tip_height, _)| tip_height + 1);
 
-        let mut pending_outgoing: HashMap<Txid, (TxStatus, u64)> = HashMap::new();
+        let mut buffered_outgoing: HashMap<Txid, (TxStatus, u64)> = HashMap::new();
 
         let synced_tip = load_transactions_since(
             &self.rpc.clone(),
@@ -120,14 +120,25 @@ impl Indexer {
                         }
                         continue;
                     }
+
+                    // "listtransactions" in fact lists transaction outputs and not transactions.
+                    // for "receive" txs, it returns one entry per wallet-owned output in the tx.
+                    // for "send" txs, it returns one entry for every output in the tx, owned or not.
                     match ltx.detail.category {
                         TxCategory::Receive => {
+                            // incoming txouts are easy: bitcoind tells us the associated
+                            // address and label, giving us all the information we need in
+                            // order to save the txo to the index.
                             self.process_incoming_txo(ltx, tip_height, changelog);
                         }
                         TxCategory::Send => {
-                            // outgoing payments are buffered and processed later so that the
-                            // parent funding transaction is guaranteed to get indexed first
-                            pending_outgoing.entry(ltx.info.txid).or_insert_with(|| {
+                            // outgoing txs are more tricky: bitcoind doesn't tell us the
+                            // address of the prevout being spent, we have to fetch the transaction
+                            // and figure that out ourselves. we can't do that straightaway because
+                            // the outputs being spent might not be indexed yet. instead, buffer
+                            // outgoing txs and process them at the end, so that the parent tx
+                            // funding the spent outputs is guaranteed to get indexed first.
+                            buffered_outgoing.entry(ltx.info.txid).or_insert_with(|| {
                                 let status = TxStatus::new(ltx.info.confirmations, tip_height);
                                 // "send" transactions must have a fee
                                 let fee = ltx.detail.fee.unwrap().abs().as_sat() as u64;
@@ -140,7 +151,7 @@ impl Indexer {
             },
         )?;
 
-        for (txid, (status, fee)) in pending_outgoing {
+        for (txid, (status, fee)) in buffered_outgoing {
             self.process_outgoing_tx(txid, status, fee, changelog)
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
