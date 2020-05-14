@@ -330,7 +330,7 @@ impl_string_serializer!(
     match origin {
         KeyOrigin::Standalone => "standalone".into(),
         KeyOrigin::Derived(parent_fingerprint, index) => {
-            format!("{}:{}", parent_fingerprint, index)
+            format!("{}/{}", parent_fingerprint, index)
         }
     }
 );
