@@ -53,7 +53,7 @@ $ docker run --net host -v ~/.bitcoin:/bitcoin shesek/bwt --network mainnet --xp
 `bwt --xpub <xpub>` should be sufficient to get you rolling.
 
 You can also configure the `--network` (defaults to `mainnet`),
-your `--bitcoind-url` (defaults to `http://127.0.0.1:<default1-rpc-port>`),
+your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 `--bitcoind-dir` (defaults to `~/.bitcoin`) and
 `--bitcoind-cred <user:pass>` (defaults to using the cookie file from `bitcoind-dir`).
 
@@ -342,9 +342,9 @@ Get the transaction in JSON as formatted by bitcoind's `getrawtransaction` with 
 
 Get the raw transaction formatted as a hex strong.
 
-#### `GET /txs/since/:block-height`
+#### `GET /history/since/:block-height`
 
-Get all wallet transactions confirmed at or after `:block-height`, plus all unconfirmed transactions,
+Get all wallet transactions confirmed at or after `block-height`, plus all unconfirmed transactions,
 for all tracked scripthashes.
 
 <details><summary>Expand...</summary><p></p>
@@ -355,9 +355,9 @@ Returned in the same format as [`GET /tx/:txid`](https://gist.github.com/shesek/
 
 </details>
 
-#### `GET /txs/since/:block-height/compcat`
+#### `GET /history/since/:block-height/compcat`
 
-Get a compact minimal representation of all wallet transactions since `:block-height`.
+Get a compact minimal representation of all wallet transactions since `block-height`.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -365,7 +365,7 @@ Returns a simple JSON array of `[txid, block_height]` tuples, where `block_heigh
 
 Example:
 ```
-$ curl localhost:3060/txs/since/105/compcat
+$ curl localhost:3060/history/since/105/compcat
 [
   ["859d5c41661426ab13a7816b9e845a3353b66f00a3c14bc412d20f87dcf19caa", 105],
   ["3c3c8722b493bcf43adab323581ea1da9f9a9e79628c0d4c89793f7fe21b68cf", 107],
@@ -751,7 +751,7 @@ It is recommended to include a secret key within the URL to verify the authentic
 You can specify multiple `--webhook-url` to notify all of them.
 
 Note that bwt currently attempts to send the webhook once and does not retry in case of failures.
-It is recommended to occasionally catch up using the [`GET /txs/since/:block-height`](#get-txssinceblock-height) endpoint.
+It is recommended to occasionally catch up using the [`GET /history/since/:block-height`](#get-historysinceblock-height) endpoint.
 
 Tip: services like [webhook.site](https://webhook.site/) or [requestbin](http://requestbin.net/) can come in handy for debugging webhooks. (needless to say, for non-privacy-sensitive regtest/testnet use only)
 

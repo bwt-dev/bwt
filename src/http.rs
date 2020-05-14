@@ -206,9 +206,9 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /txs/since/:block_height
-    let txs_since_handler = warp::get()
-        .and(warp::path!("txs" / "since" / u32))
+    // GET /history/since/:block_height
+    let history_since_handler = warp::get()
+        .and(warp::path!("history" / "since" / u32))
         .and(query.clone())
         .map(|min_block_height: u32, query: Arc<Query>| {
             let txs = query.map_history_since(min_block_height, |txhist| {
@@ -217,9 +217,9 @@ async fn run(
             reply::json(&txs)
         });
 
-    // GET /txs/since/:block_height/compact
-    let txs_since_compact_handler = warp::get()
-        .and(warp::path!("txs" / "since" / u32 / "compact"))
+    // GET /hisory/since/:block_height/compact
+    let history_since_compact_handler = warp::get()
+        .and(warp::path!("history" / "since" / u32 / "compact"))
         .and(query.clone())
         .map(|min_block_height: u32, query: Arc<Query>| {
             let txs = query.map_history_since(min_block_height, compact_history);
@@ -340,8 +340,8 @@ async fn run(
         .or(tx_handler)
         .or(tx_verbose_handler)
         .or(tx_hex_handler)
-        .or(txs_since_handler)
-        .or(txs_since_compact_handler)
+        .or(history_since_handler)
+        .or(history_since_compact_handler)
         .or(tx_broadcast_handler)
         .or(txo_handler)
         .or(utxos_handler)
