@@ -127,10 +127,10 @@ pub struct Config {
 
     #[cfg(feature = "http")]
     #[structopt(
-        long = "cors",
+        long = "http-cors",
         help = "allowed cross-origins for http api server (Access-Control-Allow-Origin)"
     )]
-    pub cors: Option<String>,
+    pub http_cors: Option<String>,
 
     #[cfg(unix)]
     #[structopt(

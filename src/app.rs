@@ -65,7 +65,7 @@ impl App {
         #[cfg(feature = "http")]
         let http = HttpServer::start(
             config.http_server_addr,
-            config.cors.clone(),
+            config.http_cors.clone(),
             query.clone(),
             sync_tx.clone(),
         );
