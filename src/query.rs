@@ -438,7 +438,7 @@ pub struct Txo {
     pub amount: u64,
     #[serde(flatten)]
     pub script_info: ScriptInfo,
-    #[serde(flatten)]
+    #[serde(rename = "block_height")]
     pub status: TxStatus,
     #[cfg(feature = "track-spends")]
     pub spent_by: Option<InPoint>,
@@ -465,7 +465,7 @@ impl Txo {
 #[derive(Serialize, Debug)]
 pub struct TxDetail {
     txid: Txid,
-    #[serde(flatten)]
+    #[serde(rename = "block_height")]
     status: TxStatus,
     fee: Option<u64>,
     funding: Vec<TxDetailFunding>,

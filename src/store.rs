@@ -29,7 +29,7 @@ struct ScriptEntry {
 #[derive(Clone, Eq, PartialEq, Debug, Hash, Serialize)]
 pub struct HistoryEntry {
     pub txid: Txid,
-    #[serde(flatten)]
+    #[serde(rename = "block_height")]
     pub status: TxStatus,
 }
 
@@ -40,7 +40,7 @@ impl HistoryEntry {
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct TxEntry {
-    #[serde(flatten)]
+    #[serde(rename = "block_height")]
     pub status: TxStatus,
     pub fee: Option<u64>,
     pub funding: HashMap<u32, FundingInfo>,

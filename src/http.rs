@@ -493,7 +493,7 @@ struct BroadcastBody {
 }
 
 fn compact_history(tx_hist: &store::HistoryEntry) -> serde_json::Value {
-    json!([tx_hist.txid, tx_hist.status.height()])
+    json!([tx_hist.txid, tx_hist.status])
 }
 
 fn handle_error<T>(result: Result<T, Error>) -> impl Reply

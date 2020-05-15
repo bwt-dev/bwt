@@ -55,8 +55,7 @@ pub enum ScriptType {
     P2shP2wpkh,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Copy, Hash, Serialize)]
-#[serde(tag = "status", content = "block_height", rename_all = "lowercase")]
+#[derive(Clone, Eq, PartialEq, Debug, Copy, Hash)]
 pub enum TxStatus {
     Conflicted, // aka double spent
     Unconfirmed,
@@ -95,11 +94,18 @@ impl TxStatus {
             TxStatus::Confirmed(_) | TxStatus::Conflicted => false,
         }
     }
+}
 
-    pub fn height(&self) -> Option<u32> {
+// Serialize confirmed transactions as the block height, unconfirmed as null and confliced as -1
+impl serde::Serialize for TxStatus {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: ::serde::Serializer,
+    {
         match self {
-            TxStatus::Confirmed(height) => Some(*height),
-            TxStatus::Unconfirmed | TxStatus::Conflicted => None,
+            TxStatus::Confirmed(height) => serializer.serialize_u32(*height),
+            TxStatus::Unconfirmed => serializer.serialize_none(),
+            TxStatus::Conflicted => serializer.serialize_i8(-1),
         }
     }
 }

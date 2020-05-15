@@ -171,14 +171,15 @@ impl Indexer {
         let tx_updated = self.store.upsert_tx(txid, status, fee);
         if tx_updated {
             changelog.with(|changelog| {
-                changelog.push(IndexChange::Transaction(*txid, status.height()));
+                changelog.push(IndexChange::Transaction(*txid, status));
 
                 // create an update entry for every affected scripthash
                 let tx_entry = self.store.get_tx_entry(&txid).unwrap();
                 changelog.extend(
-                    tx_entry.scripthashes().into_iter().map(|scripthash| {
-                        IndexChange::History(*scripthash, *txid, status.height())
-                    }),
+                    tx_entry
+                        .scripthashes()
+                        .into_iter()
+                        .map(|scripthash| IndexChange::History(*scripthash, *txid, status)),
                 );
             });
         }
@@ -216,8 +217,8 @@ impl Indexer {
                 .index_tx_output_funding(&txid, vout, FundingInfo(scripthash, amount));
 
         if txo_added {
-            changelog.push(|| IndexChange::History(scripthash, txid, status.height()));
-            changelog.push(|| IndexChange::TxoCreated(OutPoint::new(txid, vout), status.height()));
+            changelog.push(|| IndexChange::History(scripthash, txid, status));
+            changelog.push(|| IndexChange::TxoCreated(OutPoint::new(txid, vout), status));
             self.watcher.mark_funded(&origin);
         }
     }
@@ -254,10 +255,9 @@ impl Indexer {
                 self.store
                     .index_txo_spend(input.previous_output, input_point);
 
-                changelog.push(|| IndexChange::History(scripthash, txid, status.height()));
-                changelog.push(|| {
-                    IndexChange::TxoSpent(input.previous_output, input_point, status.height())
-                });
+                changelog.push(|| IndexChange::History(scripthash, txid, status));
+                changelog
+                    .push(|| IndexChange::TxoSpent(input.previous_output, input_point, status));
 
                 // we could keep just the previous_output and lookup the scripthash and amount
                 // from the corrospanding FundingInfo, but we keep it here anyway for quick access
@@ -283,12 +283,12 @@ pub enum IndexChange {
     ChainTip(BlockId),
     Reorg(u32, BlockHash, BlockHash),
 
-    Transaction(Txid, Option<u32>),
+    Transaction(Txid, TxStatus),
     TransactionReplaced(Txid),
 
-    History(ScriptHash, Txid, Option<u32>),
-    TxoCreated(OutPoint, Option<u32>),
-    TxoSpent(OutPoint, InPoint, Option<u32>),
+    History(ScriptHash, Txid, TxStatus),
+    TxoCreated(OutPoint, TxStatus),
+    TxoSpent(OutPoint, InPoint, TxStatus),
 }
 
 enum Changelog {

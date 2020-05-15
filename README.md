@@ -281,8 +281,7 @@ Only available for wallet transactions.
 
 Returned fields:
 - `txid`
-- `status` - `confirmed` or `unconfirmed`
-- `block_height` - the confirming block height (available for confirmed transactions only)
+- `block_height` - the confirming block height or `null` for unconfirmed transactions
 - `fee` (may not be available)
 - `funding` - contains an entry for every output created by this transaction that is owned by the wallet
   - `vout` - the output index
@@ -306,7 +305,6 @@ $ curl localhost:3060/tx/e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f6
 
 {
   "txid": "e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f66da872dda",
-  "status": "confirmed",
   "block_height": 113,
   "fee": 141,
   "funding": [
@@ -413,8 +411,7 @@ Returned fields:
 - `scripthash` - the scripthash funded by this output
 - `address` - the address funded by this output
 - `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
-- `status` - `confirmed` or `unconfirmed`
-- `block_height` - the confirming block height (available for confirmed transactions only)
+- `block_height` - the confirming block height or `null` for unconfirmed transactions
 - `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
 
 
@@ -428,7 +425,6 @@ $ curl localhost:3060/txo/1b1170ac5996df9255299ae47b26ec3ad57c9801bc7bae68203b12
   "scripthash": "42c8d22a39047d79070acc984c7d3e6ee9cca69289c84c75900e05c52adb5e8e",
   "address": "bcrt1qknn7fg0w33j9gcsdtdd6k02llpjmqyg8a36728",
   "origin": "364476e3/15",
-  "status": "confirmed",
   "block_height": 161,
   "spent_by": null
 }
@@ -547,7 +543,6 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/utxos
     "scripthash": "b24cc85b7ce33324869a9c56d5744c24d7039fafcdb66d27f6d743a75d3711c5",
     "address": "bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s",
     "origin": "e583e3c5/6",
-    "status": "confirmed",
     "block_height": 114,
     "spent_by": null
   },
@@ -558,7 +553,6 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/utxos
     "scripthash": "b24cc85b7ce33324869a9c56d5744c24d7039fafcdb66d27f6d743a75d3711c5",
     "address": "bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s",
     "origin": "e583e3c5/6",
-    "status": "confirmed",
     "block_height": 115,
     "spent_by": null
   },
@@ -584,7 +578,6 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/txs
 [
   {
     "txid": "859d5c41661426ab13a7816b9e845a3353b66f00a3c14bc412d20f87dcf19caa",
-    "status": "confirmed",
     "block_height": 105,
     "fee": 144,
     "funding": [ ... ],
