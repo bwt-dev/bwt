@@ -19,6 +19,7 @@
   - [Outputs](#outputs)
   - [Addresses, Scripthashes & HD Keys](#addresses-scripthashes--hd-keys)
   - [Server-Sent Events](#server-sent-events)
+  - [Blocks](#blocks)
   - [Mempool & Fees](#mempool--fees)
   - [Miscellaneous](#miscellaneous)
 - [Web Hooks](#web-hooks)
@@ -694,6 +695,100 @@ data:{"category":"TxoCreated","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf15884
 ```
 </details>
 
+
+### Blocks
+
+#### `GET /block/tip`
+
+Get the current tip of the block chain.
+
+<details><summary>Expand...</summary><p></p>
+
+Returned fields:
+- `height`
+- `hash`
+
+Example:
+```
+$ curl localhost:3060/block/tip
+{
+  "hash": 176,
+  "height": "7a9b99f78066f22a26c56b2035445285a5a992fc19719c9c27f2255f20f1f2f8"
+}
+```
+
+</details>
+
+#### `GET /block/:hash`
+
+Get the block header of the specified block hash as formatted by [bitcoind's `getblockheader`](https://bitcoincore.org/en/doc/0.19.0/rpc/blockchain/getblockheader/) with `verbose=true`.
+
+<details><summary>Expand...</summary><p></p>
+
+Example:
+```
+$ curl localhost:3060/block/65e8db69c0c03a2a02532dfca4d2780a555012847985efee46eb9bf3e459262d
+{
+  "hash": "65e8db69c0c03a2a02532dfca4d2780a555012847985efee46eb9bf3e459262d",
+  "confirmations": 2,
+  "height": 175,
+  "version": 805306369,
+  "versionHex": "30000001",
+  "merkleroot": "b7a646abfd377964da19837c454e9d2d30c61b9bc22246c8589f7e80fda1a3e5",
+  "time": 1589360866,
+  "mediantime": 1589269430,
+  "nonce": 0,
+  "bits": "207fffff",
+  "difficulty": 4.6565423739069247e-10,
+  "chainwork": "0000000000000000000000000000000000000000000000000000000000000160",
+  "nTx": 1,
+  "previousblockhash": "26d435bdea859667e9d396ad0f28b74e6fd98ca6c737f1bd895c3b6539b4ee76",
+  "nextblockhash": "7a9b99f78066f22a26c56b2035445285a5a992fc19719c9c27f2255f20f1f2f8"
+}
+```
+</details>
+
+#### `GET /block/:hash/hex`
+
+Get the block header of the specified block hash as as a hex string.
+
+<details><summary>Expand...</summary><p></p>
+
+Example:
+```
+$ curl localhost:3060/block/65e8db69c0c03a2a02532dfca4d2780a555012847985efee46eb9bf3e459262d/hex
+
+0100003076eeb439653b5c89bdf137c7a68cd96f4eb7280fad96d3e9679685eabd35d426e5a3a1fd807e9f58c84622c29b1bc6302d9d4e457c8319da647937fdab46a6b7e2b8bb5effff7f2000000000
+```
+
+</details>
+
+#### `GET /block/:height`
+
+Get the block hash at the specified block height.
+
+<details><summary>Expand...</summary><p></p>
+
+Issues a 307 redirection to the block url (`/block/:hash`) *and* responds with the block hash in the responses body.
+
+Example:
+```
+$ curl localhost:3060/block/104
+< HTTP/1.1 307 Temporary Redirect
+< Location: /block/117324e95584f14ba767610f4ef9c939004b02c9f3881a94f46c0772d8e9b365
+117324e95584f14ba767610f4ef9c939004b02c9f3881a94f46c0772d8e9b365
+
+# Follow the redirect to get the block header json
+
+$ curl --location localhost:3060/block/104
+{
+  "hash": "117324e95584f14ba767610f4ef9c939004b02c9f3881a94f46c0772d8e9b365",
+  "confirmations": 73,
+  "height": 104,
+  ...
+}
+```
+</details>
 
 ### Mempool & Fees
 

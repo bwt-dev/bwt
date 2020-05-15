@@ -6,7 +6,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use bitcoin::util::bip32::Fingerprint;
-use bitcoin::{BlockHash, OutPoint, Txid};
+use bitcoin::{BlockHash, BlockHeader, OutPoint, Txid};
 use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
@@ -54,6 +54,14 @@ impl Query {
 
     pub fn get_tip_height(&self) -> Result<u32> {
         Ok(self.rpc.get_block_count()? as u32)
+    }
+
+    pub fn get_header(&self, blockhash: &BlockHash) -> Result<BlockHeader> {
+        Ok(self.rpc.get_block_header(blockhash)?)
+    }
+
+    pub fn get_header_info(&self, blockhash: &BlockHash) -> Result<rpcjson::GetBlockHeaderResult> {
+        Ok(self.rpc.get_block_header_info(blockhash)?)
     }
 
     pub fn get_header_hex(&self, blockhash: &BlockHash) -> Result<String> {

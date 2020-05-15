@@ -10,10 +10,10 @@ use warp::sse::ServerSentEvent;
 use warp::{reply, Filter, Reply};
 
 use bitcoin::util::bip32::Fingerprint;
-use bitcoin::{Address, OutPoint, Txid};
+use bitcoin::{Address, BlockHash, OutPoint, Txid};
 
 use crate::error::{fmt_error_chain, Error, OptionExt};
-use crate::types::ScriptHash;
+use crate::types::{BlockId, ScriptHash};
 use crate::{store, IndexChange, Query};
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
@@ -302,6 +302,53 @@ async fn run(
             },
         );
 
+    // GET /block/tip
+    let block_tip_handler = warp::get()
+        .and(warp::path!("block" / "tip"))
+        .and(query.clone())
+        .map(|query: Arc<Query>| {
+            // XXX currently returns the tip reported by bitcoind, return the indexer tip as well?
+            let BlockId(blockhash, height) = query.get_tip()?;
+            Ok(reply::json(&json!({ "hash": blockhash, "height": height })))
+        })
+        .map(handle_error);
+
+    // GET /block/:hash
+    let block_header_handler = warp::get()
+        .and(warp::path!("block" / BlockHash))
+        .and(query.clone())
+        .map(|blockhash: BlockHash, query: Arc<Query>| {
+            let header_info = query.get_header_info(&blockhash)?;
+            Ok(reply::json(&header_info))
+        })
+        .map(handle_error);
+
+    // GET /block/:hash/hex
+    let block_hex_handler = warp::get()
+        .and(warp::path!("block" / BlockHash / "hex"))
+        .and(query.clone())
+        .map(|blockhash: BlockHash, query: Arc<Query>| {
+            let header_hex = query.get_header_hex(&blockhash)?;
+            Ok(header_hex)
+        })
+        .map(handle_error);
+
+    // GET /block/:height
+    let block_height_handler = warp::get()
+        .and(warp::path!("block" / u32))
+        .and(query.clone())
+        .map(|height: u32, query: Arc<Query>| {
+            let blockhash = query.get_block_hash(height)?;
+            let url = format!("/block/{}", blockhash);
+            // issue a 307 redirect to the block hash uri, and also include the hash in the body
+            Ok(reply::with_header(
+                reply::with_status(blockhash.to_string(), StatusCode::TEMPORARY_REDIRECT),
+                header::LOCATION,
+                header::HeaderValue::from_str(&url)?,
+            ))
+        })
+        .map(handle_error);
+
     // GET /mempool/histogram
     let mempool_histogram_handler = warp::get()
         .and(warp::path!("mempool" / "histogram"))
@@ -365,6 +412,10 @@ async fn run(
         .or(utxos_handler)
         .or(sse_handler)
         .or(spk_sse_handler)
+        .or(block_tip_handler)
+        .or(block_header_handler)
+        .or(block_hex_handler)
+        .or(block_height_handler)
         .or(mempool_histogram_handler)
         .or(fee_estimate_handler)
         .or(dump_handler)
