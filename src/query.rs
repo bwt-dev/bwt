@@ -46,6 +46,18 @@ impl Query {
         }
     }
 
+    pub fn debug_index(&self) -> String {
+        format!("{:#?}", self.indexer.read().unwrap().store())
+    }
+
+    pub fn dump_index(&self) -> Value {
+        json!(self.indexer.read().unwrap().store())
+    }
+
+    //
+    // Blocks
+    //
+
     pub fn get_tip(&self) -> Result<BlockId> {
         let tip_height = self.get_tip_height()?;
         let tip_hash = self.get_block_hash(tip_height)?;
@@ -79,9 +91,9 @@ impl Query {
         Ok(info.tx)
     }
 
-    pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {
-        Ok(self.rpc.send_raw_transaction(tx_hex)?)
-    }
+    //
+    // Mempool & Fees
+    //
 
     pub fn get_raw_mempool(&self) -> Result<HashMap<Txid, Value>> {
         Ok(self.rpc.call("getrawmempool", &[json!(true)])?)
@@ -128,13 +140,57 @@ impl Query {
         );
     }
 
-    pub fn debug_index(&self) -> String {
-        format!("{:#?}", self.indexer.read().unwrap().store())
+    //
+    // Transactions
+    //
+
+    pub fn get_tx_raw(&self, txid: &Txid) -> Result<Vec<u8>> {
+        Ok(self.rpc.get_transaction(txid, Some(true))?.hex)
     }
 
-    pub fn dump_index(&self) -> Value {
-        json!(self.indexer.read().unwrap().store())
+    pub fn get_tx_json(&self, txid: &Txid) -> Result<Value> {
+        let blockhash = self.find_tx_blockhash(txid)?;
+
+        Ok(self.rpc.call(
+            "getrawtransaction",
+            &[json!(txid), true.into(), json!(blockhash)],
+        )?)
     }
+
+    pub fn get_tx_proof(&self, txid: &Txid) -> Result<Vec<u8>> {
+        let blockhash = self.find_tx_blockhash(txid)?;
+        Ok(self.rpc.get_tx_out_proof(&[*txid], blockhash.as_ref())?)
+    }
+
+    pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {
+        Ok(self.rpc.send_raw_transaction(tx_hex)?)
+    }
+
+    pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
+        let indexer = self.indexer.read().unwrap();
+        let tx_entry = indexer.store().get_tx_entry(txid).or_err("tx not found")?;
+        Ok(match tx_entry.status {
+            TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
+            _ => None,
+        })
+    }
+
+    pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {
+        self.indexer
+            .read()
+            .unwrap()
+            .store()
+            .get_tx_entry(txid)
+            .map(f)
+    }
+
+    pub fn get_tx_detail(&self, txid: &Txid) -> Option<TxDetail> {
+        TxDetail::make(txid, &self.indexer.read().unwrap())
+    }
+
+    //
+    // History
+    //
 
     pub fn get_history(&self, scripthash: &ScriptHash) -> Vec<HistoryEntry> {
         self.indexer
@@ -144,6 +200,43 @@ impl Query {
             .get_history(scripthash)
             .map_or_else(|| Vec::new(), |entries| entries.iter().cloned().collect())
     }
+
+    pub fn map_history<T>(
+        &self,
+        scripthash: &ScriptHash,
+        f: impl Fn(&HistoryEntry) -> T,
+    ) -> Vec<T> {
+        self.indexer
+            .read()
+            .unwrap()
+            .store()
+            .get_history(scripthash)
+            .map(|history| history.into_iter().map(f).collect())
+            .unwrap_or_else(|| vec![])
+    }
+
+    pub fn get_history_since(&self, min_block_height: u32) -> Vec<HistoryEntry> {
+        self.map_history_since(min_block_height, |history_entry| history_entry.clone())
+    }
+
+    pub fn map_history_since<T>(
+        &self,
+        min_block_height: u32,
+        f: impl Fn(&HistoryEntry) -> T,
+    ) -> Vec<T> {
+        self.indexer
+            .read()
+            .unwrap()
+            .store()
+            .get_history_since(min_block_height)
+            .into_iter()
+            .map(f)
+            .collect()
+    }
+
+    //
+    // Outputs
+    //
 
     pub fn list_unspent(
         &self,
@@ -232,30 +325,9 @@ impl Query {
         })
     }
 
-    // avoid unnecessary copies by directly operating on the history entries as a reference
-    pub fn map_history<T>(
-        &self,
-        scripthash: &ScriptHash,
-        f: impl Fn(&HistoryEntry) -> T,
-    ) -> Vec<T> {
-        self.indexer
-            .read()
-            .unwrap()
-            .store()
-            .get_history(scripthash)
-            .map(|history| history.into_iter().map(f).collect())
-            .unwrap_or_else(|| vec![])
-    }
-
-    // -> get_tx_fee
-    pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {
-        self.indexer
-            .read()
-            .unwrap()
-            .store()
-            .get_tx_entry(txid)
-            .map(f)
-    }
+    //
+    // Scripthashes
+    //
 
     pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
         self.indexer
@@ -265,8 +337,8 @@ impl Query {
             .get_script_info(scripthash)
     }
 
-    /// Get the scripthash balance as a tuple of (confirmed_balance, unconfirmed_balance)
-    pub fn get_balance(&self, scripthash: &ScriptHash) -> Result<(u64, u64)> {
+    // returns a tuple of (confirmed_balance, unconfirmed_balance)
+    pub fn get_script_balance(&self, scripthash: &ScriptHash) -> Result<(u64, u64)> {
         let (_, unspents) = self.list_unspent_raw(Some(scripthash), 0, None)?;
 
         let (confirmed, unconfirmed): (Vec<_>, Vec<_>) = unspents
@@ -279,59 +351,13 @@ impl Query {
         ))
     }
 
-    pub fn get_tx_raw(&self, txid: &Txid) -> Result<Vec<u8>> {
-        Ok(self.rpc.get_transaction(txid, Some(true))?.hex)
-    }
-
-    pub fn get_tx_json(&self, txid: &Txid) -> Result<Value> {
-        let blockhash = self.find_tx_blockhash(txid)?;
-
-        Ok(self.rpc.call(
-            "getrawtransaction",
-            &[json!(txid), true.into(), json!(blockhash)],
-        )?)
-    }
-
-    pub fn get_tx_proof(&self, txid: &Txid) -> Result<Vec<u8>> {
-        let blockhash = self.find_tx_blockhash(txid)?;
-        Ok(self.rpc.get_tx_out_proof(&[*txid], blockhash.as_ref())?)
-    }
-
-    pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
-        let indexer = self.indexer.read().unwrap();
-        let tx_entry = indexer.store().get_tx_entry(txid).or_err("tx not found")?;
-        Ok(match tx_entry.status {
-            TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
-            _ => None,
-        })
-    }
-
-    pub fn map_history_since<T>(
-        &self,
-        min_block_height: u32,
-        f: impl Fn(&HistoryEntry) -> T,
-    ) -> Vec<T> {
-        self.indexer
-            .read()
-            .unwrap()
-            .store()
-            .get_history_since(min_block_height)
-            .into_iter()
-            .map(f)
-            .collect()
-    }
-
-    pub fn get_history_since(&self, min_block_height: u32) -> Vec<HistoryEntry> {
-        self.map_history_since(min_block_height, |history_entry| history_entry.clone())
-    }
-
     pub fn get_script_stats(&self, scripthash: &ScriptHash) -> Result<Option<ScriptStats>> {
         let indexer = self.indexer.read().unwrap();
         let store = indexer.store();
         let script_info = some_or_ret!(self.get_script_info(scripthash), Ok(None));
 
         let tx_count = store.get_tx_count(scripthash);
-        let (confirmed_balance, unconfirmed_balance) = self.get_balance(scripthash)?;
+        let (confirmed_balance, unconfirmed_balance) = self.get_script_balance(scripthash)?;
 
         Ok(Some(ScriptStats {
             script_info,
@@ -340,6 +366,10 @@ impl Query {
             unconfirmed_balance,
         }))
     }
+
+    //
+    // HD Wallets
+    //
 
     pub fn get_hd_wallets(&self) -> HashMap<Fingerprint, HDWallet> {
         self.indexer.read().unwrap().watcher().wallets().clone()
@@ -352,6 +382,17 @@ impl Query {
             .watcher()
             .get(fingerprint)
             .cloned()
+    }
+
+    // get the ScriptInfo entry of a derived hd key, without it necessarily being indexed
+    pub fn get_hd_script_info(&self, fingerprint: &Fingerprint, index: u32) -> Option<ScriptInfo> {
+        let indexer = self.indexer.read().unwrap();
+        let wallet = indexer.watcher().get(fingerprint)?;
+        let key = wallet.derive(index);
+        let address = wallet.to_address(&key);
+        let scripthash = ScriptHash::from(&address);
+        let origin = KeyOrigin::Derived(key.parent_fingerprint, index);
+        Some(ScriptInfo::new(scripthash, address, origin))
     }
 
     pub fn find_hd_gap(&self, fingerprint: &Fingerprint) -> Option<usize> {
@@ -371,65 +412,6 @@ impl Query {
             })
             .1;
         Some(gap)
-    }
-
-    // get the ScriptInfo entry of a derived hd key, without it necessarily being indexed
-    pub fn get_hd_script_info(&self, fingerprint: &Fingerprint, index: u32) -> Option<ScriptInfo> {
-        let indexer = self.indexer.read().unwrap();
-        let wallet = indexer.watcher().get(fingerprint)?;
-        let key = wallet.derive(index);
-        let address = wallet.to_address(&key);
-        let scripthash = ScriptHash::from(&address);
-        let origin = KeyOrigin::Derived(key.parent_fingerprint, index);
-        Some(ScriptInfo::new(scripthash, address, origin))
-    }
-
-    pub fn get_tx_detail(&self, txid: &Txid) -> Option<TxDetail> {
-        let index = self.indexer.read().unwrap();
-        let store = index.store();
-        let tx_entry = store.get_tx_entry(txid)?;
-
-        let funding = tx_entry
-            .funding
-            .iter()
-            .map(|(vout, FundingInfo(scripthash, amount))| {
-                TxDetailFunding {
-                    vout: *vout,
-                    script_info: store.get_script_info(scripthash).unwrap(), // must exists
-                    amount: *amount,
-                    #[cfg(feature = "track-spends")]
-                    spent_by: store.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
-                }
-            })
-            .collect::<Vec<TxDetailFunding>>();
-
-        let spending = tx_entry
-            .spending
-            .iter()
-            .map(|(vin, SpendingInfo(scripthash, prevout, amount))| {
-                TxDetailSpending {
-                    vin: *vin,
-                    script_info: store.get_script_info(scripthash).unwrap(), // must exists
-                    amount: *amount,
-                    prevout: *prevout,
-                }
-            })
-            .collect::<Vec<TxDetailSpending>>();
-
-        let balance_change = {
-            let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
-            let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
-            funding_sum as i64 - spending_sum as i64
-        };
-
-        Some(TxDetail {
-            txid: *txid,
-            status: tx_entry.status,
-            fee: tx_entry.fee,
-            funding: funding,
-            spending: spending,
-            balance_change: balance_change,
-        })
     }
 }
 
@@ -473,6 +455,53 @@ pub struct TxDetail {
     funding: Vec<TxDetailFunding>,
     spending: Vec<TxDetailSpending>,
     balance_change: i64,
+}
+
+impl TxDetail {
+    fn make(txid: &Txid, indexer: &Indexer) -> Option<Self> {
+        let store = indexer.store();
+        let tx_entry = store.get_tx_entry(txid)?;
+
+        let funding = tx_entry
+            .funding
+            .iter()
+            .map(|(vout, FundingInfo(scripthash, amount))| {
+                TxDetailFunding {
+                    vout: *vout,
+                    script_info: store.get_script_info(scripthash).unwrap(), // must exists
+                    amount: *amount,
+                    #[cfg(feature = "track-spends")]
+                    spent_by: store.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
+                }
+            })
+            .collect::<Vec<TxDetailFunding>>();
+
+        let spending = tx_entry
+            .spending
+            .iter()
+            .map(|(vin, SpendingInfo(scripthash, prevout, amount))| {
+                TxDetailSpending {
+                    vin: *vin,
+                    script_info: store.get_script_info(scripthash).unwrap(), // must exists
+                    amount: *amount,
+                    prevout: *prevout,
+                }
+            })
+            .collect::<Vec<TxDetailSpending>>();
+
+        let funding_sum = funding.iter().map(|f| f.amount).sum::<u64>();
+        let spending_sum = spending.iter().map(|s| s.amount).sum::<u64>();
+        let balance_change = funding_sum as i64 - spending_sum as i64;
+
+        Some(TxDetail {
+            txid: *txid,
+            status: tx_entry.status,
+            fee: tx_entry.fee,
+            funding,
+            spending,
+            balance_change,
+        })
+    }
 }
 
 #[derive(Serialize, Debug)]

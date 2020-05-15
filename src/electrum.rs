@@ -170,7 +170,7 @@ impl Connection {
     fn blockchain_scripthash_get_balance(&self, params: Value) -> Result<Value> {
         let (script_hash,): (ScriptHash,) = from_value(params)?;
 
-        let (confirmed_balance, mempool_balance) = self.query.get_balance(&script_hash)?;
+        let (confirmed_balance, mempool_balance) = self.query.get_script_balance(&script_hash)?;
 
         Ok(json!({
             "confirmed": confirmed_balance,
