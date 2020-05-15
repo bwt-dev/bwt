@@ -292,6 +292,11 @@ impl Query {
         )?)
     }
 
+    pub fn get_tx_proof(&self, txid: &Txid) -> Result<Vec<u8>> {
+        let blockhash = self.find_tx_blockhash(txid)?;
+        Ok(self.rpc.get_tx_out_proof(&[*txid], blockhash.as_ref())?)
+    }
+
     pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
         let indexer = self.indexer.read().unwrap();
         let tx_entry = indexer.store().get_tx_entry(txid).or_err("tx not found")?;

@@ -363,6 +363,34 @@ $ curl localhost:3060/tx/1f2e3c4cee8ea127a79c5dbc951f1e005671a1e8bf385e791ff95b7
 
 Get the raw transaction formatted as a hex string.
 
+<details><summary>Expand...</summary><p></p>
+
+Example:
+```
+$ curl localhost:3060/tx/1f2e3c4cee8ea127a79c5dbc951f1e005671a1e8bf385e791ff95b780deda68f/hex
+0200000000010132d8a06f451ca6e8487a25343586f4186faecbbd185c324f5c3cfe674d1385460100000000feffffff0200e1f505000000001600143e730c6086a8417e2532356bd43e34b86c0f6055d6df0a1e010000001600146873ceae00e9140ea09b71963ee0e493b678a0ec02473044022025500722fd65172f8f7fe448ee484e5659aa9ff23d055546480588840b8eef40022023509d517614fa0c51d55511826250ead7d44ada9d9d6671837f44e8088d678b012102b3ce722e57fa6b66985154305e3d06831976499cf9f1db0c4e30450c1d5d7724af000000
+
+```
+
+</details>
+
+#### `GET /tx/:txid/proof`
+
+Get the merkle inclusion proof for the transaction.
+
+<details><summary>Expand...</summary><p></p>
+
+Returned in [bitcoind's `merkleblock`](https://bitcoin.org/en/developer-reference#merkleblock) format.
+
+Example:
+```
+$ curl localhost:3060/tx/1f2e3c4cee8ea127a79c5dbc951f1e005671a1e8bf385e791ff95b780deda68f/proof
+
+010000302d2659e4f39beb46eeef8579841250550a78d2a4fc2d53022a3ac0c069dbe865a987be21bcaae85f1423967b22c09b61ab00fd2c5aeccc247ef8ab421a960f950df7bb5effff7f20030000000400000003e7e777f5557142e8725218ae37547e1834a0466d5bb63952a7915d9cdc7adf392bb0a723f73dc23b52b7bd2641fb22d283b7c8a863b6dd012c64243b5da66b418fa6ed0d785bf91f795e38bfe8a17156001e1f95bc5d9ca727a18eee4c3c2e1f0115
+```
+
+</details>
+
 #### `GET /txs/since/:block-height`
 
 Get all wallet transactions confirmed at or after `block-height`, plus all unconfirmed transactions,

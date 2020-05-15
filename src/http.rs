@@ -223,6 +223,17 @@ async fn run(
         })
         .map(handle_error);
 
+    // GET /tx/:txid/proof
+    let tx_proof_handler = warp::get()
+        .and(tx_route)
+        .and(warp::path!("proof"))
+        .and(query.clone())
+        .map(|txid: Txid, query: Arc<Query>| {
+            let proof = query.get_tx_proof(&txid)?;
+            Ok(hex::encode(proof))
+        })
+        .map(handle_error);
+
     // GET /txs/since/:block_height
     let txs_since_handler = warp::get()
         .and(warp::path!("txs" / "since" / u32))
@@ -234,7 +245,7 @@ async fn run(
             reply::json(&txs)
         });
 
-    // GET /hisory/since/:block_height/compact
+    // GET /txs/since/:block_height/compact
     let txs_since_compact_handler = warp::get()
         .and(warp::path!("txs" / "since" / u32 / "compact"))
         .and(query.clone())
@@ -405,6 +416,7 @@ async fn run(
         .or(tx_handler)
         .or(tx_verbose_handler)
         .or(tx_hex_handler)
+        .or(tx_proof_handler)
         .or(txs_since_handler)
         .or(txs_since_compact_handler)
         .or(tx_broadcast_handler)
