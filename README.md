@@ -239,7 +239,6 @@ address without receiving funds to it, you can specify an explicit derivation in
 Examples:
 ```
 $ curl localhost:3060/hd/7caf9d54/next
-
 < HTTP/1.1 307 Temporary Redirect
 < Location: /hd/7caf9d54/104
 104
@@ -247,7 +246,6 @@ $ curl localhost:3060/hd/7caf9d54/next
 # Follow the redirect to get the json with the address/scripthash
 
 $ curl --location localhost:3060/hd/7caf9d54/next
-
 {
   "scripthash": "3baba97cee91b29a96c1de055600c8a25bc0f877797824ef8d2e8750fc5e1afe",
   "address": "mizsjvWUjiiqxajrBZhcdrmmkbfa12ABSq",
@@ -335,7 +333,31 @@ $ curl localhost:3060/tx/e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f6
 
 #### `GET /tx/:txid/verbose`
 
-Get the transaction in JSON as formatted by bitcoind's `getrawtransaction` with `verbose=true`.
+Get the transaction in JSON as formatted by [bitcoind's `getrawtransaction`](https://bitcoincore.org/en/doc/0.19.0/rpc/rawtransactions/getrawtransaction/) with `verbose=true`.
+
+<details><summary>Expand...</summary><p></p>
+Example:
+```
+$ curl localhost:3060/tx/1f2e3c4cee8ea127a79c5dbc951f1e005671a1e8bf385e791ff95b780deda68f/verbose
+{
+  "blockhash": "7a9b99f78066f22a26c56b2035445285a5a992fc19719c9c27f2255f20f1f2f8",
+  "blocktime": 1589376781,
+  "confirmations": 1,
+  "hash": "0ed38dcfe3de4e96852631d9c1f692db581513aa51845976a7097e618a1002a7",
+  "hex": "0200000000010132d8a06f451ca6e8487a25343586f4186faecbbd185c324f5c3cfe674d1385460100000000feffffff0200e1f505000000001600143e730c6086a8417e2532356bd43e34b86c0f6055d6df0a1e010000001600146873ceae00e9140ea09b71963ee0e493b678a0ec02473044022025500722fd65172f8f7fe448ee484e5659aa9ff23d055546480588840b8eef40022023509d517614fa0c51d55511826250ead7d44ada9d9d6671837f44e8088d678b012102b3ce722e57fa6b66985154305e3d06831976499cf9f1db0c4e30450c1d5d7724af000000",
+  "in_active_chain": true,
+  "locktime": 175,
+  "size": 222,
+  "time": 1589376781,
+  "txid": "1f2e3c4cee8ea127a79c5dbc951f1e005671a1e8bf385e791ff95b780deda68f",
+  "version": 2,
+  "vin": [ ... ],
+  "vout": [ ... ],
+  "vsize": 141,
+  "weight": 561
+}
+```
+</details>
 
 #### `GET /tx/:txid/hex`
 
@@ -447,7 +469,6 @@ Query string parameters:
 Example:
 ```
 $ curl localhost:3060/utxos?min_conf=1
-
 [
   {
     "txid": "1973551cc7670237606561ba3f7579d46d38e7145a72cf6a55ff8975e7143fee",
