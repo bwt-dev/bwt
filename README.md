@@ -340,9 +340,9 @@ Get the transaction in JSON as formatted by bitcoind's `getrawtransaction` with 
 
 #### `GET /tx/:txid/hex`
 
-Get the raw transaction formatted as a hex strong.
+Get the raw transaction formatted as a hex string.
 
-#### `GET /history/since/:block-height`
+#### `GET /txs/since/:block-height`
 
 Get all wallet transactions confirmed at or after `block-height`, plus all unconfirmed transactions,
 for all tracked scripthashes.
@@ -355,7 +355,7 @@ Returned in the same format as [`GET /tx/:txid`](https://gist.github.com/shesek/
 
 </details>
 
-#### `GET /history/since/:block-height/compcat`
+#### `GET /txs/since/:block-height/compact`
 
 Get a compact minimal representation of all wallet transactions since `block-height`.
 
@@ -365,7 +365,7 @@ Returns a simple JSON array of `[txid, block_height]` tuples, where `block_heigh
 
 Example:
 ```
-$ curl localhost:3060/history/since/105/compcat
+$ curl localhost:3060/txs/since/105/compcat
 [
   ["859d5c41661426ab13a7816b9e845a3353b66f00a3c14bc412d20f87dcf19caa", 105],
   ["3c3c8722b493bcf43adab323581ea1da9f9a9e79628c0d4c89793f7fe21b68cf", 107],
@@ -465,10 +465,35 @@ $ curl localhost:3060/utxos?min_conf=1
 
 ### Addresses / Scripthashes
 
+
 #### `GET /address/:address`
 #### `GET /scripthash/:scripthash`
 
-Get information and stats about the provided scripthash/address.
+Get basic information about the provided scripthash/address.
+
+<details><summary>Expand...</summary><p></p>
+
+Returned fields:
+- `scripthash`
+- `address`
+- `origin` - hd wallet origin information, in `<fingerprint>/<derivation-index>` format
+
+Example:
+```
+$ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s
+{
+  "scripthash": "c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a862433e37c5bc84cb2",
+  "address": "bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s",
+  "origin": "e583e3c5/6"
+}
+```
+
+</details>
+
+#### `GET /address/:address/stats`
+#### `GET /scripthash/:scripthash/stats`
+
+Get basic information and stats about the provided scripthash/address.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -482,7 +507,7 @@ Returned fields:
 
 Example:
 ```
-$ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s
+$ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/stats
 {
   "scripthash": "c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a862433e37c5bc84cb2",
   "address": "bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s",
@@ -492,17 +517,6 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s
   "unconfirmed_balance": 0
 }
 ```
-</details>
-
-#### `GET /address/:address/info`
-#### `GET /scripthash/:scripthash/info`
-
-Get basic information about the provided scripthash/address.
-
-<details><summary>Expand...</summary><p></p>
-
-Like `GET /address/:address` and `GET /scripthash/:scripthash`, but without the `tx_count`, `confirmed_balance` and `unconfirmed_balance` fields. More efficient if you don't care about these.
-
 </details>
 
 #### `GET /address/:address/utxos`
@@ -550,8 +564,8 @@ $ curl localhost:3060/scripthash/c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a8
 ```
 </details>
 
-#### `GET /address/:address/history`
-#### `GET /scripthash/:scripthash/history`
+#### `GET /address/:address/txs`
+#### `GET /scripthash/:scripthash/txs`
 
 Get the list of all transactions in the history of the address/scripthash.
 
@@ -561,7 +575,7 @@ Returned in the same transaction format as `GET /tx/:txid`.
 
 Example:
 ```
-$ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/history
+$ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/txs
 [
   {
     "txid": "859d5c41661426ab13a7816b9e845a3353b66f00a3c14bc412d20f87dcf19caa",
@@ -578,8 +592,8 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/histo
 
 </details>
 
-#### `GET /address/:address/history/compact`
-#### `GET /scripthash/:scripthash/history/compact`
+#### `GET /address/:address/txs/compact`
+#### `GET /scripthash/:scripthash/txs/compact`
 
 Get a compact minimal representation of the scripthash/address history.
 
@@ -589,7 +603,7 @@ Returns a simple JSON array of `[txid, block_height]` tuples, where `block_heigh
 
 Example:
 ```
-$ curl localhost:3060/scripthash/c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a862433e37c5bc84cb2/history/minimal
+$ curl localhost:3060/scripthash/c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a862433e37c5bc84cb2/txs/minimal
 [
   ["859d5c41661426ab13a7816b9e845a3353b66f00a3c14bc412d20f87dcf19caa", 105],
   ["3c3c8722b493bcf43adab323581ea1da9f9a9e79628c0d4c89793f7fe21b68cf", 107],
@@ -751,7 +765,7 @@ It is recommended to include a secret key within the URL to verify the authentic
 You can specify multiple `--webhook-url` to notify all of them.
 
 Note that bwt currently attempts to send the webhook once and does not retry in case of failures.
-It is recommended to occasionally catch up using the [`GET /history/since/:block-height`](#get-historysinceblock-height) endpoint.
+It is recommended to occasionally catch up using the [`GET /txs/since/:block-height`](#get-txssinceblock-height) endpoint.
 
 Tip: services like [webhook.site](https://webhook.site/) or [requestbin](http://requestbin.net/) can come in handy for debugging webhooks. (needless to say, for non-privacy-sensitive regtest/testnet use only)
 
