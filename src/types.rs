@@ -21,6 +21,12 @@ impl From<&Address> for ScriptHash {
     }
 }
 
+impl From<Address> for ScriptHash {
+    fn from(address: Address) -> Self {
+        ScriptHash::from(&address)
+    }
+}
+
 #[cfg(feature = "electrum")]
 hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
 

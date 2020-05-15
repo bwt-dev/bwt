@@ -3,7 +3,7 @@
 `bwt` is a lightweight wallet xpub tracker and query engine for Bitcoin, implemented in Rust.
 
 :small_orange_diamond: Personal HD wallet indexer (EPS-like)<br>
-:small_orange_diamond: Electrum JSON-RPC server (protocol version 1.4)<br>
+:small_orange_diamond: Electrum RPC server<br>
 :small_orange_diamond: HTTP REST API ([docs below](#http-api))<br>
 :small_orange_diamond: Real-time notifications with Server-Sent-Events or Web Hooks
 
@@ -17,7 +17,7 @@
   - [HD Wallets](#hd-wallets)
   - [Transactions](#transactions)
   - [Outputs](#outputs)
-  - [Addresses / Scripthashes](#addresses-scripthashes)
+  - [Addresses, Scripthashes & HD Keys](#addresses-scripthashes--hd-keys)
   - [Server-Sent Events](#server-sent-events)
   - [Mempool & Fees](#mempool--fees)
   - [Miscellaneous](#miscellaneous)
@@ -171,7 +171,7 @@ Get information about the HD wallet identified by the hex-encoded `fingerprint`.
 
 Returned fields:
 - `xpub` - the xpubkey in base58 encoding
-- `origin` - parent extended key this wallet is derived from, in `<fingerprint>/<derivation-index>` format
+- `origin` - parent extended key this wallet is derived from, in `<fingerprint>/<index>` format
 - `network` - the network this wallet belongs to (`bitcoin`, `testnet` or `regtest`)
 - `script_type` - the scriptpubkey type used by this wallet (`p2pkh`, `p2wpkh` or `p2shp2wpkh`)
 - `gap_limit` - the gap limited configured for this wallet
@@ -201,9 +201,9 @@ $ curl localhost:3060/hd/15cb9edc
 ```
 </details>
 
-#### `GET /hd/:fingerprint/:derivation_index`
+#### `GET /hd/:fingerprint/:index`
 
-Get the script entry for the HD key at derivation index `derivation_index`.
+Get basic information for the hd key at the derivation index `index`.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -230,7 +230,7 @@ Get the next unused address in the specified HD wallet.
 
 <details><summary>Expand...</summary><p></p>
 
-Issues a 307 redirection to the url of the next derivation index (`/hd/:fingerprint/:derivation-index`) *and* responds with the derivation index in the responses body.
+Issues a 307 redirection to the url of the next derivation index (`/hd/:fingerprint/:index`) *and* responds with the derivation index in the responses body.
 
 Note that the returned address is not marked as used until receiving funds; If you wish to skip it and generate a different
 address without receiving funds to it, you can specify an explicit derivation index instead.
@@ -289,7 +289,7 @@ Returned fields:
   - `amount` - the output amount
   - `scripthash` - the scripthash funded by this output
   - `address` - the address funded by this output
-  - `origin` - hd wallet origin information, in `<fingerprint>/<derivation-index>` format
+  - `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
   - `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
 - `spending` - contains an entry for every wallet utxo spent by this transaction input
   - `vin` - the input index
@@ -412,7 +412,7 @@ Returned fields:
 - `amount` - the output amount
 - `scripthash` - the scripthash funded by this output
 - `address` - the address funded by this output
-- `origin` - hd wallet origin information, in `<fingerprint>/<derivation-index>` format
+- `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
 - `status` - `confirmed` or `unconfirmed`
 - `block_height` - the confirming block height (available for confirmed transactions only)
 - `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
@@ -463,20 +463,22 @@ $ curl localhost:3060/utxos?min_conf=1
 ```
 </details>
 
-### Addresses / Scripthashes
+### Addresses, Scripthashes & HD Keys
 
 
 #### `GET /address/:address`
 #### `GET /scripthash/:scripthash`
+#### `GET /hd/:fingerprint/:index`
 
-Get basic information about the provided scripthash/address.
+
+Get basic information for the provided address, scripthash or hd key.
 
 <details><summary>Expand...</summary><p></p>
 
 Returned fields:
 - `scripthash`
 - `address`
-- `origin` - hd wallet origin information, in `<fingerprint>/<derivation-index>` format
+- `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
 
 Example:
 ```
@@ -492,15 +494,16 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s
 
 #### `GET /address/:address/stats`
 #### `GET /scripthash/:scripthash/stats`
+#### `GET /hd/:fingerprint/:index/stats`
 
-Get basic information and stats about the provided scripthash/address.
+Get basic information and stats for the provided address, scripthash or hd key.
 
 <details><summary>Expand...</summary><p></p>
 
 Returned fields:
 - `scripthash`
 - `address`
-- `origin` - hd wallet origin information, in `<fingerprint>/<derivation-index>` format
+- `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
 - `tx_count`
 - `confirmed_balanace`
 - `unconfirmed_balanace`
@@ -521,8 +524,9 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/stats
 
 #### `GET /address/:address/utxos`
 #### `GET /scripthash/:scripthash/utxos`
+#### `GET /hd/:fingerprint/:index/utxos`
 
-Get the list of unspent transaction outputs owned by the scripthash/address.
+Get the list of unspent transaction outputs owned by the provided address, scripthash or hd key.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -566,8 +570,9 @@ $ curl localhost:3060/scripthash/c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a8
 
 #### `GET /address/:address/txs`
 #### `GET /scripthash/:scripthash/txs`
+#### `GET /hd/:fingerprint/:index/txs`
 
-Get the list of all transactions in the history of the address/scripthash.
+Get the list of all transactions in the history of the provided address, scripthash or hd key.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -594,8 +599,9 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/txs
 
 #### `GET /address/:address/txs/compact`
 #### `GET /scripthash/:scripthash/txs/compact`
+#### `GET /hd/:fingerprint/:index/txs/compact`
 
-Get a compact minimal representation of the scripthash/address history.
+Get a compact minimal representation of the provided address, scripthash or hd key.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -676,8 +682,9 @@ data:{"category":"TxoSpent","params":["521d0991128a680d01e5a4f748f6ad8a6a1dbde48
 
 #### `GET /address/:address/stream`
 #### `GET /scripthash/:scripthash/stream`
+#### `GET /hd/:fingerprint/:index/stream`
 
-Subscribe to a real-time notification stream of indexer update events related to the specified scripthash/address.
+Subscribe to a real-time notification stream of indexer update events related to the provided address, scripthash or hd key.
 
 <details><summary>Expand...</summary><p></p>
 

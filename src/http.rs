@@ -62,12 +62,10 @@ async fn run(
     let hd_key_handler = warp::get()
         .and(warp::path!("hd" / Fingerprint / u32))
         .and(query.clone())
-        .map(
-            |fingerprint: Fingerprint, derivation_index: u32, query: Arc<Query>| {
-                let script_info = query.get_hd_script_info(&fingerprint, derivation_index);
-                reply::json(&script_info)
-            },
-        );
+        .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
+            let script_info = query.get_hd_script_info(&fingerprint, index);
+            reply::json(&script_info)
+        });
 
     // GET /hd/:fingerprint/gap
     let hd_gap_handler = warp::get()
@@ -96,18 +94,35 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /address/:address/*
     // GET /scripthash/:scripthash/*
     let scripthash_route = warp::path!("scripthash" / ScriptHash / ..);
-    let address_route = warp::path!("address" / Address / ..)
-        // TODO ensure!(address.network == config.network);
-        .map(|address: Address| ScriptHash::from(&address));
-    let spk_route = address_route.or(scripthash_route).unify();
 
+    // GET /address/:address/*
+    let address_route = warp::path!("address" / Address / ..).map(ScriptHash::from);
+    // TODO check address version bytes matches the configured network
+
+    // GET /hd/:fingerprint/:index/*
+    let hd_key_route = warp::path!("hd" / Fingerprint / u32 / ..)
+        .and(query.clone())
+        .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
+            let script_info = query
+                .get_hd_script_info(&fingerprint, index)
+                .or_err("not found")?;
+            Ok(script_info.scripthash)
+        })
+        .and_then(reject_error);
+
+    let spk_route = address_route
+        .or(scripthash_route)
+        .unify()
+        .or(hd_key_route)
+        .unify();
+
+    // GET /hd/:fingerprint/:index
     // GET /address/:address
     // GET /scripthash/:scripthash
     let spk_handler = warp::get()
-        .and(spk_route)
+        .and(spk_route.clone())
         .and(warp::path::end())
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
@@ -116,10 +131,11 @@ async fn run(
         })
         .map(handle_error);
 
+    // GET /hd/:fingerprint/:index/stats
     // GET /address/:address/stats
     // GET /scripthash/:scripthash/stats
     let spk_stats_handler = warp::get()
-        .and(spk_route)
+        .and(spk_route.clone())
         .and(warp::path!("stats"))
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
@@ -128,10 +144,11 @@ async fn run(
         })
         .map(handle_error);
 
+    // GET /hd/:fingerprint/:index/utxos
     // GET /address/:address/utxos
     // GET /scripthash/:scripthash/utxos
     let spk_utxo_handler = warp::get()
-        .and(spk_route)
+        .and(spk_route.clone())
         .and(warp::path!("utxos"))
         .and(warp::query::<UtxoOptions>())
         .and(query.clone())
@@ -142,10 +159,11 @@ async fn run(
         })
         .map(handle_error);
 
+    // GET /hd/:fingerprint/:index/txs
     // GET /address/:address/txs
     // GET /scripthash/:scripthash/txs
     let spk_txs_handler = warp::get()
-        .and(spk_route)
+        .and(spk_route.clone())
         .and(warp::path!("txs"))
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
@@ -156,10 +174,11 @@ async fn run(
         })
         .map(handle_error);
 
+    // GET /hd/:fingerprint/:index/txs/compact
     // GET /address/:address/txs/compact
     // GET /scripthash/:scripthash/txs/compact
     let spk_txs_compact_handler = warp::get()
-        .and(spk_route)
+        .and(spk_route.clone())
         .and(warp::path!("txs" / "compact"))
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
@@ -267,10 +286,11 @@ async fn run(
             warp::sse::reply(warp::sse::keep_alive().stream(stream))
         });
 
+    // GET /hd/:fingerprint/:index/stream
     // GET /scripthash/:scripthash/stream
     // GET /address/:address/stream
     let spk_sse_handler = warp::get()
-        .and(spk_route)
+        .and(spk_route.clone())
         .and(warp::path!("stream"))
         .and(warp::query::<ChangelogFilter>())
         .and(listeners.clone())
@@ -327,7 +347,7 @@ async fn run(
 
     let handlers = hd_wallets_handler
         .or(hd_wallet_handler)
-        .or(hd_key_handler)
+        .or(hd_key_handler) // needs to be before spk_handler to work fpr keys that don't have any indexed history
         .or(hd_gap_handler)
         .or(hd_next_handler)
         .or(spk_handler)
@@ -407,7 +427,7 @@ type Listeners = Arc<Mutex<Vec<Listener>>>;
 
 struct Listener {
     tx: tmpsc::UnboundedSender<IndexChange>,
-    filter: ChangelogFilter, // None means subscribing to everything
+    filter: ChangelogFilter,
 }
 
 fn make_connection_sse_stream(
@@ -472,6 +492,10 @@ struct BroadcastBody {
     tx_hex: String,
 }
 
+fn compact_history(tx_hist: &store::HistoryEntry) -> serde_json::Value {
+    json!([tx_hist.txid, tx_hist.status.height()])
+}
+
 fn handle_error<T>(result: Result<T, Error>) -> impl Reply
 where
     T: Reply + Send,
@@ -486,7 +510,13 @@ where
         }
     }
 }
-
-fn compact_history(tx_hist: &store::HistoryEntry) -> serde_json::Value {
-    json!([tx_hist.txid, tx_hist.status.height()])
+async fn reject_error<T>(result: Result<T, Error>) -> Result<T, warp::Rejection> {
+    result.map_err(|err| {
+        warn!("pre-processing failed: {:?}", err);
+        warp::reject::custom(WarpError(err))
+    })
 }
+
+#[derive(Debug)]
+struct WarpError(Error);
+impl warp::reject::Reject for WarpError {}
