@@ -20,10 +20,13 @@ pub struct Config {
         long,
         help = "one of 'bitcoin', 'testnet' or 'regtest'",
         default_value = "bitcoin",
+        env,
+        hide_env_values(true),
         display_order(1)
     )]
     pub network: Network,
 
+    // cannot be set using an env var, it does not play nicely with from_occurrences
     #[structopt(
         short,
         long,
@@ -36,7 +39,9 @@ pub struct Config {
     #[structopt(
         short = "d",
         long = "bitcoind-dir",
-        help = "path to bitcoind directory (used for cookie file, defaults to ~/.bitcoin/<network>)",
+        help = "path to bitcoind directory (used for cookie file) [default: ~/.bitcoin]",
+        env,
+        hide_env_values(true),
         display_order(30)
     )]
     pub bitcoind_dir: Option<path::PathBuf>,
@@ -44,7 +49,9 @@ pub struct Config {
     #[structopt(
         short = "u",
         long = "bitcoind-url",
-        help = "url for the bitcoind rpc server (defaults to http://localhost:<network-rpc-port>)",
+        help = "url for the bitcoind rpc server [default: http://localhost:<network-rpc-port>]",
+        env,
+        hide_env_values(true),
         display_order(31)
     )]
     pub bitcoind_url: Option<String>,
@@ -53,6 +60,8 @@ pub struct Config {
         short = "c",
         long = "bitcoind-cred",
         help = "credentials for accessing the bitcoind rpc server (as <username>:<password>, instead of reading the cookie file)",
+        env,
+        hide_env_values(true),
         display_order(32)
     )]
     pub bitcoind_cred: Option<String>,
@@ -60,7 +69,9 @@ pub struct Config {
     #[structopt(
         short = "C",
         long = "bitcoind-cookie",
-        help = "cookie file for accessing the bitcoind rpc server (defaults to <bitcoind-dir>/.cookie)",
+        help = "cookie file for accessing the bitcoind rpc server [default: <bitcoind-dir>/.cookie]",
+        env,
+        hide_env_values(true),
         display_order(33)
     )]
     pub bitcoind_cookie: Option<path::PathBuf>,
@@ -70,6 +81,7 @@ pub struct Config {
         long = "xpub",
         help = "xpubs to track and since when (rescans from genesis by default, use <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch> to specify a timestmap, or <xpub>:none to disable rescanning)",
         parse(try_from_str = parse_xpub),
+        env, hide_env_values(true), use_delimiter(true),
         display_order(20)
     )]
     pub xpubs: Vec<(XyzPubKey, RescanSince)>,
@@ -79,6 +91,7 @@ pub struct Config {
         long = "bare-xpub",
         help = "bare xpubs to track (like --xpub but does not derive separate internal and external chains)",
         parse(try_from_str = parse_xpub),
+        env, hide_env_values(true), use_delimiter(true),
         display_order(21)
     )]
     pub bare_xpubs: Vec<(XyzPubKey, RescanSince)>,
@@ -88,6 +101,8 @@ pub struct Config {
         long = "gap-limit",
         help = "gap limit for importing hd addresses",
         default_value = "20",
+        env,
+        hide_env_values(true),
         display_order(51)
     )]
     pub gap_limit: u32,
@@ -97,6 +112,8 @@ pub struct Config {
         long = "initial-gap-limit",
         help = "gap limit to be used during the initial sync (higher to reduce number of rescans)",
         default_value = "50",
+        env,
+        hide_env_values(true),
         display_order(52)
     )]
     pub initial_gap_limit: u32,
@@ -113,7 +130,9 @@ pub struct Config {
     #[structopt(
         short,
         long = "electrum-rpc-addr",
-        help = "address to bind the electrum rpc server (host:port) [default: 50001 for mainnet, 50001 for testnet or 60401 for regtest]",
+        help = "address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:50001' for testnet or '127.0.0.2:60401' for regtest]",
+        env,
+        hide_env_values(true),
         display_order(40)
     )]
     pub electrum_rpc_addr: Option<net::SocketAddr>,
@@ -122,8 +141,10 @@ pub struct Config {
     #[structopt(
         short,
         long = "http-server-addr",
-        help = "address to bind the http api server (host:port)",
+        help = "address to bind the http api server",
         default_value = "127.0.0.1:3060",
+        env,
+        hide_env_values(true),
         display_order(41)
     )]
     pub http_server_addr: net::SocketAddr,
@@ -132,6 +153,8 @@ pub struct Config {
     #[structopt(
         long = "http-cors",
         help = "allowed cross-origins for http api server (Access-Control-Allow-Origin)",
+        env,
+        hide_env_values(true),
         display_order(42)
     )]
     pub http_cors: Option<String>,
@@ -142,6 +165,7 @@ pub struct Config {
         help = "interval for checking new blocks/txs (in seconds)",
         default_value = "5",
         parse(try_from_str = parse_duration),
+        env, hide_env_values(true),
         display_order(90)
     )]
     pub poll_interval: time::Duration,
@@ -151,6 +175,8 @@ pub struct Config {
         long = "unix-listener-path",
         short = "U",
         help = "path for binding sync notification unix socket",
+        env,
+        hide_env_values(true),
         display_order(91)
     )]
     pub unix_listener_path: Option<path::PathBuf>,
@@ -160,6 +186,7 @@ pub struct Config {
         long = "webhook-url",
         short = "w",
         help = "webhook url(s) to notify with index event updates",
+        env, hide_env_values(true), use_delimiter(true),
         display_order(92)
     )]
     pub webhook_urls: Option<Vec<String>>,
