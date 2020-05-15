@@ -40,22 +40,23 @@ impl Indexer {
         &self.watcher
     }
 
-    // continue to sync transactions and import addresses until no more new addresses need to be
-    // imported. the initial sync does not collect the Changelog and does not emit updates.
+    // continue to sync transactions and import addresses (with rescan) until no more new addresses
+    // need to be imported. the initial sync does not collect the Changelog and does not emit updates.
     pub fn initial_sync(&mut self) -> Result<()> {
         info!("starting initial sync");
+        self.watcher.check_imports(&self.rpc)?;
         while {
             self._sync(false)?;
-            self.watcher.watch(&self.rpc)?
+            self.watcher.do_imports(&self.rpc, true)?
         } { /* do while */ }
         info!("done initial sync");
         Ok(())
     }
 
-    // initiate a regular sync to catch up with updates and import new look-ahead addresses
+    // initiate a regular sync to catch up with updates and import new addresses (no rescan)
     pub fn sync(&mut self) -> Result<Vec<IndexChange>> {
         let changelog = self._sync(true)?;
-        self.watcher.watch(&self.rpc)?;
+        self.watcher.do_imports(&self.rpc, false)?;
         Ok(changelog)
     }
 
@@ -240,6 +241,7 @@ impl Indexer {
             }
         }
 
+        // TODO use batch rpc to fetch all buffered outgoing txs
         let tx = self.rpc.get_transaction(&txid, Some(true))?.transaction()?;
 
         let spending: HashMap<u32, SpendingInfo> = tx

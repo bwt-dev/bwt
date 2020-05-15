@@ -57,37 +57,67 @@ impl HDWatcher {
         }
     }
 
-    pub fn watch(&mut self, rpc: &RpcClient) -> Result<bool> {
+    // check previous imports and update max_imported_index
+    pub fn check_imports(&mut self, rpc: &RpcClient) -> Result<()> {
+        debug!("checking previous imports");
+        let labels: Vec<String> = rpc.call("listlabels", &[])?;
+        let mut imported_indexes: HashMap<Fingerprint, u32> = HashMap::new();
+        for label in labels {
+            if let Some(KeyOrigin::Derived(fingerprint, index)) = KeyOrigin::from_label(&label) {
+                if self.wallets.contains_key(&fingerprint) {
+                    imported_indexes
+                        .entry(fingerprint)
+                        .and_modify(|current| *current = (*current).max(index))
+                        .or_insert(index);
+                }
+            }
+        }
+
+        for (fingerprint, max_imported_index) in imported_indexes {
+            trace!(
+                "wallet {} was imported up to index {}",
+                fingerprint,
+                max_imported_index
+            );
+            let wallet = self.wallets.get_mut(&fingerprint).unwrap();
+            wallet.max_imported_index = Some(max_imported_index);
+
+            // if anything was imported at all, assume we've finished the initial sync. this might
+            // not hold true if bwt shuts down while syncing, but this only means that we'll use
+            // the smaller gap_limit instead of the initial_gap_limit, which is acceptable.
+            wallet.done_initial_import = true;
+        }
+        Ok(())
+    }
+
+    pub fn do_imports(&mut self, rpc: &RpcClient, rescan: bool) -> Result<bool> {
         let mut import_reqs = vec![];
         let mut pending_updates = vec![];
 
-        for (_, wallet) in self.wallets.iter_mut() {
+        for (fingerprint, wallet) in self.wallets.iter_mut() {
             let watch_index = wallet.watch_index();
             if wallet.max_imported_index.map_or(true, |i| watch_index > i) {
                 let start_index = wallet
                     .max_imported_index
                     .map_or(0, |max_imported| max_imported + 1);
 
-                let rescan = if wallet.done_initial_import {
-                    RescanSince::Now
-                } else {
-                    wallet.rescan_policy
-                };
-
                 debug!(
-                    "importing range {}-{} of xpub {} rescan={:?}",
-                    start_index, watch_index, wallet.master, rescan,
+                    "importing {} range {}-{} with rescan={}",
+                    fingerprint, start_index, watch_index, rescan,
                 );
 
                 import_reqs.append(&mut wallet.make_imports(start_index, watch_index, rescan));
-                pending_updates.push((wallet, watch_index));
+
+                pending_updates.push((wallet, fingerprint, watch_index));
             } else if !wallet.done_initial_import {
                 debug!(
-                    "done initial import for xpub {} (up to index {:?})",
-                    wallet.master,
-                    wallet.max_imported_index.unwrap_or(0)
+                    "done initial import for {} up to index {}",
+                    fingerprint,
+                    wallet.max_imported_index.unwrap()
                 );
                 wallet.done_initial_import = true;
+            } else {
+                trace!("no imports needed for {}", fingerprint);
             }
         }
 
@@ -99,12 +129,9 @@ impl HDWatcher {
             info!("done importing batch");
         }
 
-        for (wallet, watched_index) in pending_updates {
-            debug!(
-                "imported xpub {} up to index {}",
-                wallet.master, watched_index
-            );
-            wallet.max_imported_index = Some(watched_index);
+        for (wallet, fingerprint, imported_index) in pending_updates {
+            debug!("imported {} up to index {}", fingerprint, imported_index);
+            wallet.max_imported_index = Some(imported_index);
         }
 
         Ok(has_imports)
@@ -258,14 +285,20 @@ impl HDWallet {
         &self,
         start_index: u32,
         end_index: u32,
-        rescan: RescanSince,
+        rescan: bool,
     ) -> Vec<(Address, RescanSince, String)> {
+        let rescan_since = if rescan {
+            self.rescan_policy
+        } else {
+            RescanSince::Now
+        };
+
         (start_index..=end_index)
             .map(|index| {
                 let key = self.derive(index);
                 let address = self.to_address(&key);
                 let origin = KeyOrigin::Derived(key.parent_fingerprint, index);
-                (address, rescan, origin.to_label())
+                (address, rescan_since, origin.to_label())
             })
             .collect()
     }
@@ -295,12 +328,7 @@ fn batch_import(rpc: &RpcClient, import_reqs: Vec<(Address, RescanSince, String)
         &import_reqs
             .iter()
             .map(|(address, rescan, label)| {
-                trace!(
-                    "importing {} as {} with rescan {:?}",
-                    address,
-                    label,
-                    rescan
-                );
+                trace!("importing {} as {}", address, label,);
 
                 ImportMultiRequest {
                     label: Some(&label),
