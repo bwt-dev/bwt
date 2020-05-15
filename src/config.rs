@@ -186,13 +186,19 @@ pub struct Config {
         long = "webhook-url",
         short = "w",
         help = "webhook url(s) to notify with index event updates",
-        env, hide_env_values(true), use_delimiter(true),
+        env,
+        hide_env_values(true),
+        use_delimiter(true),
         display_order(92)
     )]
     pub webhook_urls: Option<Vec<String>>,
 }
 
 impl Config {
+    pub fn dotenv() {
+        dirs::home_dir().map(|home| dotenv::from_path(home.join("bwt.env")).ok());
+    }
+
     pub fn bitcoind_url(&self) -> String {
         self.bitcoind_url.clone().unwrap_or_else(|| {
             format!(
