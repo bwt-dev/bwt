@@ -1,4 +1,4 @@
-// Implements the Display, Debug and Serialize traits to format the struct as string
+// Implements the Display and Serialize traits to format the struct as string
 macro_rules! impl_string_serializer {
     ($name:ident, $var:ident, $expr:expr) => {
         impl std::fmt::Display for $name {
@@ -14,6 +14,17 @@ macro_rules! impl_string_serializer {
             {
                 let $var = self;
                 serializer.collect_str(&$expr)
+            }
+        }
+    };
+}
+
+// delegate Debug to Display
+macro_rules! impl_debug_display {
+    ($name:ident) => {
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str(&self.to_string())
             }
         }
     };

@@ -384,7 +384,7 @@ impl KeyOrigin {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct XyzPubKey {
     pub network: Network,
     pub script_type: ScriptType,
@@ -432,6 +432,7 @@ impl XyzPubKey {
 }
 
 impl_string_serializer!(XyzPubKey, xpub, xpub.extended_pubkey.to_string());
+impl_debug_display!(XyzPubKey);
 
 fn parse_xyz_version(version: &[u8]) -> StdResult<(Network, ScriptType), base58::Error> {
     Ok(match version {
