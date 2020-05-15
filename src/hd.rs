@@ -63,7 +63,7 @@ impl HDWatcher {
 
         for (_, wallet) in self.wallets.iter_mut() {
             let watch_index = wallet.watch_index();
-            if watch_index > wallet.max_imported_index.unwrap_or(0) {
+            if wallet.max_imported_index.map_or(true, |i| watch_index > i) {
                 let start_index = wallet
                     .max_imported_index
                     .map_or(0, |max_imported| max_imported + 1);
