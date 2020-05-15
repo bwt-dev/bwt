@@ -56,18 +56,7 @@ impl Query {
         Ok(self.rpc.get_block_count()? as u32)
     }
 
-    pub fn get_header(&self, height: u32) -> Result<String> {
-        self.get_header_by_hash(&self.get_block_hash(height)?)
-    }
-
-    pub fn get_headers(&self, heights: &[u32]) -> Result<Vec<String>> {
-        Ok(heights
-            .iter()
-            .map(|h| self.get_header(*h))
-            .collect::<Result<Vec<String>>>()?)
-    }
-
-    pub fn get_header_by_hash(&self, blockhash: &BlockHash) -> Result<String> {
+    pub fn get_header_hex(&self, blockhash: &BlockHash) -> Result<String> {
         Ok(self
             .rpc
             .call("getblockheader", &[json!(blockhash), false.into()])?)

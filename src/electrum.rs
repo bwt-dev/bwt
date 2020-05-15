@@ -58,7 +58,7 @@ impl Connection {
             .subscribe_blocks(self.subscriber_id);
 
         let BlockId(tip_height, tip_hash) = self.query.get_tip()?;
-        let tip_hex = self.query.get_header_by_hash(&tip_hash)?;
+        let tip_hex = self.query.get_header_hex(&tip_hash)?;
         Ok(json!({ "height": tip_height, "hex": tip_hex }))
     }
 
@@ -86,7 +86,8 @@ impl Connection {
     fn blockchain_block_header(&self, params: Value) -> Result<Value> {
         let (height, cp_height): (u32, Option<u32>) = from_value(pad_params(params, 2))?;
 
-        let header_hex = self.query.get_header(height)?;
+        let blockhash = self.query.get_block_hash(height)?;
+        let header_hex = self.query.get_header_hex(&blockhash)?;
 
         Ok(match cp_height {
             Some(cp_height) => {
@@ -112,9 +113,14 @@ impl Connection {
         // only the available headers will be returned. If more headers than max were requested at
         // most max will be returned.")
         let max_height = cmp::min(start_height + count, self.query.get_tip_height()?);
-        let heights: Vec<u32> = (start_height..max_height).collect();
 
-        let headers = self.query.get_headers(&heights)?;
+        // TODO use batch rpc when available in rust-bitcoincore-rpc
+        let headers: Vec<String> = (start_height..max_height)
+            .map(|height| {
+                let blockhash = self.query.get_block_hash(height)?;
+                self.query.get_header_hex(&blockhash)
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         let mut result = json!({
             "count": headers.len(),
@@ -304,7 +310,7 @@ impl Connection {
     fn jsonrpc_notification(&mut self, change: IndexChange) -> Result<Value> {
         Ok(match change {
             IndexChange::ChainTip(BlockId(tip_height, tip_hash)) => {
-                let hex_header = self.query.get_header_by_hash(&tip_hash)?;
+                let hex_header = self.query.get_header_hex(&tip_hash)?;
                 let header = json!({"hex": hex_header, "height": tip_height });
                 json!({
                     "jsonrpc": "2.0",
