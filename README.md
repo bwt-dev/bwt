@@ -16,11 +16,11 @@
 - [HTTP API](#http-api)
   - [HD Wallets](#hd-wallets)
   - [Transactions](#transactions)
+  - [Addresses](#addresses-scripthashes--hd-keys)
   - [Outputs](#outputs)
-  - [Addresses, Scripthashes & HD Keys](#addresses-scripthashes--hd-keys)
-  - [Server-Sent Events](#server-sent-events)
   - [Blocks](#blocks)
   - [Mempool & Fees](#mempool--fees)
+  - [Server-Sent Events :star2:](#server-sent-events)
   - [Miscellaneous](#miscellaneous)
 - [Web Hooks](#web-hooks)
 - [Example wallet client](#example-wallet-client)
@@ -419,70 +419,7 @@ $ curl -X POST localhost:3060/tx -H 'Content-Type: application/json' \
 
 </details>
 
-### Outputs
-
-#### `GET /txo/:txid/:vout`
-
-Get information about the specified wallet output.
-
-<details><summary>Expand...</summary><p></p>
-
-Returned fields:
-- `txid` - the output transaction
-- `vout` - the output index
-- `amount` - the output amount
-- `scripthash` - the scripthash funded by this output
-- `address` - the address funded by this output
-- `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
-- `block_height` - the confirming block height or `null` for unconfirmed transactions
-- `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
-
-
-Example:
-```
-$ curl localhost:3060/txo/1b1170ac5996df9255299ae47b26ec3ad57c9801bc7bae68203b1222350d52fe/0
-{
-  "txid": "1b1170ac5996df9255299ae47b26ec3ad57c9801bc7bae68203b1222350d52fe",
-  "vout": 0,
-  "amount": 99791,
-  "scripthash": "42c8d22a39047d79070acc984c7d3e6ee9cca69289c84c75900e05c52adb5e8e",
-  "address": "bcrt1qknn7fg0w33j9gcsdtdd6k02llpjmqyg8a36728",
-  "origin": "364476e3/15",
-  "block_height": 161,
-  "spent_by": null
-}
-```
-</details>
-
-#### `GET /utxos`
-
-Get all unspent wallet outputs.
-
-<details><summary>Expand...</summary><p></p>
-
-Returns a JSON array in the same format as [`GET /txo/:txid/:vout`](#get-txotxidvout).
-
-Query string parameters:
-- `min_conf` - minimum number of confirmations, defaults to 0
-- `include_unsafe` - whether to include outputs that are not safe to spend (unconfirmed from outside keys or with RBF), defaults to true
-
-Example:
-```
-$ curl localhost:3060/utxos?min_conf=1
-[
-  {
-    "txid": "1973551cc7670237606561ba3f7579d46d38e7145a72cf6a55ff8975e7143fee",
-    "vout": 0,
-    "amount": 99791,
-    ...
-  },
-  ...
-]
-```
-</details>
-
 ### Addresses, Scripthashes & HD Keys
-
 
 #### `GET /address/:address`
 #### `GET /scripthash/:scripthash`
@@ -635,86 +572,70 @@ $ curl localhost:3060/scripthash/c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a8
 
 </details>
 
-### Server-Sent Events
 
-#### Available event categories
+### Outputs
 
-- `ChainTip(BlockHeight, BlockHash)` - emitted whenever a new block extends the best chain.
-- `Reorg(BlockHeight, PrevBlockHash, CurrBlockHash)` - indicates that a re-org was detected on BlockHeight, with the previous block hash at this height and the current one.
-- `Transaction(Txid, BlockHeight)` - emitted for new transactions as well as transactions changing their confirmation status (typically from unconfirmed to confirmed, possibly the other way around in case of reorgs).
-- `TransactionReplaced(Txid)` - indicates that the transaction conflicts with another transaction and can no longer be confirmed (aka double-spent).
-- `History(ScriptHash, Txid, BlockHeight)` - emitted whenever the history of a scripthash changes.
-- `TxoCreated(OutPoint, BlockHeight)` - emitted for new unspent wallet outputs.
-- `TxoSpent(OutPoint, TxInput, BlockHeight)` - emitted for wallet outputs spends.
+#### `GET /txo/:txid/:vout`
 
-For unconfirmed transactions, `BlockHeight` will be `null`.
-
-#### `GET /stream`
-
-Subscribe to a real-time notification stream of indexer update events.
+Get information about the specified wallet output.
 
 <details><summary>Expand...</summary><p></p>
 
-Query string parameters for filtering the event stream:
-- `category`
-- `scripthash`
-- `outpoint`
+Returned fields:
+- `txid` - the output transaction
+- `vout` - the output index
+- `amount` - the output amount
+- `scripthash` - the scripthash funded by this output
+- `address` - the address funded by this output
+- `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
+- `block_height` - the confirming block height or `null` for unconfirmed transactions
+- `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
 
-Examples:
-```bash
-$ curl localhost:3060/stream
-< HTTP/1.1 200 OK
-< content-type: text/event-stream
-
-data:{"category":"ChainTip","params":[630000,"138f2e0c6c0377ff9e5a7a6fb3386ba3ea5afcb0bd551010b4e79ff8ce337b53"]}
-
-data:{"category":"Transaction","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
-
-data:{"category":"History","params":["796d12182f1a1dd89f478a44c2f439d8a68f66d6cc11e8f525bdcce69cd24c27","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
-
-data:{"category":"History","params":["233fbc04a5fbd4527bded1fec6ddaf026d9db3b7171f73800e20dd1c455a562f","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
-
-data:{"category":"TxoCreated","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e:1",630000]}
-
-data:{"category":"TxoSpent","params":["e51414f57bdee681d48a6ade696049c4d7569a062278803fb7968d9a022c6a96:1","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e:0",630000]}
-```
-
-```
-$ curl localhost:3060/stream?category=ChainTip
-
-data:{"category":"ChainTip","params":[630000,"661e3adef501b49457d5efc01f9700137a9c7340f1891895ef2a49ae35bfc069"]}
-
-data:{"category":"ChainTip","params":[630001,"1c293df0c95d94a345e7578868ee679c9f73b905ac74da51e692af18e0425387"]}
-```
-
-```
-$ curl localhost:3060/stream?outpoint=521d0991128a680d01e5a4f748f6ad8a6a1dbde485020f26db1031017be39554:0
-
-data:{"category":"TxoSpent","params":["521d0991128a680d01e5a4f748f6ad8a6a1dbde485020f26db1031017be39554:0","1569f341184eda501b070b3cb8005bc06e6e293442422c41c2f9e451bb0a328c:0",630000]}
-```
-
-</details>
-
-#### `GET /address/:address/stream`
-#### `GET /scripthash/:scripthash/stream`
-#### `GET /hd/:fingerprint/:index/stream`
-
-Subscribe to a real-time notification stream of indexer update events related to the provided address, scripthash or hd key.
-
-<details><summary>Expand...</summary><p></p>
-
-This is equivalent to `GET /stream?scripthash=<scripthash>`.
 
 Example:
 ```
-$ curl localhost:3060/scripthash/96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19/stream
-
-data:{"category":"History","params":["96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19","1fbc4a22ace7abcdd7b76630d7a7d6f9cf1
-58842a973ac796ad89db2ee8a846e",630000]}
-
-data:{"category":"TxoCreated","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e:0",630000]}
+$ curl localhost:3060/txo/1b1170ac5996df9255299ae47b26ec3ad57c9801bc7bae68203b1222350d52fe/0
+{
+  "txid": "1b1170ac5996df9255299ae47b26ec3ad57c9801bc7bae68203b1222350d52fe",
+  "vout": 0,
+  "amount": 99791,
+  "scripthash": "42c8d22a39047d79070acc984c7d3e6ee9cca69289c84c75900e05c52adb5e8e",
+  "address": "bcrt1qknn7fg0w33j9gcsdtdd6k02llpjmqyg8a36728",
+  "origin": "364476e3/15",
+  "block_height": 161,
+  "spent_by": null
+}
 ```
 </details>
+
+#### `GET /utxos`
+
+Get all unspent wallet outputs.
+
+<details><summary>Expand...</summary><p></p>
+
+Returned as a JSON array in the same format as [`GET /txo/:txid/:vout`](#get-txotxidvout).
+
+Query string parameters:
+- `min_conf` - minimum number of confirmations, defaults to 0
+- `include_unsafe` - whether to include outputs that are not safe to spend (unconfirmed from outside keys or with RBF), defaults to true
+
+Example:
+```
+$ curl localhost:3060/utxos?min_conf=1
+[
+  {
+    "txid": "1973551cc7670237606561ba3f7579d46d38e7145a72cf6a55ff8975e7143fee",
+    "vout": 0,
+    "amount": 99791,
+    ...
+  },
+  ...
+]
+```
+</details>
+
+> Also see: [`GET /address/:address/utxos`](#get-addressaddressutxos)
 
 
 ### Blocks
@@ -857,6 +778,89 @@ $ curl localhost:3060/fee-estimate/3
 ```
 
 </details>
+
+
+### Server-Sent Events
+
+#### Available event categories
+
+- `ChainTip(block_height, BlockHash)` - emitted whenever a new block extends the best chain.
+- `Reorg(block_height, prev_block_hash, curr_block_hash)` - indicates that a re-org was detected on `block_height`, with the previous block hash at this height and the current one.
+- `Transaction(txid, block_height)` - emitted for new transactions as well as transactions changing their confirmation status (typically from unconfirmed to confirmed, possibly the other way around in case of reorgs).
+- `TransactionReplaced(txid)` - indicates that the transaction conflicts with another transaction and can no longer be confirmed (aka double-spent).
+- `History(scripthash, txid, block_height)` - emitted whenever the history of a scripthash changes, due to new transaction or confirmation status changes.
+- `TxoCreated(outpoint, block_height)` - emitted for new unspent wallet outputs.
+- `TxoSpent(outpoint, inpoint, block_height)` - emitted for wallet outputs spends.
+
+For unconfirmed transactions, `block_height` will be `null`.
+
+#### `GET /stream`
+
+Subscribe to a real-time [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) stream of indexer update notifications.
+
+<details><summary>Expand...</summary><p></p>
+
+Query string parameters for filtering the event stream:
+- `category`
+- `scripthash`
+- `outpoint`
+
+Examples:
+```bash
+$ curl localhost:3060/stream
+< HTTP/1.1 200 OK
+< content-type: text/event-stream
+
+data:{"category":"ChainTip","params":[630000,"138f2e0c6c0377ff9e5a7a6fb3386ba3ea5afcb0bd551010b4e79ff8ce337b53"]}
+
+data:{"category":"Transaction","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
+
+data:{"category":"History","params":["796d12182f1a1dd89f478a44c2f439d8a68f66d6cc11e8f525bdcce69cd24c27","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
+
+data:{"category":"History","params":["233fbc04a5fbd4527bded1fec6ddaf026d9db3b7171f73800e20dd1c455a562f","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
+
+data:{"category":"TxoCreated","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e:1",630000]}
+
+data:{"category":"TxoSpent","params":["e51414f57bdee681d48a6ade696049c4d7569a062278803fb7968d9a022c6a96:1","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e:0",630000]}
+```
+
+```
+$ curl localhost:3060/stream?category=ChainTip
+
+data:{"category":"ChainTip","params":[630000,"661e3adef501b49457d5efc01f9700137a9c7340f1891895ef2a49ae35bfc069"]}
+
+data:{"category":"ChainTip","params":[630001,"1c293df0c95d94a345e7578868ee679c9f73b905ac74da51e692af18e0425387"]}
+```
+
+```
+$ curl localhost:3060/stream?outpoint=521d0991128a680d01e5a4f748f6ad8a6a1dbde485020f26db1031017be39554:0
+
+data:{"category":"TxoSpent","params":["521d0991128a680d01e5a4f748f6ad8a6a1dbde485020f26db1031017be39554:0","1569f341184eda501b070b3cb8005bc06e6e293442422c41c2f9e451bb0a328c:0",630000]}
+```
+
+</details>
+
+#### `GET /address/:address/stream`
+#### `GET /scripthash/:scripthash/stream`
+#### `GET /hd/:fingerprint/:index/stream`
+
+Subscribe to a real-time notification stream of indexer update events related to the provided address, scripthash or hd key.
+
+<details><summary>Expand...</summary><p></p>
+
+This is equivalent to `GET /stream?scripthash=<scripthash>`.
+
+Example:
+```
+$ curl localhost:3060/scripthash/96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19/stream
+
+data:{"category":"History","params":["96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19","1fbc4a22ace7abcdd7b76630d7a7d6f9cf1
+58842a973ac796ad89db2ee8a846e",630000]}
+
+data:{"category":"TxoCreated","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e:0",630000]}
+```
+</details>
+
 
 ### Miscellaneous
 
