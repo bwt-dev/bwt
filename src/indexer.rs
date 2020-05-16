@@ -374,9 +374,9 @@ impl fmt::Display for IndexChange {
     }
 }
 
-const INIT_TX_PER_PAGE: usize = 150;
+const INIT_TX_PER_PAGE: usize = 250;
 const DELTA_TX_PER_PAGE: usize = 25;
-const MAX_TX_PER_PAGE: usize = 500;
+const MAX_TX_PER_PAGE: usize = 5000;
 
 // Fetch all unconfirmed transactions + transactions confirmed at or after start_height
 fn load_transactions_since(
@@ -418,10 +418,9 @@ fn load_transactions_since(
     }
 
     loop {
-        trace!(
+        debug!(
             "fetching {} transactions starting at index {}",
-            per_page,
-            start_index
+            per_page, start_index
         );
 
         let mut chunk =
