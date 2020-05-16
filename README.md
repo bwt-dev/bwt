@@ -36,6 +36,9 @@ Get yourself a synced bitcoin node (`txindex` is not required) and install bwt u
 [Install Rust](https://rustup.rs/) and:
 
 ```bash
+$ sudo apt install build-essential
+# plus libssl-dev and pkg-config if webhooks support is enabled (the default, electrum-only mode disables it.)
+
 $ git clone https://github.com/shesek/bwt && cd bwt
 $ cargo build --release
 $ ./target/release/bwt  --network mainnet --xpub <xpub1> --xpub <xpub2>
@@ -72,10 +75,22 @@ You may set `-v` to increase verbosity or `-vv` to increase it more.
 
 See `--help` for the full list of options.
 
+#### Configuration file
+
+Configuration options can be set under `~/bwt.env` as environment variables in the dotenv format. For example:
+
+```
+NETWORK=regtest
+GAP_LIMIT=20
+XPUBS=<xpub1>,<xpub2>
+```
+
+Setting the environment variables directly is also supported.
+
 ### Electrum-only mode
 
 If you're only interested in the Electrum server, you may disable the HTTP API server
-and the web hooks support by building bwt with `--no-default-features --features electrum`
+and web hooks support by building bwt with `--no-default-features --features electrum`
 or using the `shesek/bwt:electrum` docker image.
 
 This removes several large dependencies and disables the `track-spends` database index
@@ -927,6 +942,7 @@ An example JavaScript implementation utilizing the HTTP API for wallet tracking,
 ## Followup work
 
 - Output descriptors! <3
+- PSBT
 - Coin selection
 - Tests
 - Similarly to electrum-personal-server, bwt manages its database entirely in-memory and has no persistent storage.
