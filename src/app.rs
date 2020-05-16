@@ -50,7 +50,7 @@ impl App {
         let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)));
         let query = Arc::new(Query::new(rpc.clone(), indexer.clone()));
 
-        wait_ibd(&rpc)?;
+        wait_bitcoind(&rpc)?;
 
         // do an initial sync without keeping track of updates
         indexer.write().unwrap().initial_sync()?;
@@ -125,7 +125,8 @@ impl App {
     }
 }
 
-fn wait_ibd(rpc: &RpcClient) -> Result<()> {
+// wait for bitcoind to sync and finish rescanning
+fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
     let netinfo = rpc.get_network_info()?;
     let mut bcinfo = rpc.get_blockchain_info()?;
     info!(
@@ -150,6 +151,52 @@ fn wait_ibd(rpc: &RpcClient) -> Result<()> {
         thread::sleep(dur);
         bcinfo = rpc.get_blockchain_info()?;
     }
+    loop {
+        match check_scanning(rpc)? {
+            ScanningResult::NotScanning => break,
+            ScanningResult::Unsupported => {
+                warn!("Your bitcoin node does not report the `scanning` status in `getwalletinfo`. It is recommended to upgrade to Bitcoin Core v0.19+ to enable this.");
+                warn!("This is needed for bwt to wait for scanning to finish before starting up. Starting bwt while the node is scanning may lead to unexpected results. Continuing anyway...");
+                break;
+            }
+            ScanningResult::Scanning(scanning) => {
+                info!(
+                    "waiting for bitcoind to finish scanning [done {:.1}%, running for {:?}]",
+                    scanning.progress * 100f64,
+                    time::Duration::from_secs(scanning.duration)
+                );
+            }
+        };
+        thread::sleep(dur);
+    }
 
     Ok(())
+}
+
+fn check_scanning(rpc: &RpcClient) -> Result<ScanningResult> {
+    let mut wallet_info: serde_json::Value = rpc.call("getwalletinfo", &[])?;
+
+    // the "rescanning" field is only supported as of Bitcoin Core v0.19
+    let rescanning = some_or_ret!(
+        wallet_info.get_mut("scanning"),
+        Ok(ScanningResult::Unsupported)
+    );
+
+    Ok(if rescanning.as_bool() == Some(false) {
+        ScanningResult::NotScanning
+    } else {
+        let details = serde_json::from_value(rescanning.take())?;
+        ScanningResult::Scanning(details)
+    })
+}
+
+enum ScanningResult {
+    Scanning(ScanningDetails),
+    NotScanning,
+    Unsupported,
+}
+#[derive(serde_derive::Deserialize)]
+struct ScanningDetails {
+    duration: u64,
+    progress: f64,
 }
