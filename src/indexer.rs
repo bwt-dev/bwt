@@ -45,22 +45,31 @@ impl Indexer {
     pub fn initial_sync(&mut self) -> Result<()> {
         info!("starting initial sync");
         self.watcher.check_imports(&self.rpc)?;
+
         while {
             self._sync(false)?;
-            self.watcher.do_imports(&self.rpc, true)?
+            self.watcher.do_imports(&self.rpc, /*rescan=*/ true)?
         } { /* do while */ }
+
         info!("done initial sync");
         Ok(())
     }
 
     // initiate a regular sync to catch up with updates and import new addresses (no rescan)
     pub fn sync(&mut self) -> Result<Vec<IndexChange>> {
-        let changelog = self._sync(true)?;
-        self.watcher.do_imports(&self.rpc, false)?;
+        let (synced_tip, mut changelog) = self._sync(true)?;
+        self.watcher.do_imports(&self.rpc, /*rescan=*/ false)?;
+
+        if self.tip.as_ref() != Some(&synced_tip) {
+            info!("synced up to {:?}", synced_tip);
+            changelog.push(IndexChange::ChainTip(synced_tip.clone()));
+            self.tip = Some(synced_tip);
+        }
+
         Ok(changelog)
     }
 
-    fn _sync(&mut self, track_changelog: bool) -> Result<Vec<IndexChange>> {
+    fn _sync(&mut self, track_changelog: bool) -> Result<(BlockId, Vec<IndexChange>)> {
         let mut changelog = Changelog::new(track_changelog);
 
         // Detect reorgs and start syncing history from scratch when they happen
@@ -81,12 +90,6 @@ impl Indexer {
 
         let synced_tip = self.sync_transactions(&mut changelog)?;
 
-        if self.tip.as_ref() != Some(&synced_tip) {
-            info!("synced up to {:?}", synced_tip);
-            changelog.push(|| IndexChange::ChainTip(synced_tip.clone()));
-            self.tip = Some(synced_tip);
-        }
-
         let changelog = changelog.into_vec();
 
         if !changelog.is_empty() {
@@ -98,7 +101,7 @@ impl Indexer {
             }
         }
 
-        Ok(changelog)
+        Ok((synced_tip, changelog))
     }
 
     fn sync_transactions(&mut self, changelog: &mut Changelog) -> Result<BlockId> {
