@@ -449,7 +449,12 @@ fn load_transactions_since(
             .take_while(|ltx| ltx.info.confirmations <= max_confirmations)
             .collect();
 
-        let exhausted = chunk.len() < per_page;
+        let exhausted = if start_index == 0 {
+            chunk.len() < per_page
+        } else {
+            // account for the removed marker tx
+            chunk.len() < per_page - 1
+        };
 
         chunk_handler(chunk, tip_height);
 
