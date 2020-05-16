@@ -111,9 +111,11 @@ impl MemoryStore {
             });
 
         if !existed {
-            debug!(
+            trace!(
                 "new script entry: scripthash={} address={} origin={:?}",
-                scripthash, address, origin
+                scripthash,
+                address,
+                origin
             );
         }
 
@@ -138,7 +140,7 @@ impl MemoryStore {
                 }
             })
             .or_insert_with(|| {
-                debug!("new transaction: txid={} status={:?}", txid, status);
+                trace!("new transaction: txid={} status={:?}", txid, status);
                 updated = true;
                 TxEntry::new(status, fee)
             });
@@ -165,7 +167,7 @@ impl MemoryStore {
             let tx_entry = self.transactions.get_mut(txid).unwrap();
             let status = tx_entry.status;
             tx_entry.funding.entry(vout).or_insert_with(|| {
-                debug!("new txo added {}:{}: {:?}", txid, vout, funding_info);
+                trace!("new txo added {}:{}: {:?}", txid, vout, funding_info);
                 added = Some((funding_info.0.clone(), status));
                 funding_info
             });
@@ -181,7 +183,7 @@ impl MemoryStore {
 
     // index the full set of spending inputs for this transaction
     pub fn index_tx_inputs_spending(&mut self, txid: &Txid, spending: HashMap<u32, SpendingInfo>) {
-        debug!("index new tx inputs spends {}: {:?}", txid, spending);
+        trace!("index new tx inputs spends {}: {:?}", txid, spending);
 
         let (status, added_scripthashes) = {
             // the tx must already exists by now
@@ -215,7 +217,7 @@ impl MemoryStore {
             .insert(txhist);
 
         if added {
-            debug!("new history entry for {:?}", scripthash);
+            trace!("new history entry for {:?}", scripthash);
         }
 
         added
@@ -235,7 +237,7 @@ impl MemoryStore {
             .is_none();
 
         if added {
-            debug!("new txo spend: {:?}", spent_prevout);
+            trace!("new txo spend: {:?}", spent_prevout);
         }
 
         added
@@ -243,9 +245,11 @@ impl MemoryStore {
 
     /// Update the scripthash history index to reflect the new tx status
     fn update_tx_status(&mut self, txid: &Txid, old_status: TxStatus, new_status: TxStatus) {
-        debug!(
+        trace!(
             "transition tx {:?} from={:?} to={:?}",
-            txid, old_status, new_status
+            txid,
+            old_status,
+            new_status
         );
 
         let tx_entry = self
