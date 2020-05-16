@@ -116,8 +116,8 @@ blocknotify=nc -U /home/satoshi/bwt-sync-socket
 You may configure the gap limit with `--gap--limit <N>` (defaults to 20).
 The gap limit sets the maximum number of consecutive unused addresses to be imported before assuming there are no more used addresses to be discovered.
 
-You can set a higher gap limit for the inital imports with `--initial-gap-limit <N>` (defaults to 50).
-Higher value means less rescans.
+You can import larger batches with a higher gap during the initial sync using `--initial-import-size <N>` (defaults to 50).
+Higher value means less rescans. Should be increased for large wallets.
 
 ##### Rescan policy / wallet birthday
 
@@ -176,7 +176,7 @@ Returned fields:
 - `network` - the network this wallet belongs to (`bitcoin`, `testnet` or `regtest`)
 - `script_type` - the scriptpubkey type used by this wallet (`p2pkh`, `p2wpkh` or `p2shp2wpkh`)
 - `gap_limit` - the gap limited configured for this wallet
-- `initial_gap_limit` - the gap limit used during the initial import
+- `initial_import_size` - the gap limit used during the initial import
 - `rescan_policy` - how far back rescanning should take place
 - `max_funded_index` - the maximum derivation index that is known to have history
 - `max_imported_index` - the maximum derivation index imported into bitcoind
@@ -191,7 +191,7 @@ $ curl localhost:3060/hd/15cb9edc
   "network": "regtest",
   "script_type": "p2wpkh",
   "gap_limit": 20,
-  "initial_gap_limit": 50,
+  "initial_import_size": 50,
   "rescan_policy": {
     "since": 0
   },

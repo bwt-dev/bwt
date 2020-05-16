@@ -39,7 +39,7 @@ impl App {
             &config.bare_xpubs[..],
             config.network,
             config.gap_limit,
-            config.initial_gap_limit,
+            config.initial_import_size,
         )?;
         let watcher = HDWatcher::new(wallets);
 

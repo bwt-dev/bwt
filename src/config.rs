@@ -109,14 +109,14 @@ pub struct Config {
 
     #[structopt(
         short = "G",
-        long = "initial-gap-limit",
-        help = "gap limit to be used during the initial sync (higher to reduce number of rescans)",
+        long = "initial-import-size",
+        help = "the batch size to use for importing addresses during the initial sync (set higher to reduce number of rescans)",
         default_value = "50",
         env,
         hide_env_values(true),
         display_order(52)
     )]
-    pub initial_gap_limit: u32,
+    pub initial_import_size: u32,
 
     //// TODO
     //#[structopt(

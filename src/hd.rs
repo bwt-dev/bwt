@@ -84,7 +84,7 @@ impl HDWatcher {
 
             // if anything was imported at all, assume we've finished the initial sync. this might
             // not hold true if bwt shuts down while syncing, but this only means that we'll use
-            // the smaller gap_limit instead of the initial_gap_limit, which is acceptable.
+            // the smaller gap_limit instead of the initial_import_size, which is acceptable.
             wallet.done_initial_import = true;
         }
         Ok(())
@@ -144,7 +144,7 @@ pub struct HDWallet {
     network: Network,
     script_type: ScriptType,
     gap_limit: u32,
-    initial_gap_limit: u32,
+    initial_import_size: u32,
     rescan_policy: RescanSince,
 
     pub max_funded_index: Option<u32>,
@@ -161,7 +161,7 @@ impl HDWallet {
         network: Network,
         script_type: ScriptType,
         gap_limit: u32,
-        initial_gap_limit: u32,
+        initial_import_size: u32,
         rescan_policy: RescanSince,
     ) -> Self {
         Self {
@@ -169,8 +169,8 @@ impl HDWallet {
             network,
             script_type,
             gap_limit,
-            // setting initial_gap_limit < gap_limit makes no sense, the user probably meant to increase both
-            initial_gap_limit: initial_gap_limit.max(gap_limit),
+            // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
+            initial_import_size: initial_import_size.max(gap_limit),
             rescan_policy,
             done_initial_import: false,
             max_funded_index: None,
@@ -182,7 +182,7 @@ impl HDWallet {
         xpub: XyzPubKey,
         network: Network,
         gap_limit: u32,
-        initial_gap_limit: u32,
+        initial_import_size: u32,
         rescan_policy: RescanSince,
     ) -> Result<Self> {
         ensure!(
@@ -197,7 +197,7 @@ impl HDWallet {
             network,
             xpub.script_type,
             gap_limit,
-            initial_gap_limit,
+            initial_import_size,
             rescan_policy,
         ))
     }
@@ -206,7 +206,7 @@ impl HDWallet {
         xpub: XyzPubKey,
         network: Network,
         gap_limit: u32,
-        initial_gap_limit: u32,
+        initial_import_size: u32,
         rescan_policy: RescanSince,
     ) -> Result<Vec<Self>> {
         ensure!(
@@ -224,7 +224,7 @@ impl HDWallet {
                 network,
                 xpub.script_type,
                 gap_limit,
-                initial_gap_limit,
+                initial_import_size,
                 rescan_policy,
             ),
             // internal chain (change)
@@ -234,7 +234,7 @@ impl HDWallet {
                 network,
                 xpub.script_type,
                 gap_limit,
-                initial_gap_limit,
+                initial_import_size,
                 rescan_policy,
             ),
         ])
@@ -245,19 +245,31 @@ impl HDWallet {
         bare_xpubs: &[(XyzPubKey, RescanSince)],
         network: Network,
         gap_limit: u32,
-        initial_gap_limit: u32,
+        initial_import_size: u32,
     ) -> Result<Vec<Self>> {
         let mut wallets = vec![];
         for (xpub, rescan) in xpubs {
             wallets.append(
-                &mut Self::from_xpub(xpub.clone(), network, gap_limit, initial_gap_limit, *rescan)
-                    .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
+                &mut Self::from_xpub(
+                    xpub.clone(),
+                    network,
+                    gap_limit,
+                    initial_import_size,
+                    *rescan,
+                )
+                .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
             );
         }
         for (xpub, rescan) in bare_xpubs {
             wallets.push(
-                Self::from_bare_xpub(xpub.clone(), network, gap_limit, initial_gap_limit, *rescan)
-                    .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
+                Self::from_bare_xpub(
+                    xpub.clone(),
+                    network,
+                    gap_limit,
+                    initial_import_size,
+                    *rescan,
+                )
+                .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
             );
         }
         Ok(wallets)
@@ -274,7 +286,7 @@ impl HDWallet {
         let gap_limit = if self.done_initial_import {
             self.gap_limit
         } else {
-            self.initial_gap_limit
+            self.initial_import_size
         };
 
         self.max_funded_index
@@ -497,7 +509,7 @@ impl Serialize for HDWallet {
         rgb.serialize_field("network", &self.network)?;
         rgb.serialize_field("script_type", &self.script_type)?;
         rgb.serialize_field("gap_limit", &self.gap_limit)?;
-        rgb.serialize_field("initial_gap_limit", &self.initial_gap_limit)?;
+        rgb.serialize_field("initial_import_size", &self.initial_import_size)?;
         rgb.serialize_field("rescan_policy", &self.rescan_policy)?;
         rgb.serialize_field("max_funded_index", &self.max_funded_index)?;
         rgb.serialize_field("max_imported_index", &self.max_imported_index)?;
