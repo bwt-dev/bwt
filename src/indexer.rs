@@ -46,12 +46,14 @@ impl Indexer {
         info!("starting initial sync");
         self.watcher.check_imports(&self.rpc)?;
 
-        while {
-            self._sync(false)?;
-            self.watcher.do_imports(&self.rpc, /*rescan=*/ true)?
-        } { /* do while */ }
+        let (mut synced_tip, _) = self._sync(false)?;
+        while self.watcher.do_imports(&self.rpc, /*rescan=*/ true)? {
+            let (tip, _) = self._sync(false)?;
+            synced_tip = tip;
+        }
 
-        info!("done initial sync");
+        info!("done initial sync up to {:?}", synced_tip);
+        self.tip = Some(synced_tip);
         Ok(())
     }
 
@@ -165,6 +167,8 @@ impl Indexer {
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
         }
+
+        // TODO: complete fee information for incoming-only txs
 
         Ok(synced_tip)
     }
