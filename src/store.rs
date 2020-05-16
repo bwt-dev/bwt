@@ -349,6 +349,7 @@ impl MemoryStore {
     pub fn get_script_address(&self, scripthash: &ScriptHash) -> Option<Address> {
         Some(self.scripthashes.get(scripthash)?.address.clone())
     }
+
     /// Get all history since `min_block_height`, including unconfirmed mempool transactions,
     /// for *all* tracked scripthashes
     pub fn get_history_since(&self, min_block_height: u32) -> BTreeSet<&HistoryEntry> {
@@ -369,6 +370,16 @@ impl MemoryStore {
             })
             .flatten()
             .collect()
+    }
+
+    pub fn log_stats(&self) {
+        if log_enabled!(log::Level::Debug) {
+            trace!(
+                "indexed a total of {} transactions and {} scripthashes",
+                self.transactions.len(),
+                self.scripthashes.len()
+            );
+        }
     }
 }
 

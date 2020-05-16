@@ -93,13 +93,18 @@ impl Indexer {
         let changelog = changelog.into_vec();
 
         if !changelog.is_empty() {
-            info!("sync resulted in {} index changelog", changelog.len());
+            info!(
+                "sync resulted in {} index changelog events",
+                changelog.len()
+            );
             if log_enabled!(log::Level::Debug) {
                 for update in &changelog {
                     debug!("  - {:?}", update);
                 }
             }
         }
+
+        self.store.log_stats();
 
         Ok((synced_tip, changelog))
     }
