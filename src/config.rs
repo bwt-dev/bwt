@@ -28,17 +28,25 @@ pub struct Config {
 
     // cannot be set using an env var, it does not play nicely with from_occurrences
     #[structopt(
-        short,
+        short = "v",
         long,
         help = "increase verbosity level (up to 4 times)",
         parse(from_occurrences),
-        display_order(99)
+        display_order(98)
     )]
     pub verbose: usize,
 
     #[structopt(
+        short,
+        long,
+        help = "show timestmap in log messages",
+        display_order(99)
+    )]
+    pub timestamp: bool,
+
+    #[structopt(
         short = "d",
-        long = "bitcoind-dir",
+        long,
         help = "path to bitcoind directory (used for cookie file) [default: ~/.bitcoin]",
         env,
         hide_env_values(true),
@@ -48,7 +56,7 @@ pub struct Config {
 
     #[structopt(
         short = "u",
-        long = "bitcoind-url",
+        long,
         help = "url for the bitcoind rpc server [default: http://localhost:<network-rpc-port>]",
         env,
         hide_env_values(true),
@@ -58,7 +66,7 @@ pub struct Config {
 
     #[structopt(
         short = "c",
-        long = "bitcoind-cred",
+        long,
         help = "credentials for accessing the bitcoind rpc server (as <username>:<password>, instead of reading the cookie file)",
         env,
         hide_env_values(true),
@@ -68,7 +76,7 @@ pub struct Config {
 
     #[structopt(
         short = "C",
-        long = "bitcoind-cookie",
+        long,
         help = "cookie file for accessing the bitcoind rpc server [default: <bitcoind-dir>/.cookie]",
         env,
         hide_env_values(true),
@@ -98,7 +106,7 @@ pub struct Config {
 
     #[structopt(
         short = "g",
-        long = "gap-limit",
+        long,
         help = "gap limit for importing hd addresses",
         default_value = "20",
         env,
@@ -109,7 +117,7 @@ pub struct Config {
 
     #[structopt(
         short = "G",
-        long = "initial-import-size",
+        long,
         help = "the batch size to use for importing addresses during the initial sync (set higher to reduce number of rescans)",
         default_value = "50",
         env,
@@ -121,7 +129,7 @@ pub struct Config {
     //// TODO
     //#[structopt(
     //short,
-    //long = "address",
+    //long,
     //help = "addresses to track (address:yyyy-mm-dd)",
     //parse(try_from_str = "parse_address")
     //)]
@@ -129,7 +137,7 @@ pub struct Config {
     #[cfg(feature = "electrum")]
     #[structopt(
         short,
-        long = "electrum-rpc-addr",
+        long,
         help = "address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:50001' for testnet or '127.0.0.2:60401' for regtest]",
         env,
         hide_env_values(true),
@@ -140,7 +148,7 @@ pub struct Config {
     #[cfg(feature = "http")]
     #[structopt(
         short,
-        long = "http-server-addr",
+        long,
         help = "address to bind the http api server",
         default_value = "127.0.0.1:3060",
         env,
@@ -151,7 +159,7 @@ pub struct Config {
 
     #[cfg(feature = "http")]
     #[structopt(
-        long = "http-cors",
+        long,
         help = "allowed cross-origins for http api server (Access-Control-Allow-Origin)",
         env,
         hide_env_values(true),
@@ -161,7 +169,7 @@ pub struct Config {
 
     #[structopt(
         short = "i",
-        long = "poll-interval",
+        long,
         help = "interval for checking new blocks/txs (in seconds)",
         default_value = "5",
         parse(try_from_str = parse_duration),
@@ -172,7 +180,7 @@ pub struct Config {
 
     #[cfg(unix)]
     #[structopt(
-        long = "unix-listener-path",
+        long,
         short = "U",
         help = "path for binding sync notification unix socket",
         env,
@@ -183,7 +191,7 @@ pub struct Config {
 
     #[cfg(feature = "webhooks")]
     #[structopt(
-        long = "webhook-url",
+        long,
         short = "w",
         help = "webhook url(s) to notify with index event updates",
         env,
@@ -241,46 +249,50 @@ impl Config {
     }
 
     pub fn setup_logger(&self) {
-        pretty_env_logger::formatted_builder()
-            .filter_module(
-                "bwt",
-                match self.verbose {
-                    0 => Level::Info,
-                    1 => Level::Debug,
-                    _ => Level::Trace,
-                }
-                .to_level_filter(),
-            )
-            .filter_module(
-                "bitcoincore_rpc",
-                match self.verbose {
-                    0 | 1 => Level::Warn,
-                    2 => Level::Debug,
-                    _ => Level::Trace,
-                }
-                .to_level_filter(),
-            )
-            .filter_module(
-                "warp",
-                match self.verbose {
-                    0 | 1 => Level::Warn,
-                    2 => Level::Info,
-                    3 => Level::Debug,
-                    _ => Level::Trace,
-                }
-                .to_level_filter(),
-            )
-            .filter_module("hyper", Level::Warn.to_level_filter())
-            .filter_level(
-                match self.verbose {
-                    0 | 1 => Level::Warn,
-                    2 | 3 => Level::Info,
-                    4 => Level::Debug,
-                    _ => Level::Trace,
-                }
-                .to_level_filter(),
-            )
-            .init();
+        if self.timestamp {
+            pretty_env_logger::formatted_timed_builder()
+        } else {
+            pretty_env_logger::formatted_builder()
+        }
+        .filter_module(
+            "bwt",
+            match self.verbose {
+                0 => Level::Info,
+                1 => Level::Debug,
+                _ => Level::Trace,
+            }
+            .to_level_filter(),
+        )
+        .filter_module(
+            "bitcoincore_rpc",
+            match self.verbose {
+                0 | 1 => Level::Warn,
+                2 => Level::Debug,
+                _ => Level::Trace,
+            }
+            .to_level_filter(),
+        )
+        .filter_module(
+            "warp",
+            match self.verbose {
+                0 | 1 => Level::Warn,
+                2 => Level::Info,
+                3 => Level::Debug,
+                _ => Level::Trace,
+            }
+            .to_level_filter(),
+        )
+        .filter_module("hyper", Level::Warn.to_level_filter())
+        .filter_level(
+            match self.verbose {
+                0 | 1 => Level::Warn,
+                2 | 3 => Level::Info,
+                4 => Level::Debug,
+                _ => Level::Trace,
+            }
+            .to_level_filter(),
+        )
+        .init();
     }
 }
 
