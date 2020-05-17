@@ -7,7 +7,7 @@ use serde::Serialize;
 use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
 use bitcoin::{util::base58, Address, Network};
 use bitcoincore_rpc::json::{ImportMultiRequest, ImportMultiRequestScriptPubkey};
-use bitcoincore_rpc::{Client as RpcClient, RpcApi};
+use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 use secp256k1::Secp256k1;
 
 use crate::error::{Result, ResultExt};
@@ -60,7 +60,7 @@ impl HDWatcher {
     // check previous imports and update max_imported_index
     pub fn check_imports(&mut self, rpc: &RpcClient) -> Result<()> {
         debug!("checking previous imports");
-        let labels: Vec<String> = rpc.call("listlabels", &[])?;
+        let labels: Vec<String> = rpc.call("listlabels", &[]).map_err(labels_error)?;
         let mut imported_indexes: HashMap<Fingerprint, u32> = HashMap::new();
         for label in labels {
             if let Some(KeyOrigin::Derived(fingerprint, index)) = KeyOrigin::from_label(&label) {
@@ -124,7 +124,11 @@ impl HDWatcher {
         let has_imports = !import_reqs.is_empty();
 
         if has_imports {
-            info!("importing batch of {} addresses", import_reqs.len());
+            // TODO report syncing progress
+            info!(
+                "importing batch of {} addresses... (this may take awhile)",
+                import_reqs.len()
+            );
             batch_import(rpc, import_reqs)?;
             info!("done importing batch");
         }
@@ -493,6 +497,18 @@ fn get_xpub_p2pkh_version(network: Network) -> [u8; 4] {
         Network::Bitcoin => [0x04u8, 0x88, 0xB2, 0x1E],
         Network::Testnet | Network::Regtest => [0x04u8, 0x35, 0x87, 0xCF],
     }
+}
+
+// show a specialzied error message for unsupported `listlabels` (added in Bitcoin Core 0.17.0)
+fn labels_error(error: bitcoincore_rpc::Error) -> bitcoincore_rpc::Error {
+    if let rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)) = error {
+        // Method not found
+        if e.code == -32601 {
+            warn!("Your bitcoind node appears to be too old to support the labels API, which bwt relies on. \
+                  Please upgrade your node. v0.19.0 is highly recommended, v0.17.0 is sufficient.");
+        }
+    }
+    error
 }
 
 use serde::ser::SerializeStruct;
