@@ -12,7 +12,7 @@ edition = "2018"
 include = [ "src", "LICENSE" ]
 
 [features]
-default = [ "electrum", "http", "webhooks", "track-spends" ]
+default = [ "electrum", "http", "track-spends" ]
 electrum = []
 http = [ "warp", "tokio", "async-std" ]
 webhooks = [ "reqwest" ]

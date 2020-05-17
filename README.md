@@ -29,7 +29,7 @@
  
 ## Setup
 
-Get yourself a synced bitcoin node (`txindex` is not required) and install bwt using one of the methods below:
+Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficient. `txindex` is not required.) and install bwt using one of the methods below.
 
 #### From source
 
@@ -37,8 +37,6 @@ Get yourself a synced bitcoin node (`txindex` is not required) and install bwt u
 
 ```bash
 $ sudo apt install build-essential
-# plus libssl-dev and pkg-config if webhooks support is enabled (the default, electrum-only mode disables it.)
-
 $ git clone https://github.com/shesek/bwt && cd bwt
 $ cargo build --release
 $ ./target/release/bwt  --network mainnet --xpub <xpub1> --xpub <xpub2>
@@ -735,7 +733,7 @@ $ curl localhost:3060/block/65e8db69c0c03a2a02532dfca4d2780a555012847985efee46eb
 
 #### `GET /block/:hash/hex`
 
-Get the block header of the specified block hash as as a hex string.
+Get the block header of the specified block hash as a hex string.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -827,7 +825,7 @@ $ curl localhost:3060/fee-estimate/3
 
 #### Available event categories
 
-- `ChainTip(block_height, BlockHash)` - emitted whenever a new block extends the best chain.
+- `ChainTip(block_height, block_hash)` - emitted whenever a new block extends the best chain.
 - `Reorg(block_height, prev_block_hash, curr_block_hash)` - indicates that a re-org was detected on `block_height`, with the previous block hash at this height and the current one.
 - `Transaction(txid, block_height)` - emitted for new transactions as well as transactions changing their confirmation status (typically from unconfirmed to confirmed, possibly the other way around in case of reorgs).
 - `TransactionReplaced(txid)` - indicates that the transaction conflicts with another transaction and can no longer be confirmed (aka double-spent).
@@ -920,6 +918,8 @@ Dumps the contents of the index store as JSON.
 Dumps the contents of the index store as a debug string.
 
 ## Web Hooks
+
+> To enable web hooks support, build bwt with `--features webhooks` or use the `shesek/bwt` docker image (which comes with webhooks support by default). If you're not using docker, you will need to `apt install libssl-dev pkg-config`.
 
 You can set `--webhook-url <url>` to have bwt send push notifications as a `POST` request to the provided `<url>`. Requests will be sent with a JSON-serialized *array* of one or more index updates as the body.
 
