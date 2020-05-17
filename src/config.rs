@@ -18,7 +18,7 @@ pub struct Config {
     #[structopt(
         short = "n",
         long,
-        help = "one of 'bitcoin', 'testnet' or 'regtest'",
+        help = "One of 'bitcoin', 'testnet' or 'regtest'",
         default_value = "bitcoin",
         env,
         hide_env_values(true),
@@ -30,7 +30,7 @@ pub struct Config {
     #[structopt(
         short = "v",
         long,
-        help = "increase verbosity level (up to 4 times)",
+        help = "Increase verbosity level (up to 4 times)",
         parse(from_occurrences),
         display_order(98)
     )]
@@ -39,7 +39,7 @@ pub struct Config {
     #[structopt(
         short = "t",
         long,
-        help = "show timestmaps in log messages",
+        help = "Show timestmaps in log messages",
         display_order(99)
     )]
     pub timestamp: bool,
@@ -47,7 +47,7 @@ pub struct Config {
     #[structopt(
         short = "w",
         long,
-        help = "specify the bitcoind wallet to use (optional)",
+        help = "Specify the bitcoind wallet to use (optional)",
         env,
         hide_env_values(true),
         display_order(30)
@@ -57,7 +57,7 @@ pub struct Config {
     #[structopt(
         short = "d",
         long,
-        help = "path to bitcoind directory (used for cookie file) [default: ~/.bitcoin]",
+        help = "Path to bitcoind directory (used for cookie file) [default: ~/.bitcoin]",
         env,
         hide_env_values(true),
         display_order(31)
@@ -67,7 +67,7 @@ pub struct Config {
     #[structopt(
         short = "u",
         long,
-        help = "url for the bitcoind rpc server [default: http://localhost:<network-rpc-port>]",
+        help = "URL for the bitcoind RPC server [default: http://localhost:<network-rpc-port>]",
         env,
         hide_env_values(true),
         display_order(32)
@@ -77,7 +77,7 @@ pub struct Config {
     #[structopt(
         short = "c",
         long,
-        help = "credentials for accessing the bitcoind rpc server (as <username>:<password>, instead of reading the cookie file)",
+        help = "Credentials for accessing the bitcoind RPC server (as <username>:<password>, instead of reading the cookie file)",
         env,
         hide_env_values(true),
         display_order(33)
@@ -87,7 +87,7 @@ pub struct Config {
     #[structopt(
         short = "C",
         long,
-        help = "cookie file for accessing the bitcoind rpc server [default: <bitcoind-dir>/.cookie]",
+        help = "Cookie file for accessing the bitcoind RPC server [default: <bitcoind-dir>/.cookie]",
         env,
         hide_env_values(true),
         display_order(34)
@@ -97,7 +97,7 @@ pub struct Config {
     #[structopt(
         short = "x",
         long = "xpub",
-        help = "xpubs to track and since when (rescans from genesis by default, use <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch> to specify a timestmap, or <xpub>:none to disable rescanning)",
+        help = "xpubs to track and since when (rescans from genesis by default, use <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch> to specify a timestmap, or <xpub>:none to disable rescan)",
         parse(try_from_str = parse_xpub),
         env, hide_env_values(true), use_delimiter(true),
         display_order(20)
@@ -107,7 +107,7 @@ pub struct Config {
     #[structopt(
         short = "X",
         long = "bare-xpub",
-        help = "bare xpubs to track (like --xpub but does not derive separate internal and external chains)",
+        help = "Bare xpubs to track (like --xpub, but does not derive separate internal/external chains)",
         parse(try_from_str = parse_xpub),
         env, hide_env_values(true), use_delimiter(true),
         display_order(21)
@@ -117,7 +117,7 @@ pub struct Config {
     #[structopt(
         short = "g",
         long,
-        help = "gap limit for importing hd addresses",
+        help = "Gap limit for importing hd addresses",
         default_value = "20",
         env,
         hide_env_values(true),
@@ -128,7 +128,7 @@ pub struct Config {
     #[structopt(
         short = "G",
         long,
-        help = "the batch size to use for importing addresses during the initial sync (set higher to reduce number of rescans)",
+        help = "The batch size for importing addresses during the initial sync (set higher to reduce number of rescans)",
         default_value = "50",
         env,
         hide_env_values(true),
@@ -148,7 +148,7 @@ pub struct Config {
     #[structopt(
         short,
         long,
-        help = "address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:50001' for testnet or '127.0.0.2:60401' for regtest]",
+        help = "Address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:50001' for testnet or '127.0.0.2:60401' for regtest]",
         env,
         hide_env_values(true),
         display_order(40)
@@ -159,7 +159,7 @@ pub struct Config {
     #[structopt(
         short,
         long,
-        help = "address to bind the http api server",
+        help = "Address to bind the http api server",
         default_value = "127.0.0.1:3060",
         env,
         hide_env_values(true),
@@ -170,7 +170,7 @@ pub struct Config {
     #[cfg(feature = "http")]
     #[structopt(
         long,
-        help = "allowed cross-origins for http api server (Access-Control-Allow-Origin)",
+        help = "Allowed cross-origins for http api server (Access-Control-Allow-Origin)",
         env,
         hide_env_values(true),
         display_order(42)
@@ -180,7 +180,7 @@ pub struct Config {
     #[structopt(
         short = "i",
         long,
-        help = "interval for checking new blocks/txs (in seconds)",
+        help = "Interval for checking for new blocks/seconds (in seconds)",
         default_value = "5",
         parse(try_from_str = parse_duration),
         env, hide_env_values(true),
@@ -192,7 +192,7 @@ pub struct Config {
     #[structopt(
         long,
         short = "U",
-        help = "path for binding sync notification unix socket",
+        help = "Path to bind the sync notification unix socket",
         env,
         hide_env_values(true),
         display_order(91)
@@ -201,9 +201,9 @@ pub struct Config {
 
     #[cfg(feature = "webhooks")]
     #[structopt(
-        long,
+        long = "webhook-url",
         short = "h",
-        help = "webhook url(s) to notify with index event updates",
+        help = "Webhook url(s) to notify with index event updates",
         env,
         hide_env_values(true),
         use_delimiter(true),
