@@ -6,7 +6,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use bitcoin::util::bip32::Fingerprint;
-use bitcoin::{BlockHash, BlockHeader, OutPoint, Txid};
+use bitcoin::{BlockHash, BlockHeader, Network, OutPoint, Txid};
 use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
@@ -25,6 +25,7 @@ lazy_static! {
 }
 
 pub struct Query {
+    network: Network,
     rpc: Arc<RpcClient>,
     indexer: Arc<RwLock<Indexer>>,
 
@@ -36,8 +37,9 @@ pub struct Query {
 type FeeHistogram = Vec<(f32, u32)>;
 
 impl Query {
-    pub fn new(rpc: Arc<RpcClient>, indexer: Arc<RwLock<Indexer>>) -> Self {
+    pub fn new(network: Network, rpc: Arc<RpcClient>, indexer: Arc<RwLock<Indexer>>) -> Self {
         Query {
+            network,
             rpc,
             indexer,
             cached_relayfee: RwLock::new(None),
@@ -101,6 +103,12 @@ impl Query {
 
     pub fn estimate_fee(&self, target: u16) -> Result<Option<f64>> {
         ensure!(target < 1024, "target out of range");
+
+        // regtest typically doesn't have fee estimates, just use the relay fee instead.
+        // this stops electrum from complanining about unavailable dynamic fees.
+        if self.network == Network::Regtest {
+            return self.relay_fee().map(Some);
+        }
 
         ttl_cache!(
             self.cached_estimates,
