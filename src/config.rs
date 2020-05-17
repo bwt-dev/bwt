@@ -16,7 +16,7 @@ use crate::types::RescanSince;
 #[derive(StructOpt, Debug)]
 pub struct Config {
     #[structopt(
-        short,
+        short = "n",
         long,
         help = "one of 'bitcoin', 'testnet' or 'regtest'",
         default_value = "bitcoin",
@@ -37,12 +37,22 @@ pub struct Config {
     pub verbose: usize,
 
     #[structopt(
-        short,
+        short = "t",
         long,
-        help = "show timestmap in log messages",
+        help = "show timestmaps in log messages",
         display_order(99)
     )]
     pub timestamp: bool,
+
+    #[structopt(
+        short = "w",
+        long,
+        help = "specify the bitcoind wallet to use (optional)",
+        env,
+        hide_env_values(true),
+        display_order(30)
+    )]
+    pub bitcoind_wallet: Option<String>,
 
     #[structopt(
         short = "d",
@@ -50,7 +60,7 @@ pub struct Config {
         help = "path to bitcoind directory (used for cookie file) [default: ~/.bitcoin]",
         env,
         hide_env_values(true),
-        display_order(30)
+        display_order(31)
     )]
     pub bitcoind_dir: Option<path::PathBuf>,
 
@@ -60,7 +70,7 @@ pub struct Config {
         help = "url for the bitcoind rpc server [default: http://localhost:<network-rpc-port>]",
         env,
         hide_env_values(true),
-        display_order(31)
+        display_order(32)
     )]
     pub bitcoind_url: Option<String>,
 
@@ -70,7 +80,7 @@ pub struct Config {
         help = "credentials for accessing the bitcoind rpc server (as <username>:<password>, instead of reading the cookie file)",
         env,
         hide_env_values(true),
-        display_order(32)
+        display_order(33)
     )]
     pub bitcoind_cred: Option<String>,
 
@@ -80,7 +90,7 @@ pub struct Config {
         help = "cookie file for accessing the bitcoind rpc server [default: <bitcoind-dir>/.cookie]",
         env,
         hide_env_values(true),
-        display_order(33)
+        display_order(34)
     )]
     pub bitcoind_cookie: Option<path::PathBuf>,
 
@@ -192,7 +202,7 @@ pub struct Config {
     #[cfg(feature = "webhooks")]
     #[structopt(
         long,
-        short = "w",
+        short = "h",
         help = "webhook url(s) to notify with index event updates",
         env,
         hide_env_values(true),
@@ -208,16 +218,23 @@ impl Config {
     }
 
     pub fn bitcoind_url(&self) -> String {
-        self.bitcoind_url.clone().unwrap_or_else(|| {
-            format!(
-                "http://localhost:{}/",
-                match self.network {
-                    Network::Bitcoin => 8332,
-                    Network::Testnet => 18332,
-                    Network::Regtest => 18443,
-                }
-            )
-        })
+        format!(
+            "{}/{}",
+            self.bitcoind_url.clone().unwrap_or_else(|| {
+                format!(
+                    "http://localhost:{}",
+                    match self.network {
+                        Network::Bitcoin => 8332,
+                        Network::Testnet => 18332,
+                        Network::Regtest => 18443,
+                    }
+                )
+            }),
+            match self.bitcoind_wallet {
+                Some(ref wallet) => format!("wallet/{}", wallet),
+                None => "".into(),
+            }
+        )
     }
 
     pub fn bitcoind_auth(&self) -> Result<RpcAuth> {

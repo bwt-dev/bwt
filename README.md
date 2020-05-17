@@ -29,7 +29,7 @@
  
 ## Setup
 
-Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficient. `txindex` is not required.) and install bwt using one of the methods below.
+Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficient. `txindex` is not required) and install bwt using one of the methods below.
 
 #### From source
 
@@ -54,7 +54,7 @@ $ docker run --net host -v ~/.bitcoin:/bitcoin shesek/bwt --network mainnet --xp
 
 `bwt --xpub <xpub>` should be sufficient to get you rolling.
 
-You can also configure the `--network` (defaults to `mainnet`),
+You can configure the `--network` (defaults to `mainnet`),
 your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 `--bitcoind-dir` (defaults to `~/.bitcoin`) and
 `--bitcoind-cred <user:pass>` (defaults to using the cookie file from `bitcoind-dir`).
@@ -137,6 +137,15 @@ Higher value means less rescans. Should be increased for large wallets.
 You may specify a rescan policy with the key's birthday to indicate how far back it should scan,
 using `--xpub <xpub>:<rescan>`, where `<rescan>` is one of  `all` (rescan from the beginning, the default),
 `none` (don't rescan at all), the key birthday formatted as `yyyy-mm-dd`, or the birthday as a unix timestamp.
+
+##### Bitcoin Core multi-wallet
+
+If you're using [multi-wallet](https://bitcoin.org/en/release/v0.15.0.1#multi-wallet-support),
+you can specify which wallet to use with `--bitcoind-wallet <name>`.
+It is recommended (but not required) to use a separate wallet for bwt (can be created with `bitcoin-cli createwallet <name> true`).
+
+*Note that EPS and bwt should not be run on the same bitcoind wallet with the same xpub, they will conflict.*
+
 
 ## HTTP API
 
