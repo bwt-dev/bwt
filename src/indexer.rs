@@ -46,9 +46,9 @@ impl Indexer {
         info!("starting initial sync");
         self.watcher.check_imports(&self.rpc)?;
 
-        let (mut synced_tip, _) = self._sync(false)?;
+        let (mut synced_tip, _) = self._sync()?;
         while self.watcher.do_imports(&self.rpc, /*rescan=*/ true)? {
-            let (tip, _) = self._sync(false)?;
+            let (tip, _) = self._sync()?;
             synced_tip = tip;
         }
 
@@ -59,7 +59,7 @@ impl Indexer {
 
     // initiate a regular sync to catch up with updates and import new addresses (no rescan)
     pub fn sync(&mut self) -> Result<Vec<IndexChange>> {
-        let (synced_tip, mut changelog) = self._sync(true)?;
+        let (synced_tip, mut changelog) = self._sync()?;
         self.watcher.do_imports(&self.rpc, /*rescan=*/ false)?;
 
         if self.tip.as_ref() != Some(&synced_tip) {
@@ -71,22 +71,25 @@ impl Indexer {
         Ok(changelog)
     }
 
-    fn _sync(&mut self, track_changelog: bool) -> Result<(BlockId, Vec<IndexChange>)> {
-        let mut changelog = Changelog::new(track_changelog);
+    fn _sync(&mut self) -> Result<(BlockId, Vec<IndexChange>)> {
+        // only track changes when we're catching up with updates
+        let mut changelog = Changelog::new(self.tip.is_some());
 
-        // Detect reorgs and start syncing history from scratch when they happen
-        if let Some(BlockId(tip_height, tip_hash)) = self.tip {
+        // detect reorgs and sync the whole history from scratch when they happen
+        // XXX start syncing from N blocks backs instead of from the beginning?
+        if let Some(BlockId(tip_height, ref tip_hash)) = self.tip {
             let best_chain_hash = self.rpc.get_block_hash(tip_height as u64)?;
-            if best_chain_hash != tip_hash {
+            if best_chain_hash != *tip_hash {
                 warn!(
                     "reorg detected, block height {} was {} and now is {}. fetching history from scratch...",
                     tip_height, tip_hash, best_chain_hash
                 );
 
-                // XXX start syncing from N blocks backs instead of from the beginning?
-                self.tip = None;
+                changelog.push(|| IndexChange::Reorg(tip_height, *tip_hash, best_chain_hash));
+                // notify clients about the reorg but don't collect additional events
+                changelog.track = false;
 
-                changelog.push(|| IndexChange::Reorg(tip_height, tip_hash, best_chain_hash));
+                self.tip = None;
             }
         }
 
@@ -305,37 +308,30 @@ pub enum IndexChange {
     TxoSpent(OutPoint, InPoint, TxStatus),
 }
 
-enum Changelog {
-    Stored(Vec<IndexChange>),
-    Void,
+struct Changelog {
+    track: bool,
+    changes: Vec<IndexChange>,
 }
 
 impl Changelog {
-    fn new(stored: bool) -> Self {
-        if stored {
-            Changelog::Stored(vec![])
-        } else {
-            Changelog::Void
+    fn new(track: bool) -> Self {
+        Changelog {
+            track,
+            changes: vec![],
         }
     }
     fn push(&mut self, make_update: impl Fn() -> IndexChange) {
-        match self {
-            Changelog::Stored(changes) => changes.push(make_update()),
-            Changelog::Void => (),
+        if self.track {
+            self.changes.push(make_update());
         }
     }
     fn with(&mut self, closure: impl Fn(&mut Vec<IndexChange>)) {
-        match self {
-            Changelog::Stored(changes) => closure(changes),
-            Changelog::Void => (),
+        if self.track {
+            closure(&mut self.changes)
         }
     }
-
     fn into_vec(self) -> Vec<IndexChange> {
-        match self {
-            Changelog::Stored(changes) => changes,
-            Changelog::Void => vec![],
-        }
+        self.changes
     }
 }
 impl IndexChange {
