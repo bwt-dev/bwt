@@ -17,7 +17,7 @@ BWT_HTTP_ADDR=127.0.0.1:3060
 BWT_ELECTRUM_ADDR=127.0.0.1:30602
 BWT_SOCKET=$DIR/bwt-socket
 
-alias btc="bitcoin-cli -datadir=$BTC_DIR"
+alias btc="bitcoin-cli -datadir=$BTC_DIR -rpcwallet=internal"
 alias ele="electrum --regtest --dir $ELECTRUM_DIR"
 alias ele1="ele --wallet $WALLET1"
 alias ele2="ele --wallet $WALLET2"
@@ -39,6 +39,7 @@ walletnotify=nc -U $BWT_SOCKET > /dev/null 2>&1
 
 [regtest]
 rpcport=$BTC_RPC_PORT
+wallet=internal
 EOL
 
 bitcoind -datadir=$BTC_DIR &
@@ -50,6 +51,8 @@ else
   sleep 2
 fi
 btc -rpcwait getblockchaininfo > /dev/null
+echo - Creating watch-only wallet...
+btc createwallet bwt true > /dev/null
 
 echo - Generating some blocks...
 btc generatetoaddress 110 `btc getnewaddress` > /dev/null
@@ -78,6 +81,7 @@ done
 
 echo Setting up bwt >&2
 bwt --network regtest --bitcoind-dir $BTC_DIR --bitcoind-url http://localhost:$BTC_RPC_PORT/ \
+  --bitcoind-wallet bwt \
   --electrum-rpc-addr $BWT_ELECTRUM_ADDR \
   --unix-listener-path $BWT_SOCKET \
   --xpub `ele1 getmpk` --xpub `ele2 getmpk` \
@@ -94,7 +98,8 @@ bwt is running:
 - Logs at $DIR/bwt.log
 
 You can access bitcoind with:
-$ bitcoin-cli --datadir=$BTC_DIR <cmd>
+$ bitcoin-cli -datadir=$BTC_DIR -rpcwallet=internal <cmd>
+$ bitcoin-cli -datadir=$BTC_DIR -rpcwallet=bwt <cmd>
 
 EOL
 

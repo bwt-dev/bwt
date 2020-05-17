@@ -220,16 +220,19 @@ impl Config {
     pub fn bitcoind_url(&self) -> String {
         format!(
             "{}/{}",
-            self.bitcoind_url.clone().unwrap_or_else(|| {
-                format!(
-                    "http://localhost:{}",
-                    match self.network {
-                        Network::Bitcoin => 8332,
-                        Network::Testnet => 18332,
-                        Network::Regtest => 18443,
-                    }
-                )
-            }),
+            self.bitcoind_url.as_ref().map_or_else(
+                || {
+                    format!(
+                        "http://localhost:{}",
+                        match self.network {
+                            Network::Bitcoin => 8332,
+                            Network::Testnet => 18332,
+                            Network::Regtest => 18443,
+                        }
+                    )
+                },
+                |url| url.trim_end_matches('/').into()
+            ),
             match self.bitcoind_wallet {
                 Some(ref wallet) => format!("wallet/{}", wallet),
                 None => "".into(),
