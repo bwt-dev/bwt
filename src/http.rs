@@ -433,6 +433,7 @@ async fn run(
         .or(dump_handler)
         .or(debug_handler)
         .or(sync_handler)
+        .or(warp::any().map(|| StatusCode::NOT_FOUND))
         .with(warp::log("bwt::http"))
         .with(warp::reply::with::headers(headers));
 
