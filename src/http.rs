@@ -63,18 +63,22 @@ async fn run(
         .and(warp::path!("hd" / Fingerprint / u32))
         .and(query.clone())
         .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
-            let script_info = query.get_hd_script_info(&fingerprint, index);
-            reply::json(&script_info)
-        });
+            let script_info = query
+                .get_hd_script_info(&fingerprint, index)
+                .or_err("not found")?;
+            Ok(reply::json(&script_info))
+        })
+        .map(handle_error);
 
     // GET /hd/:fingerprint/gap
     let hd_gap_handler = warp::get()
         .and(warp::path!("hd" / Fingerprint / "gap"))
         .and(query.clone())
         .map(|fingerprint: Fingerprint, query: Arc<Query>| {
-            let gap = query.find_hd_gap(&fingerprint);
-            reply::json(&gap)
-        });
+            let gap = query.find_hd_gap(&fingerprint).or_err("not found")?;
+            Ok(reply::json(&gap))
+        })
+        .map(handle_error);
 
     // GET /hd/:fingerprint/next
     let hd_next_handler = warp::get()
