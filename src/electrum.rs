@@ -319,10 +319,6 @@ impl Connection {
             }
             IndexChange::History(scripthash, ..) => {
                 let new_status_hash = get_status_hash(&self.query, &scripthash);
-                debug!(
-                    "status hash updated for {} to {:?}",
-                    scripthash, new_status_hash
-                );
                 json!({
                     "jsonrpc": "2.0",
                     "method": "blockchain.scripthash.subscribe",
@@ -360,7 +356,10 @@ impl Connection {
                 }
                 Message::IndexChange(change) => {
                     let value = self.jsonrpc_notification(change)?;
-                    debug!("sending jsonrpc notification: {}", value);
+                    debug!(
+                        "sending notification {} {}",
+                        value["method"], value["params"]
+                    );
                     self.send_values(&[value])?;
                 }
                 Message::Done => return Ok(()),
