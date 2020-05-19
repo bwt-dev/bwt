@@ -10,7 +10,7 @@ use bitcoin::Txid;
 use bitcoin_hashes::{hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
-use crate::error::{fmt_error_chain, Result, ResultExt};
+use crate::error::{fmt_error_chain, Context, Result};
 use crate::indexer::IndexChange;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;

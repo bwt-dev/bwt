@@ -9,7 +9,7 @@ use structopt::StructOpt;
 use bitcoin::Network;
 use bitcoincore_rpc::Auth as RpcAuth;
 
-use crate::error::{OptionExt, Result, ResultExt};
+use crate::error::{Context, OptionExt, Result};
 use crate::hd::XyzPubKey;
 use crate::types::RescanSince;
 

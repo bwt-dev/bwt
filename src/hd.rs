@@ -10,7 +10,7 @@ use bitcoincore_rpc::json::{ImportMultiRequest, ImportMultiRequestScriptPubkey};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 use secp256k1::Secp256k1;
 
-use crate::error::{Result, ResultExt};
+use crate::error::{Context, Result};
 use crate::types::{RescanSince, ScriptType};
 
 const LABEL_PREFIX: &str = "bwt";
@@ -263,7 +263,7 @@ impl HDWallet {
                     initial_import_size,
                     *rescan,
                 )
-                .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
+                .with_context(|| format!("invalid xpub {}", xpub))?,
             );
         }
         for (xpub, rescan) in bare_xpubs {
@@ -275,7 +275,7 @@ impl HDWallet {
                     initial_import_size,
                     *rescan,
                 )
-                .with_context(|e| format!("invalid xpub {}: {:?}", xpub, e))?,
+                .with_context(|| format!("invalid xpub {}", xpub))?,
             );
         }
         if wallets.is_empty() {
