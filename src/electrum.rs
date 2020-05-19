@@ -628,11 +628,11 @@ impl SubscriptionManager {
             self.subscribers.len()
         );
 
-        for change in changelog {
-            self.subscribers.retain(|subscriber_id, subscriber| {
+        self.subscribers.retain(|subscriber_id, subscriber| {
+            for change in &changelog {
                 let is_interested = match change {
                     IndexChange::ChainTip(..) => subscriber.blocks,
-                    IndexChange::History(sh, ..) => subscriber.scripthashes.contains(&sh),
+                    IndexChange::History(sh, ..) => subscriber.scripthashes.contains(sh),
                     _ => unreachable!(), //we're not suppoed to be sent anything else
                 };
                 if is_interested {
@@ -645,9 +645,9 @@ impl SubscriptionManager {
                         return false;
                     }
                 }
-                true
-            });
-        }
+            }
+            true
+        });
     }
 }
 

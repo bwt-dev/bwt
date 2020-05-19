@@ -19,10 +19,8 @@ use crate::util::make_fee_histogram;
 #[cfg(feature = "track-spends")]
 use crate::types::InPoint;
 
-lazy_static! {
-    static ref FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(60);
-    static ref FEE_ESTIMATES_TTL: Duration = Duration::from_secs(60);
-}
+const FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(60);
+const FEE_ESTIMATES_TTL: Duration = Duration::from_secs(60);
 
 pub struct Query {
     network: Network,
@@ -112,7 +110,7 @@ impl Query {
 
         ttl_cache!(
             self.cached_estimates,
-            *FEE_ESTIMATES_TTL,
+            FEE_ESTIMATES_TTL,
             || -> Result<Option<f64>> {
                 let feerate = self
                     .rpc
@@ -140,7 +138,7 @@ impl Query {
     pub fn fee_histogram(&self) -> Result<FeeHistogram> {
         ttl_cache!(
             self.cached_histogram,
-            *FEE_HISTOGRAM_TTL,
+            FEE_HISTOGRAM_TTL,
             || -> Result<FeeHistogram> {
                 let mempool_entries = self.get_raw_mempool()?;
                 Ok(make_fee_histogram(mempool_entries))
