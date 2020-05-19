@@ -457,7 +457,7 @@ pub enum Message {
 }
 
 pub enum Notification {
-    IndexChange(IndexChange),
+    IndexChangelog(Vec<IndexChange>),
     Exit,
 }
 
@@ -475,8 +475,8 @@ impl ElectrumServer {
         spawn_thread("notification", move || {
             for msg in notification.receiver().iter() {
                 match msg {
-                    Notification::IndexChange(change) => {
-                        subman.lock().unwrap().dispatch(change);
+                    Notification::IndexChangelog(changelog) => {
+                        subman.lock().unwrap().dispatch(changelog);
                     }
                     Notification::Exit => acceptor.send(None).unwrap(),
                 }
@@ -542,16 +542,19 @@ impl ElectrumServer {
     }
 
     pub fn send_updates(&self, changelog: &Vec<IndexChange>) {
-        info!("sending {} updates to rpc clients", changelog.len());
-        for change in changelog {
-            match change {
-                IndexChange::ChainTip(..) | IndexChange::History(..) => self
-                    .notification
-                    .send(Notification::IndexChange(change.clone()))
-                    .unwrap(),
-                // we don't care about other index changes
-                _ => (),
-            }
+        let changelog: Vec<IndexChange> = changelog
+            .iter()
+            .filter(|change| match change {
+                IndexChange::ChainTip(..) | IndexChange::History(..) => true,
+                _ => false,
+            })
+            .cloned()
+            .collect();
+
+        if !changelog.is_empty() {
+            self.notification
+                .send(Notification::IndexChangelog(changelog))
+                .unwrap();
         }
     }
 
@@ -614,25 +617,37 @@ impl SubscriptionManager {
     pub fn remove(&mut self, subscriber_id: usize) {
         self.subscribers.remove(&subscriber_id);
     }
-    pub fn dispatch(&mut self, change: IndexChange) {
-        self.subscribers.retain(|subscriber_id, subscriber| {
-            let is_interested = match change {
-                IndexChange::ChainTip(..) => subscriber.blocks,
-                IndexChange::History(sh, ..) => subscriber.scripthashes.contains(&sh),
-                _ => unreachable!(), //we're not suppoed to be sent anything else
-            };
-            if is_interested {
-                // TODO determine status hash here, so its only computed once when there are multiple
-                // subscribers to the same scripthash. could also send the header hex directly, so
-                // bitcoind is only queried for it once.
-                let msg = Message::IndexChange(change.clone());
-                if let Err(TrySendError::Disconnected(_)) = subscriber.sender.try_send(msg) {
-                    warn!("dropping disconnected subscriber #{}", subscriber_id);
-                    return false;
+    pub fn dispatch(&mut self, changelog: Vec<IndexChange>) {
+        if self.subscribers.is_empty() {
+            return;
+        }
+
+        info!(
+            "sending {} updates to {} rpc clients",
+            changelog.len(),
+            self.subscribers.len()
+        );
+
+        for change in changelog {
+            self.subscribers.retain(|subscriber_id, subscriber| {
+                let is_interested = match change {
+                    IndexChange::ChainTip(..) => subscriber.blocks,
+                    IndexChange::History(sh, ..) => subscriber.scripthashes.contains(&sh),
+                    _ => unreachable!(), //we're not suppoed to be sent anything else
+                };
+                if is_interested {
+                    // TODO determine status hash here, so its only computed once when there are multiple
+                    // subscribers to the same scripthash. could also send the header hex directly, so
+                    // bitcoind is only queried for it once.
+                    let msg = Message::IndexChange(change.clone());
+                    if let Err(TrySendError::Disconnected(_)) = subscriber.sender.try_send(msg) {
+                        warn!("dropping disconnected subscriber #{}", subscriber_id);
+                        return false;
+                    }
                 }
-            }
-            true
-        });
+                true
+            });
+        }
     }
 }
 
