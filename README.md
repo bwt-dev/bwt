@@ -1,17 +1,24 @@
 # Bitcoin Wallet Tracker
 
+[![Build Status](https://travis-ci.org/shesek/bwt.svg?branch=master)](https://travis-ci.org/shesek/bwt)
+[![Crates.io](https://img.shields.io/crates/v/bwt.svg)](https://crates.io/crates/bwt)
+[![Docker release](https://img.shields.io/docker/pulls/shesek/bwt.svg)](https://hub.docker.com/r/shesek/bwt)
+[![MIT license](https://img.shields.io/github/license/shesek/bwt.svg?color=yellow)](https://github.com/shesek/bwt/blob/master/LICENSE)
+[![Pull Requests Welcome](https://img.shields.io/badge/PRs-welcome-nrightgreen.svg)](#developing)
+
 `bwt` is a lightweight wallet xpub tracker and query engine for Bitcoin, implemented in Rust.
 
-:small_orange_diamond: Personal HD wallet indexer (EPS-like)<br>
-:small_orange_diamond: Electrum RPC server<br>
-:small_orange_diamond: HTTP REST API ([docs below](#http-api))<br>
-:small_orange_diamond: Real-time notifications with Server-Sent-Events or Web Hooks
+🔸 Personal HD wallet indexer (EPS-like)<br>
+🔸 Electrum RPC server<br>
+🔸 Developer-friendly, modern HTTP REST API<br>
+🔸 Real-time updates with Server-Sent-Events or Web Hooks
 
-> ⚠️ This is early alpha software that is likely to be buggy, use with care.
+> ⚠️ This is early alpha software that is likely to be buggy. Use with care.
 
+- [Intro](#intro)
 - [Setup](#setup)
   - [Electrum-only mode](#electrum-only-mode)
-  - [Real-time updates](#real-time-updates)
+  - [Real-time indexing](#real-time-indexing)
   - [Advanced options](#advanced-options)
 - [HTTP API](#http-api)
   - [HD Wallets](#hd-wallets)
@@ -20,16 +27,43 @@
   - [Outputs](#outputs)
   - [Blocks](#blocks)
   - [Mempool & Fees](#mempool--fees)
-  - [Server-Sent Events :star2:](#server-sent-events)
+  - [Server-Sent Events 🌟](#server-sent-events)
   - [Miscellaneous](#miscellaneous)
 - [Web Hooks](#web-hooks)
-- [Example wallet client](#example-wallet-client)
-- [Followup work](#followup-work)
+- [Developing](#developing)
 - [Thanks](#thanks)
- 
+
+<sub>*Support development: bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d*</sub>
+
+## Intro
+
+`bwt` is a lightweight and performant HD wallet indexer backed by a bitcoin full node, using a model similar to that of Electrum Personal Server.
+It can serve as a personal alternative to public Electrum servers or power bitcoin apps such as wallet backends, payment processing and more.
+
+It uses bitcoind to keep track of your wallet addresses (derived from your xpub(s)) and builds an index of their
+history that can be queried using the Electrum RPC protocol or using bwt's custom designed [HTTP API](#http-api).
+
+Real-time updates are available through [Server-Sent events](#server-sent-events) (a streaming long-lived HTTP connection),
+or using [Web Hooks](#web-hooks) push updates (an HTTP request sent to your URL with the event).
+
+The index is currently managed in-memory and does not get persisted (this is expected to change), but building it is pretty fast: bwt can index thousands of transactions in a matter of seconds.
+
+*TL;DR: EPS + Rust + Modern HTTP API + Push updates*
+
+
 ## Setup
 
 Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficient. `txindex` is not required) and install bwt using one of the methods below.
+
+#### Signed pre-built binaries
+
+Available for download on [the releases page](https://github.com/shesek/bwt/releases) (Linux only).
+
+The releases are signed by Nadav Ivgi (@shesek).
+The public key can be verified on [keybase](https://keybase.io/nadav),
+[github](https://api.github.com/users/shesek/gpg_keys),
+[twitter](https://twitter.com/shesek) (under bio) and
+[HN](https://news.ycombinator.com/user?id=nadaviv).
 
 #### From source
 
@@ -39,7 +73,13 @@ Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficie
 $ sudo apt install build-essential
 $ git clone https://github.com/shesek/bwt && cd bwt
 $ cargo build --release
-$ ./target/release/bwt  --network mainnet --xpub <xpub1> --xpub <xpub2>
+$ ./target/release/bwt --network mainnet --xpub <xpub> ...
+```
+
+Or using the crates.io package:
+
+```bash
+$ cargo install bwt
 ```
 
 #### With Docker
@@ -47,7 +87,7 @@ $ ./target/release/bwt  --network mainnet --xpub <xpub1> --xpub <xpub2>
 Assuming your bitcoin datadir is at `~/.bitcoin`,
 
 ```bash
-$ docker run --net host -v ~/.bitcoin:/bitcoin shesek/bwt --network mainnet --xpub <xpub1> --xpub <xpub2>
+$ docker run --net host -v ~/.bitcoin:/bitcoin shesek/bwt --xpub <xpub> ...
 ```
 
 #### Running bwt
@@ -59,7 +99,7 @@ your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 `--bitcoind-dir` (defaults to `~/.bitcoin`) and
 `--bitcoind-cred <user:pass>` (defaults to using the cookie file from `bitcoind-dir`).
 
-You can set multiple `--xpub` to track. This also supports ypubs and zpubs.
+You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
 
 Be default, the Electrum server will be bound on port `50001`/`60001`/`60401` (according to the network)
 and the HTTP server will be bound on port `3060`. This can be controlled with `--electrum-rpc-addr`
@@ -88,14 +128,15 @@ Setting the environment variables directly is also supported.
 ### Electrum-only mode
 
 If you're only interested in the Electrum server, you may disable the HTTP API server
-and web hooks support by building bwt with `--no-default-features --features electrum`
-or using the `shesek/bwt:electrum` docker image.
+by building bwt with `--no-default-features --features electrum`,
+using the `shesek/bwt:electrum` docker image,
+or downloading the `electrum_only` pre-built binary.
 
 This removes several large dependencies and disables the `track-spends` database index
 (which is not needed for the electrum server).
 
 
-### Real-time updates
+### Real-time indexing
 
 By default, bwt will query bitcoind for new blocks/transactions every 5 seconds.
 This can be adjusted with `--poll-interval <seconds>`.
@@ -120,7 +161,10 @@ walletnotify=nc -U /home/satoshi/bwt-sync-socket
 blocknotify=nc -U /home/satoshi/bwt-sync-socket
 ```
 
-(If `nc` is not available, you may also use `socat - UNIX-CONNECT:/home/satoshi/bwt-sync-socket`)
+If `nc` is not available, you can also use `socat - UNIX-CONNECT:/home/satoshi/bwt-sync-socket`.
+
+If you're using docker, you can bind the socket on a directory mounted from the host to make it available outside the container.
+For example, `--unix-listener-path /bitcoin/bwt-socket`.
 
 ### Advanced options
 
@@ -129,7 +173,7 @@ blocknotify=nc -U /home/satoshi/bwt-sync-socket
 You may configure the gap limit with `--gap--limit <N>` (defaults to 20).
 The gap limit sets the maximum number of consecutive unused addresses to be imported before assuming there are no more used addresses to be discovered.
 
-You can import larger batches with a higher gap during the initial sync using `--initial-import-size <N>` (defaults to 50).
+You can import larger batches with a higher gap during the initial sync using `--initial-import-size <N>` (defaults to 100).
 Higher value means less rescans. Should be increased for large wallets.
 
 ##### Rescan policy / wallet birthday
@@ -155,6 +199,7 @@ All the endpoints return JSON. All bitcoin amounts are in satoshis.
 
 > Note: Every `--xpub` specified will be represented as two wallet entries, one for the external chain (used for receive addresses)
 and one for the internal chain (used for change addresses). You can associate the wallets to their parent xpub using the `origin` field.
+
 
 #### `GET /hd`
 
@@ -194,7 +239,7 @@ Get information about the HD wallet identified by the hex-encoded `fingerprint`.
 
 Returned fields:
 - `xpub` - the xpubkey in base58 encoding
-- `origin` - parent extended key this wallet is derived from, in `<fingerprint>/<index>` format
+- `origin` - parent extended key this xpub is derived from (if any), in `<fingerprint>/<index>` format
 - `network` - the network this wallet belongs to (`bitcoin`, `testnet` or `regtest`)
 - `script_type` - the scriptpubkey type used by this wallet (`p2pkh`, `p2wpkh` or `p2shp2wpkh`)
 - `gap_limit` - the gap limited configured for this wallet
@@ -203,6 +248,8 @@ Returned fields:
 - `max_funded_index` - the maximum derivation index that is known to have history
 - `max_imported_index` - the maximum derivation index imported into bitcoind
 - `done_initial_import` - a boolean indicating whether we're done importing addresses for this wallet
+
+> Note: the `xpub` field is always encoded as an xpub, even for yzpubs and zpubs. This is a [known issue](https://github.com/shesek/bwt/issues/12).
 
 Example:
 ```
@@ -292,15 +339,12 @@ $ curl localhost:3060/hd/15cb9edc/gap
 
 ### Transactions
 
-#### `GET /tx/:txid`
+#### Wallet transaction format
 
-Get the transaction with contextual wallet information about funded outputs and spent inputs.
+This format is only available for wallet transactions and includes contextual wallet information about funded outputs and spent inputs.
+It does not include inputs/outputs that are unrelated the wallet.
 
-<details><summary>Expand...</summary><p></p>
-
-Only available for wallet transactions.
-
-Returned fields:
+Transaction fields:
 - `txid`
 - `block_height` - the confirming block height or `null` for unconfirmed transactions
 - `fee` (may not be available)
@@ -311,7 +355,7 @@ Returned fields:
   - `address` - the address funded by this output
   - `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
   - `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
-- `spending` - contains an entry for every wallet utxo spent by this transaction input
+- `spending` - contains an entry for every input spending a wallet output
   - `vin` - the input index
   - `amount` - the amount of the previous output spent by this input
   - `scripthash` - the scripthash of the previous output spent by this input
@@ -320,10 +364,17 @@ Returned fields:
   - `prevout` - the `<txid>:<vout>` being spent
 - `balance_change` - the net change to the wallet balance inflicted by this transaction
 
+#### `GET /tx/:txid`
+
+Get the transaction in the [wallet transaction format](#wallet-transaction-format).
+
+<details><summary>Expand...</summary><p></p>
+
+*Available for wallet transactions only.*
+
 Example:
 ```
 $ curl localhost:3060/tx/e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f66da872dda
-
 {
   "txid": "e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f66da872dda",
   "block_height": 113,
@@ -358,6 +409,10 @@ $ curl localhost:3060/tx/e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f6
 Get the transaction in JSON as formatted by [bitcoind's `getrawtransaction`](https://bitcoincore.org/en/doc/0.19.0/rpc/rawtransactions/getrawtransaction/) with `verbose=true`.
 
 <details><summary>Expand...</summary><p></p>
+
+Available for all transactions that bitcoind is aware of (i.e. not pruned).
+Requires `txindex` to work for non-wallet transactions.
+
 Example:
 ```
 $ curl localhost:3060/tx/1f2e3c4cee8ea127a79c5dbc951f1e005671a1e8bf385e791ff95b780deda68f/verbose
@@ -391,7 +446,6 @@ Example:
 ```
 $ curl localhost:3060/tx/1f2e3c4cee8ea127a79c5dbc951f1e005671a1e8bf385e791ff95b780deda68f/hex
 0200000000010132d8a06f451ca6e8487a25343586f4186faecbbd185c324f5c3cfe674d1385460100000000feffffff0200e1f505000000001600143e730c6086a8417e2532356bd43e34b86c0f6055d6df0a1e010000001600146873ceae00e9140ea09b71963ee0e493b678a0ec02473044022025500722fd65172f8f7fe448ee484e5659aa9ff23d055546480588840b8eef40022023509d517614fa0c51d55511826250ead7d44ada9d9d6671837f44e8088d678b012102b3ce722e57fa6b66985154305e3d06831976499cf9f1db0c4e30450c1d5d7724af000000
-
 ```
 
 </details>
@@ -416,13 +470,25 @@ $ curl localhost:3060/tx/1f2e3c4cee8ea127a79c5dbc951f1e005671a1e8bf385e791ff95b7
 #### `GET /txs/since/:block-height`
 
 Get all wallet transactions confirmed at or after `block-height`, plus all unconfirmed transactions,
-for all tracked scripthashes.
+for all tracked addresses.
 
 <details><summary>Expand...</summary><p></p>
 
-Returned in the same format as [`GET /tx/:txid`](https://gist.github.com/shesek/303a9ded987cad797266ded737b05641#get-txtxid).
+Returned in the [wallet transaction format](#wallet-transaction-format).
 
-*This is not yet very efficient.*
+Example:
+```
+$ curl localhost:3060/txs/since/0
+[
+  {
+    "txid": "e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f66da872dda",
+    "funding": [ .. ],
+    "spending": [ .. ],
+    ...
+  },
+  ...
+]
+```
 
 </details>
 
@@ -535,8 +601,6 @@ Get the list of unspent transaction outputs owned by the provided address, scrip
 
 <details><summary>Expand...</summary><p></p>
 
-Returns a JSON array in the same format as [`GET /txo/:txid/:vout`](#get-txotxidvout).
-
 Query string parameters:
 - `min_conf` - minimum number of confirmations, defaults to 0
 - `include_unsafe` - whether to include outputs that are not safe to spend (unconfirmed from outside keys or with RBF), defaults to true
@@ -579,7 +643,7 @@ Get the list of all transactions in the history of the provided address, scripth
 
 <details><summary>Expand...</summary><p></p>
 
-Returned in the same transaction format as `GET /tx/:txid`.
+Returned in the [wallet transaction format](#wallet-transaction-format).
 
 Example:
 ```
@@ -603,7 +667,7 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/txs
 #### `GET /scripthash/:scripthash/txs/compact`
 #### `GET /hd/:fingerprint/:index/txs/compact`
 
-Get a compact minimal representation of the provided address, scripthash or hd key.
+Get a compact minimal representation of the history of the provided address, scripthash or hd key.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -625,14 +689,9 @@ $ curl localhost:3060/scripthash/c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a8
 
 ### Outputs
 
-#### `GET /txo/:txid/:vout`
+#### Output format
 
-Get information about the specified wallet output.
-
-<details><summary>Expand...</summary><p></p>
-
-Returned fields:
-- `txid` - the output transaction
+- `txid` - the transaction funding this output
 - `vout` - the output index
 - `amount` - the output amount
 - `scripthash` - the scripthash funded by this output
@@ -641,6 +700,13 @@ Returned fields:
 - `block_height` - the confirming block height or `null` for unconfirmed transactions
 - `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
 
+#### `GET /txo/:txid/:vout`
+
+Get information about the specified transaction output.
+
+<details><summary>Expand...</summary><p></p>
+
+*Available for wallet outputs only.*
 
 Example:
 ```
@@ -663,8 +729,6 @@ $ curl localhost:3060/txo/1b1170ac5996df9255299ae47b26ec3ad57c9801bc7bae68203b12
 Get all unspent wallet outputs.
 
 <details><summary>Expand...</summary><p></p>
-
-Returned as a JSON array in the same format as [`GET /txo/:txid/:vout`](#get-txotxidvout).
 
 Query string parameters:
 - `min_conf` - minimum number of confirmations, defaults to 0
@@ -832,15 +896,15 @@ $ curl localhost:3060/fee-estimate/3
 
 ### Server-Sent Events
 
-#### Available event categories
+#### Event categories
 
 - `ChainTip(block_height, block_hash)` - emitted whenever a new block extends the best chain.
 - `Reorg(block_height, prev_block_hash, curr_block_hash)` - indicates that a re-org was detected on `block_height`, with the previous block hash at this height and the current one.
 - `Transaction(txid, block_height)` - emitted for new transactions as well as transactions changing their confirmation status (typically from unconfirmed to confirmed, possibly the other way around in case of reorgs).
 - `TransactionReplaced(txid)` - indicates that the transaction conflicts with another transaction and can no longer be confirmed (aka double-spent).
-- `History(scripthash, txid, block_height)` - emitted whenever the history of a scripthash changes, due to new transaction or confirmation status changes.
+- `History(scripthash, txid, block_height)` - emitted whenever the history of a scripthash changes, due to new transactions or confirmation status changes.
 - `TxoCreated(outpoint, block_height)` - emitted for new unspent wallet outputs.
-- `TxoSpent(outpoint, inpoint, block_height)` - emitted for wallet outputs spends.
+- `TxoSpent(outpoint, inpoint, block_height)` - emitted when a wallet output is spent.
 
 For unconfirmed transactions, `block_height` will be `null`.
 
@@ -894,7 +958,7 @@ data:{"category":"TxoSpent","params":["521d0991128a680d01e5a4f748f6ad8a6a1dbde48
 #### `GET /scripthash/:scripthash/stream`
 #### `GET /hd/:fingerprint/:index/stream`
 
-Subscribe to a real-time notification stream of indexer update events related to the provided address, scripthash or hd key.
+Subscribe to a real-time notification stream of `History` events for the provided address, scripthash or hd key.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -904,11 +968,13 @@ Example:
 ```
 $ curl localhost:3060/scripthash/96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19/stream
 
-data:{"category":"History","params":["96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19","1fbc4a22ace7abcdd7b76630d7a7d6f9cf1
-58842a973ac796ad89db2ee8a846e",630000]}
+data:{"category":"History","params":["96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
 
-data:{"category":"TxoCreated","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e:0",630000]}
+data:{"category":"History","params":["96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19","1ef60ee356af75f3be95b91c07192fd9e8eba5c51cc9c21603364e11911213a9",null]}
+
+data:{"category":"History","params":["96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19","1ef60ee356af75f3be95b91c07192fd9e8eba5c51cc9c21603364e11911213a9",630001]}
 ```
+
 </details>
 
 
@@ -916,7 +982,7 @@ data:{"category":"TxoCreated","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf15884
 
 #### `POST /sync`
 
-Trigger an immediate indexer sync. See [Real-time updates](#real-time-updates).
+Trigger an indexer sync. See [Real-time updates](#real-time-updates).
 
 #### `GET /dump`
 
@@ -928,7 +994,7 @@ Dumps the contents of the index store as a debug string.
 
 ## Web Hooks
 
-> To enable web hooks support, build bwt with `--features webhooks` or use the `shesek/bwt` docker image (which comes with webhooks support by default). If you're not using docker, you will need to `apt install libssl-dev pkg-config`.
+> If you're building bwt from source, you'll need to set `--features webhooks` to enable web hooks support. This will also require to  `apt install libssl-dev pkg-config`. The main pre-built binary and the `shesek/bwt` docker image come with webhooks support enabled by default.
 
 You can set `--webhook-url <url>` to have bwt send push notifications as a `POST` request to the provided `<url>`. Requests will be sent with a JSON-serialized *array* of one or more index updates as the body.
 
@@ -936,28 +1002,53 @@ It is recommended to include a secret key within the URL to verify the authentic
 
 You can specify multiple `--webhook-url` to notify all of them.
 
-Note that bwt currently attempts to send the webhook once and does not retry in case of failures.
+Note that bwt currently attempts to send the webhook request once and does not retry in case of failures.
 It is recommended to occasionally catch up using the [`GET /txs/since/:block-height`](#get-txssinceblock-height) endpoint.
 
 Tip: services like [webhook.site](https://webhook.site/) or [requestbin](http://requestbin.net/) can come in handy for debugging webhooks. (needless to say, for non-privacy-sensitive regtest/testnet use only)
 
 
-## Example wallet client
+## Developing
 
-An example JavaScript implementation utilizing the HTTP API for wallet tracking, using [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API) and [`EventSource`](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)
-(available on modern browsers and nodejs),
-[is available here](https://github.com/shesek/bwt/blob/master/examples/wallet-tracker.js).
+### Resources
 
-## Followup work
+Documentation for the public Rust API is [available on docs.rs](https://docs.rs/bwt).
 
-- Output descriptors! <3
-- PSBT
-- Coin selection
-- Tests
-- Similarly to electrum-personal-server, bwt manages its database entirely in-memory and has no persistent storage.
-  This is expected to change at some point.
+A yuml diagram showing how the big pieces interact together is [available here](https://yuml.me/edit/eb254113).
 
-PRs welcome!
+An example JavaScript client utilizing the HTTP API for wallet tracking
+is available at [`examples/wallet-tracker.js`](https://github.com/shesek/bwt/blob/master/examples/wallet-tracker.js).
+
+
+### Development environment
+
+To quickly setup a development environment, you can use [`scripts/dev-env.sh`](https://github.com/shesek/bwt/blob/master/scripts/dev-env.sh) to create a bitcoind regtest network and two Electrum wallets, fund the wallets, start bwt with tracking for both wallets' xpubs, and start the Electrum GUI.
+
+To use it, simply run `$ ./scripts/dev-env.sh` from the root directory with `bitcoind`, `bitcoin-cli` and `electrum` installed in your `PATH`.
+
+You can set `FEATURES` to specify which features to enable (see below) or set `NO_GUI=1` to leave the Electrum wallet running in daemon mode without starting the GUI.
+
+If you have [`cargo watch`](https://github.com/passcod/cargo-watch) installed, it'll be used to watch for changes and automatically restart bwt.
+
+### Features
+
+bwt has 4 optional features: `http`, `electrum`, `webhooks` and `track-spends`.
+
+All are enabled by default except for `webhooks`.
+
+If you're working on code that is unrelated to the HTTP API, it is much faster to build with just the `electrum track-spends` features.
+
+You can use `scripts/check.sh` to run `cargo check` for all (sensible) feature combos. This is important to ensure no errors were introduced for feature combos that you didn't use.
+
+### Contributions
+
+Are welcome!
+
+The only guideline is to use `cargo fmt`.
+
+You can check out [the list of enhancement issues](https://github.com/shesek/bwt/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement)
+for some ideas to work on (output script descriptors <3).
+
 
 ## Thanks
 
