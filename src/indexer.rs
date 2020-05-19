@@ -379,7 +379,7 @@ impl fmt::Display for IndexChange {
     }
 }
 
-const INIT_TX_PER_PAGE: usize = 250;
+const INIT_TX_PER_PAGE: usize = 500;
 const DELTA_TX_PER_PAGE: usize = 25;
 const MAX_TX_PER_PAGE: usize = 5000;
 
