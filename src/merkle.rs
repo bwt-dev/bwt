@@ -59,13 +59,10 @@ pub fn get_id_from_pos(
 ) -> Result<(Txid, Vec<sha256d::Hash>)> {
     let block_hash = query.get_block_hash(height)?;
     let txids = query.get_block_txids(&block_hash)?;
-    let txid = txids
-        .get(tx_pos)
-        .or_err(format!(
-            "No tx in position #{} in block #{}",
-            tx_pos, height
-        ))?
-        .clone();
+    let txid = *txids.get(tx_pos).or_err(format!(
+        "No tx in position #{} in block #{}",
+        tx_pos, height
+    ))?;
 
     let branch = if want_merkle {
         let hashes = txids.into_iter().map(sha256d::Hash::from).collect();

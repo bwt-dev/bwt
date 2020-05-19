@@ -10,7 +10,7 @@ use bitcoin::Txid;
 use bitcoin_hashes::{hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
-use crate::error::{fmt_error_chain, Result, ResultExt};
+use crate::error::{fmt_error_chain, Context, Result};
 use crate::indexer::IndexChange;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
@@ -184,7 +184,7 @@ impl Connection {
         let txs: Vec<Value> = self.query.map_history(&script_hash, |txhist| {
             let fee = self.query.with_tx_entry(&txhist.txid, |e| e.fee);
             json!({
-                "height": electrum_height(&txhist.status),
+                "height": electrum_height(txhist.status),
                 "tx_hash": txhist.txid,
                 "fee": fee,
             })
@@ -201,7 +201,7 @@ impl Connection {
             .into_iter()
             .map(|utxo| {
                 json!({
-                    "height": electrum_height(&utxo.status),
+                    "height": electrum_height(utxo.status),
                     "tx_hash": utxo.txid,
                     "tx_pos": utxo.vout,
                     "value": utxo.amount,
@@ -427,7 +427,7 @@ where
 
 fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
     let p = query.map_history(scripthash, |hist| {
-        format!("{}:{}:", hist.txid, electrum_height(&hist.status))
+        format!("{}:{}:", hist.txid, electrum_height(hist.status))
     });
 
     if !p.is_empty() {
@@ -438,9 +438,9 @@ fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash>
 }
 
 // TODO -1 to indicate unconfirmed tx with unconfirmed parents
-fn electrum_height(status: &TxStatus) -> u32 {
+fn electrum_height(status: TxStatus) -> u32 {
     match status {
-        TxStatus::Confirmed(height) => *height,
+        TxStatus::Confirmed(height) => height,
         TxStatus::Unconfirmed => 0,
         TxStatus::Conflicted => {
             unreachable!("electrum_height() should not be called on conflicted txs")
@@ -540,7 +540,7 @@ impl ElectrumServer {
         }
     }
 
-    pub fn send_updates(&self, changelog: &Vec<IndexChange>) {
+    pub fn send_updates(&self, changelog: &[IndexChange]) {
         let changelog: Vec<IndexChange> = changelog
             .iter()
             .filter(|change| match change {
@@ -592,7 +592,7 @@ struct Subscriber {
 impl SubscriptionManager {
     pub fn register(&mut self, sender: SyncSender<Message>) -> usize {
         let id = self.next_id;
-        self.next_id = self.next_id + 1;
+        self.next_id += 1;
         self.subscribers.insert(
             id,
             Subscriber {
@@ -604,14 +604,14 @@ impl SubscriptionManager {
         id
     }
     pub fn subscribe_blocks(&mut self, subscriber_id: usize) {
-        self.subscribers
-            .get_mut(&subscriber_id)
-            .map(|s| s.blocks = true);
+        if let Some(s) = self.subscribers.get_mut(&subscriber_id) {
+            s.blocks = true
+        }
     }
     pub fn subscribe_scripthash(&mut self, subscriber_id: usize, scripthash: ScriptHash) {
-        self.subscribers
-            .get_mut(&subscriber_id)
-            .map(|s| s.scripthashes.insert(scripthash));
+        if let Some(s) = self.subscribers.get_mut(&subscriber_id) {
+            s.scripthashes.insert(scripthash);
+        }
     }
     pub fn remove(&mut self, subscriber_id: usize) {
         self.subscribers.remove(&subscriber_id);
@@ -627,11 +627,11 @@ impl SubscriptionManager {
             self.subscribers.len()
         );
 
-        for change in changelog {
-            self.subscribers.retain(|subscriber_id, subscriber| {
+        self.subscribers.retain(|subscriber_id, subscriber| {
+            for change in &changelog {
                 let is_interested = match change {
                     IndexChange::ChainTip(..) => subscriber.blocks,
-                    IndexChange::History(sh, ..) => subscriber.scripthashes.contains(&sh),
+                    IndexChange::History(sh, ..) => subscriber.scripthashes.contains(sh),
                     _ => unreachable!(), //we're not suppoed to be sent anything else
                 };
                 if is_interested {
@@ -644,9 +644,9 @@ impl SubscriptionManager {
                         return false;
                     }
                 }
-                true
-            });
-        }
+            }
+            true
+        });
     }
 }
 

@@ -168,7 +168,7 @@ impl MemoryStore {
             let status = tx_entry.status;
             tx_entry.funding.entry(vout).or_insert_with(|| {
                 trace!("new txo added {}:{}: {:?}", txid, vout, funding_info);
-                added = Some((funding_info.0.clone(), status));
+                added = Some((funding_info.0, status));
                 funding_info
             });
         }
@@ -338,7 +338,7 @@ impl MemoryStore {
     }
 
     pub fn get_tx_status(&self, txid: &Txid) -> Option<TxStatus> {
-        Some(self.transactions.get(txid)?.status.clone())
+        Some(self.transactions.get(txid)?.status)
     }
 
     pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {

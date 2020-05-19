@@ -66,7 +66,7 @@ impl App {
         let http = HttpServer::start(
             config.http_server_addr,
             config.http_cors.clone(),
-            query.clone(),
+            query,
             sync_tx.clone(),
         );
 
@@ -195,7 +195,7 @@ enum ScanningResult {
     NotScanning,
     Unsupported,
 }
-#[derive(serde_derive::Deserialize)]
+#[derive(Deserialize)]
 struct ScanningDetails {
     duration: u64,
     progress: f64,

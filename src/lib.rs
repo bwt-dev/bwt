@@ -3,11 +3,13 @@ extern crate serde_json;
 #[macro_use]
 extern crate log;
 #[macro_use]
-extern crate failure;
+extern crate anyhow;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
 extern crate bitcoin_hashes;
+#[macro_use]
+extern crate serde;
 
 #[macro_use]
 mod macros;
