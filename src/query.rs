@@ -399,7 +399,7 @@ impl Query {
         let key = wallet.derive(index);
         let address = wallet.to_address(&key);
         let scripthash = ScriptHash::from(&address);
-        let origin = KeyOrigin::Derived(key.parent_fingerprint, index);
+        let origin = KeyOrigin::Derived(*fingerprint, index);
         Some(ScriptInfo::new(scripthash, address, origin))
     }
 

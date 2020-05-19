@@ -380,6 +380,8 @@ fn batch_import(rpc: &RpcClient, import_reqs: Vec<(Address, RescanSince, String)
 pub enum KeyOrigin {
     Derived(Fingerprint, u32),
     Standalone,
+    // bwt never does hardended derivation itself, but can receive an hardend --bare-xpub
+    DerivedHard(Fingerprint, u32),
 }
 
 impl_string_serializer!(
@@ -389,6 +391,9 @@ impl_string_serializer!(
         KeyOrigin::Standalone => "standalone".into(),
         KeyOrigin::Derived(parent_fingerprint, index) => {
             format!("{}/{}", parent_fingerprint, index)
+        }
+        KeyOrigin::DerivedHard(parent_fingerprint, index) => {
+            format!("{}/{}'", parent_fingerprint, index)
         }
     }
 );
@@ -403,6 +408,7 @@ impl KeyOrigin {
                 index
             ),
             KeyOrigin::Standalone => LABEL_PREFIX.into(),
+            KeyOrigin::DerivedHard(..) => unreachable!(),
         }
     }
 
@@ -419,17 +425,21 @@ impl KeyOrigin {
     }
 
     pub fn from_extkey(key: &ExtendedPubKey) -> Self {
-        let derivation_index = match key.child_number {
-            ChildNumber::Normal { index } => index,
-            ChildNumber::Hardened { .. } => unreachable!("unexpected hardened derivation"),
-        };
-        KeyOrigin::Derived(key.parent_fingerprint, derivation_index)
+        let parent = key.parent_fingerprint;
+        if &parent[..] == [0, 0, 0, 0] {
+            KeyOrigin::Standalone
+        } else {
+            match key.child_number {
+                ChildNumber::Normal { index } => KeyOrigin::Derived(parent, index),
+                ChildNumber::Hardened { index } => KeyOrigin::DerivedHard(parent, index),
+            }
+        }
     }
 
     pub fn is_standalone(origin: &KeyOrigin) -> bool {
         match origin {
             KeyOrigin::Standalone => true,
-            KeyOrigin::Derived(..) => false,
+            KeyOrigin::Derived(..) | KeyOrigin::DerivedHard(..) => false,
         }
     }
 }
