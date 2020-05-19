@@ -74,21 +74,21 @@ impl TxStatus {
         }
     }
 
-    pub fn is_viable(&self) -> bool {
+    pub fn is_viable(self) -> bool {
         match self {
             TxStatus::Confirmed(_) | TxStatus::Unconfirmed => true,
             TxStatus::Conflicted => false,
         }
     }
 
-    pub fn is_confirmed(&self) -> bool {
+    pub fn is_confirmed(self) -> bool {
         match self {
             TxStatus::Confirmed(_) => true,
             TxStatus::Unconfirmed | TxStatus::Conflicted => false,
         }
     }
 
-    pub fn is_unconfirmed(&self) -> bool {
+    pub fn is_unconfirmed(self) -> bool {
         match self {
             TxStatus::Unconfirmed => true,
             TxStatus::Confirmed(_) | TxStatus::Conflicted => false,

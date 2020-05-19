@@ -52,7 +52,7 @@ async fn run(
         .and(warp::path!("hd" / Fingerprint))
         .and(query.clone())
         .map(|fingerprint: Fingerprint, query: Arc<Query>| {
-            let wallet = query.get_hd_wallet(&fingerprint).or_err("not found")?;
+            let wallet = query.get_hd_wallet(fingerprint).or_err("not found")?;
             Ok(reply::json(&wallet))
         })
         .map(handle_error);
@@ -63,7 +63,7 @@ async fn run(
         .and(query.clone())
         .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
             let script_info = query
-                .get_hd_script_info(&fingerprint, index)
+                .get_hd_script_info(fingerprint, index)
                 .or_err("not found")?;
             Ok(reply::json(&script_info))
         })
@@ -74,7 +74,7 @@ async fn run(
         .and(warp::path!("hd" / Fingerprint / "gap"))
         .and(query.clone())
         .map(|fingerprint: Fingerprint, query: Arc<Query>| {
-            let gap = query.find_hd_gap(&fingerprint).or_err("not found")?;
+            let gap = query.find_hd_gap(fingerprint).or_err("not found")?;
             Ok(reply::json(&gap))
         })
         .map(handle_error);
@@ -84,7 +84,7 @@ async fn run(
         .and(warp::path!("hd" / Fingerprint / "next"))
         .and(query.clone())
         .map(|fingerprint: Fingerprint, query: Arc<Query>| {
-            let wallet = query.get_hd_wallet(&fingerprint).or_err("not found")?;
+            let wallet = query.get_hd_wallet(fingerprint).or_err("not found")?;
             let next_index = wallet.get_next_index();
             let uri = format!("/hd/{}/{}", fingerprint, next_index);
             // issue a 307 redirect to the hdkey resource uri, and also include the derivation
@@ -109,7 +109,7 @@ async fn run(
         .and(query.clone())
         .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
             let script_info = query
-                .get_hd_script_info(&fingerprint, index)
+                .get_hd_script_info(fingerprint, index)
                 .or_err("not found")?;
             Ok(script_info.scripthash)
         })
@@ -470,7 +470,7 @@ impl HttpServer {
         }
     }
 
-    pub fn send_updates(&self, changelog: &Vec<IndexChange>) {
+    pub fn send_updates(&self, changelog: &[IndexChange]) {
         let mut listeners = self.listeners.lock().unwrap();
         if listeners.is_empty() {
             return;

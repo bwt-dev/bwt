@@ -40,7 +40,7 @@ impl WebHookNotifier {
         }
     }
 
-    pub fn send_updates(&self, changelog: &Vec<IndexChange>) {
+    pub fn send_updates(&self, changelog: &[IndexChange]) {
         info!(
             "sending {} events to {} urls",
             changelog.len(),
@@ -48,6 +48,6 @@ impl WebHookNotifier {
         );
 
         // TODO implement filter support
-        self.tx.send(changelog.clone()).unwrap();
+        self.tx.send(changelog.to_vec()).unwrap();
     }
 }

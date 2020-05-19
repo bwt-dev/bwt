@@ -66,7 +66,7 @@ impl App {
         let http = HttpServer::start(
             config.http_server_addr,
             config.http_cors.clone(),
-            query.clone(),
+            query,
             sync_tx.clone(),
         );
 

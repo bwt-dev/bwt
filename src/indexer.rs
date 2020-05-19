@@ -444,7 +444,7 @@ fn load_transactions_since(
         }
         // update the marker
         if let Some(oldest) = chunk.first() {
-            oldest_seen = Some((oldest.info.txid.clone(), oldest.detail.vout));
+            oldest_seen = Some((oldest.info.txid, oldest.detail.vout));
         } else {
             break;
         }

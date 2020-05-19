@@ -40,8 +40,8 @@ impl HDWatcher {
         &self.wallets
     }
 
-    pub fn get(&self, fingerprint: &Fingerprint) -> Option<&HDWallet> {
-        self.wallets.get(fingerprint)
+    pub fn get(&self, fingerprint: Fingerprint) -> Option<&HDWallet> {
+        self.wallets.get(&fingerprint)
     }
 
     // Mark an address as funded
@@ -413,7 +413,7 @@ impl KeyOrigin {
     }
 
     pub fn from_label(s: &str) -> Option<Self> {
-        let parts: Vec<&str> = s.splitn(3, "/").collect();
+        let parts: Vec<&str> = s.splitn(3, '/').collect();
         match (parts.get(0), parts.get(1), parts.get(2)) {
             (Some(&LABEL_PREFIX), Some(parent), Some(index)) => Some(KeyOrigin::Derived(
                 Fingerprint::from(&hex::decode(parent).ok()?[..]),
@@ -426,7 +426,7 @@ impl KeyOrigin {
 
     pub fn from_extkey(key: &ExtendedPubKey) -> Self {
         let parent = key.parent_fingerprint;
-        if &parent[..] == [0, 0, 0, 0] {
+        if parent[..] == [0, 0, 0, 0] {
             KeyOrigin::Standalone
         } else {
             match key.child_number {

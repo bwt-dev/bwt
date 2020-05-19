@@ -204,7 +204,7 @@ impl Query {
             .unwrap()
             .store()
             .get_history(scripthash)
-            .map_or_else(|| Vec::new(), |entries| entries.iter().cloned().collect())
+            .map_or_else(Vec::new, |entries| entries.iter().cloned().collect())
     }
 
     pub fn map_history<T>(
@@ -217,7 +217,7 @@ impl Query {
             .unwrap()
             .store()
             .get_history(scripthash)
-            .map(|history| history.into_iter().map(f).collect())
+            .map(|history| history.iter().map(f).collect())
             .unwrap_or_else(|| vec![])
     }
 
@@ -381,7 +381,7 @@ impl Query {
         self.indexer.read().unwrap().watcher().wallets().clone()
     }
 
-    pub fn get_hd_wallet(&self, fingerprint: &Fingerprint) -> Option<HDWallet> {
+    pub fn get_hd_wallet(&self, fingerprint: Fingerprint) -> Option<HDWallet> {
         self.indexer
             .read()
             .unwrap()
@@ -391,17 +391,17 @@ impl Query {
     }
 
     // get the ScriptInfo entry of a derived hd key, without it necessarily being indexed
-    pub fn get_hd_script_info(&self, fingerprint: &Fingerprint, index: u32) -> Option<ScriptInfo> {
+    pub fn get_hd_script_info(&self, fingerprint: Fingerprint, index: u32) -> Option<ScriptInfo> {
         let indexer = self.indexer.read().unwrap();
         let wallet = indexer.watcher().get(fingerprint)?;
         let key = wallet.derive(index);
         let address = wallet.to_address(&key);
         let scripthash = ScriptHash::from(&address);
-        let origin = KeyOrigin::Derived(*fingerprint, index);
+        let origin = KeyOrigin::Derived(fingerprint, index);
         Some(ScriptInfo::new(scripthash, address, origin))
     }
 
-    pub fn find_hd_gap(&self, fingerprint: &Fingerprint) -> Option<usize> {
+    pub fn find_hd_gap(&self, fingerprint: Fingerprint) -> Option<usize> {
         let indexer = self.indexer.read().unwrap();
         let store = indexer.store();
         let wallet = indexer.watcher().get(fingerprint)?;

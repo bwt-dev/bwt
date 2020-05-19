@@ -244,7 +244,7 @@ impl Config {
         Ok(self.bitcoind_cred
             .as_ref()
             .and_then(|cred| {
-                let mut parts = cred.splitn(2, ":");
+                let mut parts = cred.splitn(2, ':');
                 Some(RpcAuth::UserPass(parts.next()?.into(), parts.next()?.into()))
             })
             .or_else(|| {
@@ -317,7 +317,7 @@ impl Config {
 }
 
 fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {
-    let mut parts = s.splitn(2, ":");
+    let mut parts = s.splitn(2, ':');
     let xpub = XyzPubKey::from_str(parts.next().or_err("missing xpub")?)?;
     let rescan = parts
         .next()
@@ -340,7 +340,7 @@ fn parse_rescan(s: &str) -> Result<RescanSince> {
 }
 
 fn parse_yyyymmdd(s: &str) -> Result<u64> {
-    let mut parts = s.splitn(3, "-");
+    let mut parts = s.splitn(3, '-');
     Ok(Utc
         .ymd_opt(
             parts.next().req()?.parse()?,
