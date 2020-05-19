@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::fmt;
 use std::sync::Arc;
+use std::{fmt, time};
 
 use serde::Serialize;
 
@@ -43,6 +43,8 @@ impl Indexer {
     // continue to sync transactions and import addresses (with rescan) until no more new addresses
     // need to be imported. the initial sync does not collect the Changelog and does not emit updates.
     pub fn initial_sync(&mut self) -> Result<()> {
+        let timer = time::Instant::now();
+
         info!("starting initial sync");
         self.watcher.check_imports(&self.rpc)?;
 
@@ -52,7 +54,12 @@ impl Indexer {
             synced_tip = tip;
         }
 
-        info!("done initial sync up to {:?}", synced_tip);
+        info!(
+            "completed initial sync in {:?} up to height {} (total {})",
+            timer.elapsed(),
+            synced_tip.0,
+            self.store.stats_str(),
+        );
         self.tip = Some(synced_tip);
         Ok(())
     }
@@ -63,7 +70,7 @@ impl Indexer {
         self.watcher.do_imports(&self.rpc, /*rescan=*/ false)?;
 
         if self.tip.as_ref() != Some(&synced_tip) {
-            info!("synced up to {:?}", synced_tip);
+            info!("synced up to height {}", synced_tip.0);
             changelog.push(IndexChange::ChainTip(synced_tip.clone()));
             self.tip = Some(synced_tip);
         }
@@ -108,8 +115,6 @@ impl Indexer {
                 }
             }
         }
-
-        self.store.log_stats();
 
         Ok((synced_tip, changelog))
     }
@@ -402,19 +407,13 @@ fn load_transactions_since(
     assert!(start_height <= tip_height + 1, "start_height too far");
     let max_confirmations = (tip_height + 1 - start_height) as i32;
 
-    // TODO: if the newest entry has the exact same (txid,address,height) as the previous newest,
-    // skip processing the entries entirely
-
     if start_height <= tip_height {
         info!(
-            "syncing transactions from {} block(s) since height {} + mempool transactions (best={} height={})",
-            tip_height-start_height+1, start_height, tip_hash, tip_height,
+            "syncing transactions since height {} + mempool transactions (tip height={} hash={})",
+            start_height, tip_height, tip_hash,
         );
     } else {
-        debug!(
-            "syncing mempool transactions (best={} height={})",
-            tip_hash, tip_height
-        );
+        debug!("syncing mempool transactions (no new blocks)");
     }
 
     loop {

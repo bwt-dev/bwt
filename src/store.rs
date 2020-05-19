@@ -372,14 +372,12 @@ impl MemoryStore {
             .collect()
     }
 
-    pub fn log_stats(&self) {
-        if log_enabled!(log::Level::Debug) {
-            trace!(
-                "indexed a total of {} transactions and {} scripthashes",
-                self.transactions.len(),
-                self.scripthashes.len()
-            );
-        }
+    pub fn stats_str(&self) -> String {
+        format!(
+            "{} transactions and {} addresses",
+            self.transactions.len(),
+            self.scripthashes.len()
+        )
     }
 }
 
