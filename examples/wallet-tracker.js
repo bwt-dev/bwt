@@ -1,7 +1,17 @@
 (async function () {
+
+  // Simple client using fetch() and EventSource, both available on modern browsers and nodejs.
+
   const url = 'http://localhost:3060/'
       , bwt = (...path) => fetch(url + path.join('/')).then(r => r.json())
       , stream = new EventSource(url + 'stream')
+
+  stream.addEventListener('message', msg => {
+    const { category, params } = JSON.parse(msg.data)
+    if (listeners[category]) listeners[category](...params)
+  })
+
+  // App code
 
   const utxos = await bwt('utxos')
       , balance = _ => utxos.reduce((total, utxo) => total + utxo.amount, 0)
@@ -32,11 +42,4 @@
       showBalance()
     }
   }
-
-  stream.addEventListener('message', msg => {
-    const { category, params } = JSON.parse(msg.data)
-    console.log('event:', category, ...params)
-    if (listeners[category]) listeners[category](...params)
-  })
-
 })()
