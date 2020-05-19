@@ -2,7 +2,6 @@ use std::net;
 use std::sync::{mpsc, Arc, Mutex};
 
 use async_std::task;
-use serde_derive::Deserialize;
 use tokio::stream::{Stream, StreamExt};
 use tokio::sync::mpsc as tmpsc;
 use warp::http::{header, StatusCode};

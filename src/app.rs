@@ -195,7 +195,7 @@ enum ScanningResult {
     NotScanning,
     Unsupported,
 }
-#[derive(serde_derive::Deserialize)]
+#[derive(Deserialize)]
 struct ScanningDetails {
     duration: u64,
     progress: f64,
