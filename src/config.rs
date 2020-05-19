@@ -202,7 +202,7 @@ pub struct Config {
     #[cfg(feature = "webhooks")]
     #[structopt(
         long = "webhook-url",
-        short = "h",
+        short = "H",
         help = "Webhook url(s) to notify with index event updates",
         env,
         hide_env_values(true),

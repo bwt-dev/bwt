@@ -994,7 +994,7 @@ Dumps the contents of the index store as a debug string.
 
 ## Web Hooks
 
-> If you're building bwt from source, you'll need to set `--features webhooks` to enable web hooks support. This will also require to  `apt install libssl-dev pkg-config`. The main pre-built binary and the `shesek/bwt` docker image come with webhooks support enabled by default.
+> If you're building bwt from source, you'll need to set `--features webhooks` to enable web hooks support. This will also require to `apt install libssl-dev pkg-config`. The main pre-built binary and the `shesek/bwt` docker image come with webhooks support enabled by default.
 
 You can set `--webhook-url <url>` to have bwt send push notifications as a `POST` request to the provided `<url>`. Requests will be sent with a JSON-serialized *array* of one or more index updates as the body.
 
@@ -1039,6 +1039,13 @@ All are enabled by default except for `webhooks`.
 If you're working on code that is unrelated to the HTTP API, it is much faster to build with just the `electrum track-spends` features.
 
 You can use `scripts/check.sh` to run `cargo check` for all (sensible) feature combos. This is important to ensure no errors were introduced for feature combos that you didn't use.
+
+### Tests
+
+End-to-end integration tests can be run with [`./test/tests.sh`](https://github.com/shesek/bwt/blob/master/test/tests.sh).
+The tests deploy a regtest network, a bwt instance and an Electrum wallet connected to it (in headless mode), then run some basic tests using the Electrum client and against the HTTP REST API.
+
+To increase verbosity, set `VERBOSE=1`.
 
 ### Contributions
 

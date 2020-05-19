@@ -3,9 +3,11 @@ rust:
   - stable
 cache: cargo
 before_script:
-  - sudo apt-get install -y libssl-dev pkg-config
-  - rustup component add rustfmt
+  - ./scripts/travis-deps.sh
 script:
-  - ./scripts/check.sh
+  - export PATH=/opt/bin:$PATH
   - cargo fmt -- --check
+  - ./scripts/check.sh
+  - cargo clippy --all-targets --all-features
+  - VERBOSE=1 ./test/tests.sh
   # - docker build -t bwt .
