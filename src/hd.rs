@@ -32,6 +32,8 @@ impl HDWatcher {
                 .map(|wallet| (wallet.master.fingerprint(), wallet))
                 .collect(),
         }
+        // XXX indexing by the fingerprint prevents using the same underlying public key with
+        // different script types ([xyz]pub), they will have the same fingerprint and conflict.
     }
 
     pub fn wallets(&self) -> &HashMap<Fingerprint, HDWallet> {
@@ -452,11 +454,7 @@ impl FromStr for XyzPubKey {
         // rust-bitcoin's bip32 implementation does not support ypubs/zpubs.
         // instead, figure out the network and script type ourselves and feed rust-bitcoin with a
         // modified faux xpub string that uses the regular p2pkh xpub version bytes it expects.
-        //
-        // NOTE: this does mean that the fingerprints will be computed using the fauxed version
-        // bytes instead of the real ones. that's okay as long as the fingerprints as consistent
-        // within bwt, but does mean that they will mismatch the fingerprints reported by other software.
-        // This also means that it is impossible to export the same key chain using different script types.
+        // TODO make extkeys seralize back to a string using their original version bytes
 
         let version = &data[0..4];
         let (network, script_type) = parse_xyz_version(version)?;
