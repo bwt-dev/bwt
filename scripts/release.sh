@@ -43,8 +43,8 @@ if [ -z "$SKIP_BUILD" ]; then
     rm -r dist/$1
   }
   rm -rf dist/*
-  build_bin "bwt-v$version-electrum_only-x86_64-linux" "electrum"
-  build_bin "bwt-v$version-x86_64-linux" "http electrum webhooks track-spends"
+  build_bin "bwt-$version-electrum_only-x86_64-linux" "electrum"
+  build_bin "bwt-$version-x86_64-linux" "http electrum webhooks track-spends"
 
   echo Making SHA256SUMS...
   (cd dist && sha256sum *) | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc
