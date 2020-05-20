@@ -21,6 +21,7 @@ track-spends = []
 [dependencies]
 bitcoin = "0.23.0"
 bitcoin_hashes = { version = "0.7.6", features = [ "serde" ] }
+bitcoincore-rpc = "0.11.0"
 chrono = { version = "0.4.11", default-features = false }
 dotenv = "0.15.0"
 dirs = "2.0.2"
@@ -33,10 +34,6 @@ anyhow = "1.0"
 log = "0.4.8"
 pretty_env_logger = "0.4.0"
 structopt = "0.3.13"
-
-# Use a fork of bitcoincore-rpc until support for importmulti with "now" is added upstream
-# https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/106
-shesek-bitcoincore-rpc = { version = "0.10.1" }
 
 tokio = { version = "0.2.20", features = ["macros"], optional = true }
 warp = { version = "0.2.2", optional = true }

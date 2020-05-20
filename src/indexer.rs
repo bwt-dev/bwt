@@ -164,7 +164,8 @@ impl Indexer {
                                 (status, fee)
                             });
                         }
-                        TxCategory::Generate | TxCategory::Immature => (),
+                        // ignore mining-related transactions
+                        TxCategory::Generate | TxCategory::Immature | TxCategory::Orphan => (),
                     };
                 }
             },

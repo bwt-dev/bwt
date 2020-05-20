@@ -14,8 +14,6 @@ extern crate serde;
 #[macro_use]
 mod macros;
 
-extern crate shesek_bitcoincore_rpc as bitcoincore_rpc;
-
 pub mod app;
 pub mod config;
 pub mod error;
