@@ -1,7 +1,7 @@
 #!/bin/bash
 set -eo pipefail
-set -x
 
+rustup component add rustfmt
 rustup component add clippy
 
 BITCOIN_VERSION=0.19.1

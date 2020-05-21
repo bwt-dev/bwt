@@ -3,9 +3,9 @@ rust:
   - stable
 cache: cargo
 before_script:
-  - ./scripts/travis-deps.sh
-script:
+  - ./scripts/ci-deps.sh
   - export PATH=/opt/bin:$PATH
+script:
   - cargo fmt -- --check
   - ./scripts/check.sh
   - cargo clippy --all-targets --all-features

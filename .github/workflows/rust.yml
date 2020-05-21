@@ -1,0 +1,55 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Cache cargo registry
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+    - name: Cache cargo index
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+    - name: Cache cargo build
+      uses: actions/cache@v1
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Check formatting
+      run: cargo fmt -- --check
+
+    - name: Check for errors
+      run: ./scripts/check.sh
+
+    - name: Check with Clippy
+      run: cargo clippy --all-targets --all-features
+
+    - name: Build
+      run: cargo build --release --verbose
+
+    - name: Setup test dependencies
+      run: ./scripts/ci-deps.sh
+
+    - name: Run tests
+      run: BWT_BIN=target/release/bwt PATH=/opt/bin:$PATH ./test/tests.sh
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: bwt
+        path: target/release/bwt

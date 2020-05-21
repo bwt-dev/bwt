@@ -32,7 +32,9 @@ export RUST_LOG_STYLE=${RUST_LOG_STYLE:-always}
 # TODO detect failure to start bwt
 runbwt () {
   echo - Running with "$@"
-  if [ -z "$NO_WATCH" ] && command -v cargo-watch > /dev/null; then
+  if [ -n "$BWT_BIN" ]; then
+    $BWT_BIN "$@" &> $DIR/bwt.log &
+  elif [ -z "$NO_WATCH" ] && command -v cargo-watch > /dev/null; then
     echo - Using cargo-watch
     FEATURES="$FEATURES" ARGS="$@" \
       cargo-watch -w src -w Cargo.toml -s 'cargo run --no-default-features --features "$FEATURES" -- $ARGS' &> $DIR/bwt.log &
