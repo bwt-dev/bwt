@@ -4,11 +4,11 @@ use std::str::FromStr;
 
 use serde::Serialize;
 
+use bitcoin::secp256k1::{self, Secp256k1};
 use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
 use bitcoin::{util::base58, Address, Network};
 use bitcoincore_rpc::json::{ImportMultiRequest, ImportMultiRequestScriptPubkey};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
-use secp256k1::Secp256k1;
 
 use crate::error::{Context, Result};
 use crate::types::{RescanSince, ScriptType};
