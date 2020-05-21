@@ -13,13 +13,6 @@ else
   KEEP_DIR=1
 fi
 
-if [ -n "$VERBOSE" ]; then
-  set -x
-  quiet=""
-else
-  quiet="--quiet"
-fi
-
 BTC_DIR=$DIR/bitcoin
 BTC_RPC_PORT=30601
 ELECTRUM_DIR=$DIR/electrum
@@ -34,6 +27,9 @@ alias ele="electrum --regtest --dir $ELECTRUM_DIR"
 alias ele1="ele --wallet $WALLET1"
 alias ele2="ele --wallet $WALLET2"
 
+export RUST_LOG_STYLE=${RUST_LOG_STYLE:-always}
+
+# TODO detect failure to start bwt
 runbwt () {
   echo - Running with "$@"
   if [ -z "$NO_WATCH" ] && command -v cargo-watch > /dev/null; then
@@ -45,7 +41,16 @@ runbwt () {
   fi
 }
 
-trap 'trap - SIGTERM SIGINT; set +eo pipefail; jobs -p | xargs --no-run-if-empty kill; ele daemon stop &> /dev/null || true; sleep 1; [ -n "$KEEP_DIR" ] || rm -rf $DIR; kill -- -$$ &> /dev/null || true' SIGINT SIGTERM EXIT
+cleanup() {
+  trap - SIGTERM SIGINT
+  set +eo pipefail
+  jobs -p | xargs --no-run-if-empty kill
+  ele daemon stop &> /dev/null
+  sleep 1
+  [ -n "$KEEP_DIR" ] || rm -rf $DIR
+  kill -- -$$ &> /dev/null
+}
+trap cleanup SIGINT SIGTERM EXIT
 
 echo Setting up envirnoment in $DIR
 
@@ -117,12 +122,12 @@ runbwt --network regtest --bitcoind-dir $BTC_DIR --bitcoind-url http://localhost
   --xpub `ele1 getmpk` --xpub `ele2 getmpk` \
   -v "$@" $BWT_OPTS
 
-echo - Waiting for bwt...
-sed $quiet '/Electrum RPC server running/ q' <(tail -F -n+0 $DIR/bwt.log 2> /dev/null)
+echo - Waiting for bwt... "(building may take awhile)"
+sed $([ -n "$PRINT_LOGS" ] || echo "--quiet") '/Electrum RPC server running/ q' <(tail -F -n+0 $DIR/bwt.log 2> /dev/null)
 
 # these are showing up a lot because of the 1 second interval
 annoying_msgs='syncing mempool transactions|fetching 25 transactions starting at'
-[ -n "$VERBOSE" ] && tail -F -n0 $DIR/bwt.log | egrep -v "$annoying_msgs" 2> /dev/null &
+[ -n "$PRINT_LOGS" ] && tail -F -n0 $DIR/bwt.log | egrep --line-buffered -v "$annoying_msgs" 2> /dev/null &
 
 # restart daemon to make it re-try connecting to the server immediately
 ele daemon stop > /dev/null

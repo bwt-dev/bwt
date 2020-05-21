@@ -1,9 +1,10 @@
 use std::str::FromStr;
-use std::{net, path, time};
+use std::{env, net, path, time};
 
 use chrono::{TimeZone, Utc};
 use dirs::home_dir;
 use log::Level;
+use pretty_env_logger::env_logger::Builder as LogBuilder;
 use structopt::StructOpt;
 
 use bitcoin::Network;
@@ -269,11 +270,11 @@ impl Config {
     }
 
     pub fn setup_logger(&self) {
-        if self.timestamp {
+        apply_log_env(if self.timestamp {
             pretty_env_logger::formatted_timed_builder()
         } else {
             pretty_env_logger::formatted_builder()
-        }
+        })
         .filter_module(
             "bwt",
             match self.verbose {
@@ -314,6 +315,16 @@ impl Config {
         )
         .init();
     }
+}
+
+fn apply_log_env(mut builder: LogBuilder) -> LogBuilder {
+    if let Ok(s) = env::var("RUST_LOG") {
+        builder.parse_filters(&s);
+    }
+    if let Ok(s) = env::var("RUST_LOG_STYLE") {
+        builder.parse_write_style(&s);
+    }
+    builder
 }
 
 fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {

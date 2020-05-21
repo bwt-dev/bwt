@@ -4,6 +4,7 @@ set -eo pipefail
 NO_FUNDING=1
 NO_WATCH=1
 INTERVAL=1
+PRINT_LOGS=1
 
 # Start regtest, electrum wallet and bwt
 source scripts/setup-env.sh
@@ -74,4 +75,4 @@ if [[ $FEATURES == *"http"* ]]; then
   test `jq -r '.[] | select(.block_height == null) | .amount' <<< "$(get /address/$addr/utxos)"` == 567800000
 fi
 
-echo All tests pass!
+echo -e "\e[32mAll tests pass.\e[0m"
