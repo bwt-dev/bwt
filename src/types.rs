@@ -63,7 +63,7 @@ pub enum TxStatus {
 }
 
 impl TxStatus {
-    pub fn new(confirmations: i32, tip_height: u32) -> Self {
+    pub fn from_confirmations(confirmations: i32, tip_height: u32) -> Self {
         if confirmations > 0 {
             TxStatus::Confirmed(tip_height - (confirmations as u32) + 1)
         } else if confirmations == 0 {

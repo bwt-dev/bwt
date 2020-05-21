@@ -125,7 +125,7 @@ impl Indexer {
             .as_ref()
             .map_or(0, |BlockId(tip_height, _)| tip_height + 1);
 
-        let mut buffered_outgoing: HashMap<Txid, (TxStatus, u64)> = HashMap::new();
+        let mut buffered_outgoing: HashMap<Txid, (i32, u64)> = HashMap::new();
 
         let synced_tip = load_transactions_since(
             &self.rpc.clone(),
@@ -157,17 +157,16 @@ impl Indexer {
                             self.process_incoming_txo(ltx, tip_height, changelog);
                         }
                         TxCategory::Send => {
-                            // outgoing txs are more tricky: bitcoind doesn't tell us the
-                            // address of the prevout being spent, we have to fetch the transaction
-                            // and figure that out ourselves. we can't do that straightaway because
-                            // the outputs being spent might not be indexed yet. instead, buffer
-                            // outgoing txs and process them at the end, so that the parent tx
-                            // funding the spent outputs is guaranteed to get indexed first.
+                            // outgoing txs are more tricky: bitcoind doesn't tell us which
+                            // prevouts are being spent, so we have to fetch the transaction to
+                            // determine it. we can't do that straightaway because prevouts being
+                            // spent might not be indexed yet. instead, buffer outgoing txs and
+                            // process them at the end, so that the parent txs funding the prevouts
+                            // are guaranteed to get indexed first.
                             buffered_outgoing.entry(ltx.info.txid).or_insert_with(|| {
-                                let status = TxStatus::new(ltx.info.confirmations, tip_height);
                                 // "send" transactions must have a fee
                                 let fee = ltx.detail.fee.unwrap().abs().as_sat() as u64;
-                                (status, fee)
+                                (ltx.info.confirmations, fee)
                             });
                         }
                         // ignore mining-related transactions
@@ -177,7 +176,8 @@ impl Indexer {
             },
         )?;
 
-        for (txid, (status, fee)) in buffered_outgoing {
+        for (txid, (confirmations, fee)) in buffered_outgoing {
+            let status = TxStatus::from_confirmations(confirmations, synced_tip.0);
             self.process_outgoing_tx(txid, status, fee, changelog)
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
@@ -227,7 +227,7 @@ impl Indexer {
         let txid = ltx.info.txid;
         let vout = ltx.detail.vout;
         let scripthash = ScriptHash::from(&ltx.detail.address);
-        let status = TxStatus::new(ltx.info.confirmations, tip_height);
+        let status = TxStatus::from_confirmations(ltx.info.confirmations, tip_height);
         let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts
 
         trace!(

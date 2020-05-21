@@ -445,7 +445,7 @@ impl Txo {
             vout: unspent.vout,
             amount: unspent.amount.as_sat(),
             script_info: script_info,
-            status: TxStatus::new(unspent.confirmations as i32, tip_height),
+            status: TxStatus::from_confirmations(unspent.confirmations as i32, tip_height),
             #[cfg(feature = "track-spends")]
             spent_by: None,
         }
