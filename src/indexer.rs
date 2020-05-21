@@ -131,7 +131,13 @@ impl Indexer {
             &self.rpc.clone(),
             start_height,
             None,
-            &mut |chunk, tip_height| {
+            &mut |chunk, tip_height, is_first| {
+                // reset buffered txs whenever load_transactions_since() starts over, we'll get these
+                // outgoing txs again later (with a potentially different, more updated, `confirmations` number)
+                if is_first {
+                    buffered_outgoing.clear();
+                }
+
                 for ltx in chunk {
                     if ltx.info.confirmations < 0 {
                         if self.store.purge_tx(&ltx.info.txid) {
@@ -389,7 +395,7 @@ fn load_transactions_since(
     rpc: &RpcClient,
     start_height: u32,
     init_per_page: Option<usize>,
-    chunk_handler: &mut dyn FnMut(Vec<ListTransactionResult>, u32),
+    chunk_handler: &mut dyn FnMut(Vec<ListTransactionResult>, u32, bool),
 ) -> Result<BlockId> {
     let mut start_index = 0;
     let mut per_page = init_per_page.unwrap_or_else(|| {
@@ -463,7 +469,7 @@ fn load_transactions_since(
             chunk.len() < per_page - 1
         };
 
-        chunk_handler(chunk, tip_height);
+        chunk_handler(chunk, tip_height, start_index == 0);
 
         if exhausted {
             break;
