@@ -25,6 +25,8 @@ changelog="`sed -nr '/^## (Unreleased|'$version' )/{n;:a;n;/^## /q;p;ba}' CHANGE
 grep '## Unreleased' CHANGELOG.md > /dev/null \
   && sed -i "s/^## Unreleased/## $version - `date +%Y-%m-%d`/" CHANGELOG.md
 
+sed -ir "s/bwt-[0-9\.]+-x86_64/bwt-$version-x86_64/g; s/\/download\/v[0-9\.]+\//\/download\/v$version\//;" README.md
+
 echo -e "Releasing bwt v$version\n================\n\n$changelog\n\n"
 
 echo Running cargo check and fmt...
@@ -51,9 +53,9 @@ if [ -z "$SKIP_BUILD" ]; then
 fi
 
 
-if [ -z "$SKIP_TAG" ]; then
+if [ -z "$SKIP_GIT" ]; then
   echo Tagging...
-  git add Cargo.{toml,lock} CHANGELOG.md SHA256SUMS.asc
+  git add Cargo.{toml,lock} CHANGELOG.md SHA256SUMS.asc README.md
   git commit -S -m v$version
   git tag --sign -m "$changelog" v$version
   git branch -f stable HEAD

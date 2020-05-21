@@ -65,6 +65,18 @@ The public key can be verified on [keybase](https://keybase.io/nadav),
 [twitter](https://twitter.com/shesek) (under bio) and
 [HN](https://news.ycombinator.com/user?id=nadaviv).
 
+```bash
+$ wget https://github.com/shesek/bwt/releases/download/v0.1.0/bwt-0.1.0-x86_64-linux.tar.gz
+
+# Verify signature
+$ gpg --keyserver keyserver.ubuntu.com --recv-keys FCF19B67866562F08A43AAD681F6104CD0F150FC
+$ wget -qO - https://github.com/shesek/bwt/releases/download/v0.1.0/SHA256SUMS.asc \
+  | gpg --decrypt - | grep ' bwt-0.1.0-x86_64-linux.tar.gz$' | sha256sum -c -
+
+$ tar zxvf bwt-0.1.0-x86_64-linux.tar.gz
+$ ./bwt-0.1.0-x86_64-linux/bwt --xpub <xpub>
+```
+
 #### From source
 
 [Install Rust](https://rustup.rs/) and:
@@ -80,7 +92,10 @@ Or using the crates.io package:
 
 ```bash
 $ cargo install bwt
+$ bwt --xpub <xpub>
 ```
+
+(Make sure `~/.cargo/bin` is in your `PATH`)
 
 #### With Docker
 
@@ -186,7 +201,8 @@ using `--xpub <xpub>:<rescan>`, where `<rescan>` is one of  `all` (rescan from t
 
 If you're using [multi-wallet](https://bitcoin.org/en/release/v0.15.0.1#multi-wallet-support),
 you can specify which wallet to use with `--bitcoind-wallet <name>`.
-It is recommended (but not required) to use a separate wallet for bwt (can be created with `bitcoin-cli createwallet <name> true`).
+
+It is recommended to use a separate watch-only wallet for bwt (can be created with `bitcoin-cli createwallet bwt true`).
 
 *Note that EPS and bwt should not be run on the same bitcoind wallet with the same xpub, they will conflict.*
 
