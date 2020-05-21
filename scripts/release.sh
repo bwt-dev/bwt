@@ -63,23 +63,6 @@ if [ -z "$SKIP_TAG" ]; then
   git push gh --tags
 fi
 
-if [ -z "$SKIP_DOCKER" ]; then
-  echo Releasing docker images...
-
-  docker_tag=$docker_name:$version
-  docker build -t $docker_tag .
-  docker build -t $docker_tag-electrum --build-arg FEATURES=electrum .
-  docker tag $docker_tag $docker_name:latest
-  docker tag $docker_tag-electrum $docker_name:electrum
-  docker push $docker_name
-fi
-
-if [ -z "$SKIP_CRATE" ]; then
-  echo Publishing to crates.io...
-  cargo publish
-fi
-
-
 if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
   echo Uploading to github...
   gh_auth="Authorization: token $GH_TOKEN"
@@ -100,4 +83,20 @@ if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
   # make release public once everything is ready
   curl -sf -H "$gh_auth" -X PATCH $gh_base/releases/`echo "$gh_release" | jq -r .id` \
     -d '{"draft":false}' > /dev/null
+fi
+
+if [ -z "$SKIP_DOCKER" ]; then
+  echo Releasing docker images...
+
+  docker_tag=$docker_name:$version
+  docker build -t $docker_tag .
+  docker build -t $docker_tag-electrum --build-arg FEATURES=electrum .
+  docker tag $docker_tag $docker_name:latest
+  docker tag $docker_tag-electrum $docker_name:electrum
+  docker push $docker_name
+fi
+
+if [ -z "$SKIP_CRATE" ]; then
+  echo Publishing to crates.io...
+  cargo publish
 fi
