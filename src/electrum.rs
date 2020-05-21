@@ -307,23 +307,19 @@ impl Connection {
         })
     }
 
-    fn jsonrpc_notification(&mut self, change: IndexChange) -> Result<Value> {
+    fn make_notification(&mut self, change: IndexChange) -> Result<(String, Value)> {
         Ok(match change {
             IndexChange::ChainTip(BlockId(tip_height, tip_hash)) => {
                 let hex_header = self.query.get_header_hex(&tip_hash)?;
                 let header = json!({"hex": hex_header, "height": tip_height });
-                json!({
-                    "jsonrpc": "2.0",
-                    "method": "blockchain.headers.subscribe",
-                    "params": [header]})
+                ("blockchain.headers.subscribe".into(), json!([header]))
             }
             IndexChange::History(scripthash, ..) => {
                 let new_status_hash = get_status_hash(&self.query, &scripthash);
-                json!({
-                    "jsonrpc": "2.0",
-                    "method": "blockchain.scripthash.subscribe",
-                    "params": [scripthash, new_status_hash]
-                })
+                (
+                    "blockchain.scripthash.subscribe".into(),
+                    json!([scripthash, new_status_hash]),
+                )
             }
             _ => unreachable!(), // we're not supposed to receive anything else
         })
@@ -355,12 +351,13 @@ impl Connection {
                     self.send_values(&[reply])?
                 }
                 Message::IndexChange(change) => {
-                    let value = self.jsonrpc_notification(change)?;
-                    debug!(
-                        "sending notification {} {}",
-                        value["method"], value["params"]
-                    );
-                    self.send_values(&[value])?;
+                    let (method, params) = self.make_notification(change)?;
+                    debug!("sending notification {} {}", method, params);
+                    self.send_values(&[json!({
+                        "jsonrpc": "2.0",
+                        "method": method,
+                        "params": params
+                    })])?;
                 }
                 Message::Done => return Ok(()),
             }
