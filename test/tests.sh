@@ -45,8 +45,8 @@ fi
 # Test HTTP API
 if [[ $FEATURES == *"http"* ]]; then
 
-  get() { curl -s "http://$BWT_HTTP_ADDR$1"; }
-  get_jq() { jq -r "$1" <(get "$2"); }
+  get() { curl -s "${@:2}" "http://$BWT_HTTP_ADDR$1"; }
+  get_jq() { jq -r "$1" <(get "${@:2}"); }
 
   echo = Running HTTP tests =
   echo - Testing /txs/since/:height
@@ -74,6 +74,19 @@ if [[ $FEATURES == *"http"* ]]; then
 
   echo - Testing /address/:address/utxos
   test `get_jq '.[] | select(.block_height == null) | .amount' /address/$addr/utxos` == 567800000
+
+  echo - Testing /stream
+  btc sendtoaddress $addr 9.777 &
+  # collect events for 1 second
+  while read evt; do
+    category=`jq -r .category <<< "$evt"`
+    declare "evt_$category=`jq -c .params <<< "$evt"`"
+  done < <(get /stream --max-time 1 | grep '^data:' | cut -d: -f2-)
+  # and check we got the expected ones
+  test -n "$evt_Transaction" -a -n "$evt_TxoCreated"
+  txid=`jq -r .[0] <<< "$evt_Transaction"`
+  test `get_jq .funding[0].amount /tx/$txid` == 977700000
+  test `jq -r .[0] <<< "$evt_TxoCreated" | cut -d: -f1` == $txid
 fi
 
 echo -e "\e[32mAll tests pass.\e[0m"
