@@ -8,14 +8,19 @@
 
   stream.addEventListener('message', msg => {
     const { category, params } = JSON.parse(msg.data)
+    console.log(`event # ${category} # `, params)
     if (listeners[category]) listeners[category](...params)
   })
 
+  // Create a map of utxos indexed by the txid:vout
+  const makeUtxoMap = utxos =>
+    utxos.reduce((M, utxo) => ({ ...M, [`${utxo.txid}:${utxo.vout}`]: utxo }), {})
+
   // App code
 
-  const utxos = await bwt('utxos')
-      , balance = _ => utxos.reduce((total, utxo) => total + utxo.amount, 0)
-      , showBalance = _ => console.log(`has ${utxos.length} utxos worth ${balance()} sats`)
+  const utxos = await bwt('utxos').then(makeUtxoMap)
+      , balance = _ => Object.values(utxos).reduce((total, utxo) => total + utxo.amount, 0)
+      , showBalance = _ => console.log(`has ${Object.keys(utxos).length} utxos worth ${balance()} sats`)
 
   showBalance()
 
@@ -29,17 +34,16 @@
       console.log('new wallet transaction:', tx)
     },
 
-    async TxoCreated (outpoint, block_height) {
-      const [ txid, vout ] = outpoint.split(':')
-      utxos[outpoint] = await bwt('txo', txid, vout)
-      console.log('new unspent wallet txo:', utxos[outpoint])
+    TxoFunded (outpoint, scripthash, amount, block_height) {
+      console.log(`new unspent txo ${outpoint}:`, utxos[outpoint])
+      utxos[outpoint] = { amount, scripthash, block_height }
       showBalance()
     },
 
-    TxoSpent (outpoint, inpoint, block_height) {
-      delete utxos[outpoint]
+    TxoSpent (inpoint, scripthash, outpoint, height) {
       console.log(`wallet txo ${outpoint} spent by ${inpoint}`)
+      delete utxos[outpoint]
       showBalance()
-    }
+    },
   }
 })()
