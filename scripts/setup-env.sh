@@ -28,6 +28,7 @@ alias ele1="ele --wallet $WALLET1"
 alias ele2="ele --wallet $WALLET2"
 
 export RUST_LOG_STYLE=${RUST_LOG_STYLE:-always}
+export CARGO_TERM_COLOR=${CARGO_TERM_COLOR:-always}
 
 # TODO detect failure to start bwt
 runbwt () {
@@ -56,7 +57,7 @@ trap cleanup SIGINT SIGTERM EXIT
 
 echo Setting up envirnoment in $DIR
 
-echo Setting up bitcoind...
+echo Setting up bitcoind
 mkdir -p $BTC_DIR
 
 cat >$BTC_DIR/bitcoin.conf <<EOL
