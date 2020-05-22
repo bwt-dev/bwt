@@ -188,7 +188,7 @@ impl Indexer {
         Ok(synced_tip)
     }
 
-    // upsert the transaction while collecting changelog
+    // upsert the transaction while collecting the changelog
     fn upsert_tx(
         &mut self,
         txid: &Txid,
@@ -261,8 +261,10 @@ impl Indexer {
         trace!("processing outgoing tx txid={} status={:?}", txid, status);
 
         if let Some(tx_entry) = self.store.get_tx_entry(&txid) {
+            // TODO keep a marker for processed transactions that had no spending inputs
             if !tx_entry.spending.is_empty() {
-                // TODO keep a marker for processed transactions that had no spending inputs
+                // skip indexing spent inputs, but keep the status which might be more recent
+                self.upsert_tx(&txid, status, Some(fee), changelog);
                 trace!("skipping outgoing tx {}, already indexed", txid);
                 return Ok(());
             }
