@@ -46,11 +46,11 @@ runbwt () {
 cleanup() {
   trap - SIGTERM SIGINT
   set +eo pipefail
-  jobs -p | xargs --no-run-if-empty kill
+  kill `jobs -rp` 2> /dev/null
+  wait `jobs -rp` 2> /dev/null
   ele daemon stop &> /dev/null
-  sleep 1
   [ -n "$KEEP_DIR" ] || rm -rf $DIR
-  kill -- -$$ &> /dev/null
+  kill -- -$$ 2> /dev/null
 }
 trap cleanup SIGINT SIGTERM EXIT
 
@@ -123,13 +123,14 @@ runbwt --network regtest --bitcoind-dir $BTC_DIR --bitcoind-url http://localhost
   --initial-import-size 30 \
   --xpub `ele1 getmpk` --xpub `ele2 getmpk` \
   -v "$@" $BWT_OPTS
+pid=$!
 
 echo - Waiting for bwt... "(building may take awhile)"
 sed $([ -n "$PRINT_LOGS" ] || echo "--quiet") '/Electrum RPC server running/ q' <(tail -F -n+0 $DIR/bwt.log 2> /dev/null)
 
 # these are showing up a lot because of the 1 second interval
 annoying_msgs='syncing mempool transactions|fetching 25 transactions starting at'
-[ -n "$PRINT_LOGS" ] && tail -F -n0 $DIR/bwt.log | egrep --line-buffered -v "$annoying_msgs" 2> /dev/null &
+[ -n "$PRINT_LOGS" ] && tail --pid $pid -F -n0 $DIR/bwt.log | egrep --line-buffered -v "$annoying_msgs" 2> /dev/null &
 
 # restart daemon to make it re-try connecting to the server immediately
 ele daemon stop > /dev/null
