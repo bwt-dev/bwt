@@ -31,9 +31,9 @@ if [[ $FEATURES == *"electrum"* ]]; then
   test `jq -r '.transactions | length' <<< "$hist"` == 2
   test `jq -r .transactions[0].confirmations <<< "$hist"` == 1
   test `jq -r .transactions[1].confirmations <<< "$hist"` == 0
-  # end_balance and value used to have an "BTC" suffix in electrum prior to 3.3.8, use regex to support both cases
-  [[ "`jq -r .summary.end_balance <<< "$hist"`" =~ ^6.912 ]]
-  [[ "`jq -r .transactions[0].value <<< "$hist"`" =~ ^1.234 ]]
+  # end_balance and value used to have an "BTC" suffix in electrum prior to 3.3.8, cut it off
+  test `jq -r .summary.end_balance <<< "$hist" | cut -d' ' -f1` == 6.912
+  test `jq -r .transactions[0].value <<< "$hist" | cut -d' ' -f1` == 1.234
 
   echo - Testing listunspent
   utxos=`ele1 listunspent`
@@ -46,6 +46,7 @@ fi
 if [[ $FEATURES == *"http"* ]]; then
 
   get() { curl -s "http://$BWT_HTTP_ADDR$1"; }
+  get_jq() { jq -r "$1" <(get "$2"); }
 
   echo = Running HTTP tests =
   echo - Testing /txs/since/:height
@@ -62,17 +63,17 @@ if [[ $FEATURES == *"http"* ]]; then
   test `jq -r .txid <<< "$tx"` == $txid
 
   echo - Testing /address/:address
-  [[ `jq -r .origin <<< "$(get /address/$addr)"` =~ /20$ ]]
-  # we used `createnewaddress` with 20 prior addresses, which should've gave us the 21st key
+  test `get_jq .origin /address/$addr | cut -d/ -f2` == 20
+  # we used `createnewaddress` with 20 prior addresses, which should've gave us the 21st one
 
   echo - Testing /address/:address/stats
-  test `jq -r .confirmed_balance <<< "$(get /address/$addr/stats)"` == 123400000
+  test `get_jq .confirmed_balance /address/$addr/stats` == 123400000
 
   echo - Testing /address/:address/txs
-  test `jq -r .[0].funding[0].address <<< "$(get /address/$addr/txs)"` == $addr
+  test `get_jq .[0].funding[0].address /address/$addr/txs` == $addr
 
   echo - Testing /address/:address/utxos
-  test `jq -r '.[] | select(.block_height == null) | .amount' <<< "$(get /address/$addr/utxos)"` == 567800000
+  test `get_jq '.[] | select(.block_height == null) | .amount' /address/$addr/utxos` == 567800000
 fi
 
 echo -e "\e[32mAll tests pass.\e[0m"
