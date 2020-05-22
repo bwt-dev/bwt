@@ -7,9 +7,9 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  test:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
 
     steps:
     - uses: actions/checkout@v2
@@ -40,7 +40,7 @@ jobs:
       run: cargo clippy --all-targets --all-features
 
     - name: Build
-      run: cargo build --release --verbose
+      run: cargo build --verbose
 
     - name: Setup test dependencies
       run: ./scripts/ci-deps.sh

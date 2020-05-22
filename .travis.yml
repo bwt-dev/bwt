@@ -9,5 +9,4 @@ script:
   - cargo fmt -- --check
   - ./scripts/check.sh
   - cargo clippy --all-targets --all-features
-  - VERBOSE=1 ./test/tests.sh
-  # - docker build -t bwt .
+  - ./test/tests.sh

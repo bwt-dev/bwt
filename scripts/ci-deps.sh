@@ -21,6 +21,6 @@ BD=bitcoin-$BITCOIN_VERSION/bin
 tar -xzvf "$BITCOIN_FILENAME" $BD/bitcoind $BD/bitcoin-cli --strip-components=1
 mv bin/* /opt/bin/
 
-wget -O /opt/bin/electrum $ELECTRUM_URL
+wget -qO /opt/bin/electrum $ELECTRUM_URL
 echo "$ELECTRUM_SHA256 /opt/bin/electrum" | sha256sum -c -
 chmod +x /opt/bin/electrum
