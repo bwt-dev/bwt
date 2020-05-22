@@ -12,7 +12,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWatcher, KeyOrigin};
-use crate::store::{FundingInfo, MemoryStore, SpendingInfo};
+use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
 use crate::types::{BlockId, InPoint, ScriptHash, TxStatus};
 
 pub struct Indexer {
@@ -199,16 +199,8 @@ impl Indexer {
         let tx_updated = self.store.upsert_tx(txid, status, fee);
         if tx_updated {
             changelog.with(|changelog| {
-                changelog.push(IndexChange::Transaction(*txid, status));
-
-                // create an update entry for every affected scripthash
-                let tx_entry = self.store.get_tx_entry(&txid).unwrap();
-                changelog.extend(
-                    tx_entry
-                        .scripthashes()
-                        .into_iter()
-                        .map(|scripthash| IndexChange::History(*scripthash, *txid, status)),
-                );
+                let tx_entry = self.store.get_tx_entry(txid).unwrap();
+                changelog.extend(IndexChange::from_tx(txid, tx_entry));
             });
         }
     }
@@ -245,8 +237,9 @@ impl Indexer {
                 .index_tx_output_funding(&txid, vout, FundingInfo(scripthash, amount));
 
         if txo_added {
-            changelog.push(|| IndexChange::History(scripthash, txid, status));
-            changelog.push(|| IndexChange::TxoCreated(OutPoint::new(txid, vout), status));
+            changelog.push(|| {
+                IndexChange::TxoFunded(OutPoint::new(txid, vout), scripthash, amount, status)
+            });
             self.watcher.mark_funded(&origin);
         }
     }
@@ -278,24 +271,20 @@ impl Indexer {
             .iter()
             .enumerate()
             .filter_map(|(vin, input)| {
-                let FundingInfo(scripthash, amount) =
-                    self.store.lookup_txo_fund(&input.previous_output)?;
-                let input_point = InPoint::new(txid, vin as u32);
+                let inpoint = InPoint::new(txid, vin as u32);
+                let prevout = input.previous_output;
+                let FundingInfo(scripthash, amount) = self.store.lookup_txo_fund(&prevout)?;
 
                 #[cfg(feature = "track-spends")]
-                self.store
-                    .index_txo_spend(input.previous_output, input_point);
+                self.store.index_txo_spend(prevout, inpoint);
 
-                changelog.push(|| IndexChange::History(scripthash, txid, status));
                 changelog
-                    .push(|| IndexChange::TxoSpent(input.previous_output, input_point, status));
+                    .push(|| IndexChange::TxoSpent(inpoint.clone(), scripthash, prevout, status));
 
                 // we could keep just the previous_output and lookup the scripthash and amount
                 // from the corrospanding FundingInfo, but we keep it here anyway for quick access
-                Some((
-                    vin as u32,
-                    SpendingInfo(scripthash, input.previous_output, amount),
-                ))
+                let spending_info = SpendingInfo(scripthash, prevout, amount);
+                Some((vin as u32, spending_info))
             })
             .collect();
 
@@ -317,9 +306,8 @@ pub enum IndexChange {
     Transaction(Txid, TxStatus),
     TransactionReplaced(Txid),
 
-    History(ScriptHash, Txid, TxStatus),
-    TxoCreated(OutPoint, TxStatus),
-    TxoSpent(OutPoint, InPoint, TxStatus),
+    TxoFunded(OutPoint, ScriptHash, u64, TxStatus),
+    TxoSpent(InPoint, ScriptHash, OutPoint, TxStatus),
 }
 
 struct Changelog {
@@ -352,17 +340,17 @@ impl IndexChange {
     // the scripthash affected by the update, if any
     pub fn scripthash(&self) -> Option<&ScriptHash> {
         match self {
-            IndexChange::History(ref scripthash, ..) => Some(scripthash),
+            IndexChange::TxoFunded(_, ref scripthash, ..) => Some(scripthash),
+            IndexChange::TxoSpent(_, ref scripthash, ..) => Some(scripthash),
             _ => None,
         }
     }
 
-    // the (previously) utxo spent by the update, if any
+    // the outpoint created or spent, if any
     pub fn outpoint(&self) -> Option<&OutPoint> {
         match self {
-            IndexChange::TxoSpent(ref outpoint, ..) | IndexChange::TxoCreated(ref outpoint, ..) => {
-                Some(outpoint)
-            }
+            IndexChange::TxoFunded(ref outpoint, ..) => Some(outpoint),
+            IndexChange::TxoSpent(_, _, ref outpoint, _) => Some(outpoint),
             _ => None,
         }
     }
@@ -375,10 +363,28 @@ impl IndexChange {
             Self::Transaction(..) => "Transaction",
             Self::TransactionReplaced(..) => "TransactionReplaced",
 
-            Self::History(..) => "History",
-            Self::TxoCreated(..) => "TxoCreated",
+            Self::TxoFunded(..) => "TxoFunded",
             Self::TxoSpent(..) => "TxoSpent",
         }
+    }
+
+    // create all the changelog events inflicted by the transaction
+    fn from_tx(txid: &Txid, tx_entry: &TxEntry) -> Vec<Self> {
+        let mut changes = vec![IndexChange::Transaction(*txid, tx_entry.status)];
+
+        changes.extend(tx_entry.funding.iter().map(|(vout, funding_info)| {
+            let outpoint = OutPoint::new(*txid, *vout);
+            let FundingInfo(scripthash, amount) = funding_info;
+            IndexChange::TxoFunded(outpoint, *scripthash, *amount, tx_entry.status)
+        }));
+
+        changes.extend(tx_entry.spending.iter().map(|(vin, spending_info)| {
+            let inpoint = InPoint::new(*txid, *vin);
+            let SpendingInfo(scripthash, prevout, _) = spending_info;
+            IndexChange::TxoSpent(inpoint, *scripthash, *prevout, tx_entry.status)
+        }));
+
+        changes
     }
 }
 

@@ -918,9 +918,8 @@ $ curl localhost:3060/fee-estimate/3
 - `Reorg(block_height, prev_block_hash, curr_block_hash)` - indicates that a re-org was detected on `block_height`, with the previous block hash at this height and the current one.
 - `Transaction(txid, block_height)` - emitted for new transactions as well as transactions changing their confirmation status (typically from unconfirmed to confirmed, possibly the other way around in case of reorgs).
 - `TransactionReplaced(txid)` - indicates that the transaction conflicts with another transaction and can no longer be confirmed (aka double-spent).
-- `History(scripthash, txid, block_height)` - emitted whenever the history of a scripthash changes, due to new transactions or confirmation status changes.
-- `TxoCreated(outpoint, block_height)` - emitted for new unspent wallet outputs.
-- `TxoSpent(outpoint, inpoint, block_height)` - emitted when a wallet output is spent.
+- `TxoFunded(funding_txid:vout, scripthash, amount, block_height)` - emitted when an unspent wallet output is created (for new transactions as well as confirmation status changes).
+- `TxoSpent(spending_txid:vin, scripthash, prevout, block_height)` - emitted when a wallet output is spent (for new transactions as well as confirmation status changes).
 
 For unconfirmed transactions, `block_height` will be `null`.
 
@@ -941,31 +940,31 @@ $ curl localhost:3060/stream
 < HTTP/1.1 200 OK
 < content-type: text/event-stream
 
-data:{"category":"ChainTip","params":[630000,"138f2e0c6c0377ff9e5a7a6fb3386ba3ea5afcb0bd551010b4e79ff8ce337b53"]}
+data:{"category":"ChainTip","params":[114,"0a1a199aed012b280b36370e393867e03b46eb39b7130bb017a6757b6d4014ec"]}
 
-data:{"category":"Transaction","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
+data:{"category":"Transaction","params":["ac42d918b45351835bf9448bbd0c2f8e9ddad56a8bd118fe93919cc74bd0c487",114]}
 
-data:{"category":"History","params":["796d12182f1a1dd89f478a44c2f439d8a68f66d6cc11e8f525bdcce69cd24c27","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
+data:{"category":"TxoFunded","params":["ac42d918b45351835bf9448bbd0c2f8e9ddad56a8bd118fe93919cc74bd0c487:0","db576ad85b0f09680dfe3f3f7160be50c1a36db8b4949ffe21fe5b4564c1d42b",10000000,114]}
 
-data:{"category":"History","params":["233fbc04a5fbd4527bded1fec6ddaf026d9db3b7171f73800e20dd1c455a562f","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
+data:{"category":"TxoFunded","params":["ac42d918b45351835bf9448bbd0c2f8e9ddad56a8bd118fe93919cc74bd0c487:1","48138c88b8cb17544ac2450c4bd147106a9f773d6cf2b7f31a5a9dde75a8387a",399999856,114]}
 
-data:{"category":"TxoCreated","params":["1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e:1",630000]}
-
-data:{"category":"TxoSpent","params":["e51414f57bdee681d48a6ade696049c4d7569a062278803fb7968d9a022c6a96:1","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e:0",630000]}
+data:{"category":"TxoSpent","params":["ac42d918b45351835bf9448bbd0c2f8e9ddad56a8bd118fe93919cc74bd0c487:0","5f26eb39e19b0bef205bb451082f941cef0707d38949d3ffe51f5614fab70f5d","aa5b889f6cf1c314bc02c5187f31d0d5ff56f568c85a384027cb155fdc377069:1",114]}
 ```
 
 ```
 $ curl localhost:3060/stream?category=ChainTip
 
-data:{"category":"ChainTip","params":[630000,"661e3adef501b49457d5efc01f9700137a9c7340f1891895ef2a49ae35bfc069"]}
+data:{"category":"ChainTip","params":[114,"0a1a199aed012b280b36370e393867e03b46eb39b7130bb017a6757b6d4014ec"]}
 
-data:{"category":"ChainTip","params":[630001,"1c293df0c95d94a345e7578868ee679c9f73b905ac74da51e692af18e0425387"]}
+data:{"category":"ChainTip","params":[115,"1c293df0c95d94a345e7578868ee679c9f73b905ac74da51e692af18e0425387"]}
 ```
 
 ```
-$ curl localhost:3060/stream?outpoint=521d0991128a680d01e5a4f748f6ad8a6a1dbde485020f26db1031017be39554:0
+$ curl localhost:3060/stream?outpoint=aa5b889f6cf1c314bc02c5187f31d0d5ff56f568c85a384027cb155fdc377069:1
 
-data:{"category":"TxoSpent","params":["521d0991128a680d01e5a4f748f6ad8a6a1dbde485020f26db1031017be39554:0","1569f341184eda501b070b3cb8005bc06e6e293442422c41c2f9e451bb0a328c:0",630000]}
+data:{"category":"TxoFunded","params":["43916225aeadc3d6f17ffd5cdcc72fe81508eab4de66532507bc032b50c89732:0","97e9cc06a9a9d95a7ff26a9e5fdf9e1836792a3337c0ff718c88e012feb217bd",99900000,null]}
+
+data:{"category":"TxoSpent","params":["0ac67648be03f7fd547a828b78b920cb73f8c883320f30d770fb14d59655b125:0","97e9cc06a9a9d95a7ff26a9e5fdf9e1836792a3337c0ff718c88e012feb217bd","43916225aeadc3d6f17ffd5cdcc72fe81508eab4de66532507bc032b50c89732:0",null]}
 ```
 
 </details>
@@ -974,7 +973,7 @@ data:{"category":"TxoSpent","params":["521d0991128a680d01e5a4f748f6ad8a6a1dbde48
 #### `GET /scripthash/:scripthash/stream`
 #### `GET /hd/:fingerprint/:index/stream`
 
-Subscribe to a real-time notification stream of `History` events for the provided address, scripthash or hd key.
+Subscribe to a real-time notification stream of `TxoFunded`/`TxoSpent` events for the provided address, scripthash or hd key.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -982,13 +981,15 @@ This is equivalent to `GET /stream?scripthash=<scripthash>`.
 
 Example:
 ```
-$ curl localhost:3060/scripthash/96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19/stream
+$ curl localhost:3060/address/bcrt1qxs3mrrre37rphadyg4wu0zk4t33qklv0u0gmps/stream
 
-data:{"category":"History","params":["96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19","1fbc4a22ace7abcdd7b76630d7a7d6f9cf158842a973ac796ad89db2ee8a846e",630000]}
+data:{"category":"TxoFunded","params":["bb94b1547397cd89441edd74d0581913d8bb3005d070fa6f9744af44f654c25a:0","97e9cc06a9a9d95a7ff26a9e5fdf9e1836792a3337c0ff718c88e012feb217bd",77700000,115]}
 
-data:{"category":"History","params":["96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19","1ef60ee356af75f3be95b91c07192fd9e8eba5c51cc9c21603364e11911213a9",null]}
+data:{"category":"TxoFunded","params":["a0fe8a8fc855a9deaed533cf5f2053c77d640ff5f50a7c44d1cca314d4e00e5d:0","97e9cc06a9a9d95a7ff26a9e5fdf9e1836792a3337c0ff718c88e012feb217bd",100000,116]}
 
-data:{"category":"History","params":["96a12ea14fa3fdbf93323980ca9ad8af4ad4fb00a8feaa4b92d4639ebbc5ff19","1ef60ee356af75f3be95b91c07192fd9e8eba5c51cc9c21603364e11911213a9",630001]}
+data:{"category":"TxoSpent","params":["a3bc61a974b113223c336c866bc656cd23481d1466e063e46930a5983e70c20d:0","97e9cc06a9a9d95a7ff26a9e5fdf9e1836792a3337c0ff718c88e012feb217bd","a0fe8a8fc855a9deaed533cf5f2053c77d640ff5f50a7c44d1cca314d4e00e5d:0",117]}
+
+data:{"category":"TxoSpent","params":["a3bc61a974b113223c336c866bc656cd23481d1466e063e46930a5983e70c20d:1","97e9cc06a9a9d95a7ff26a9e5fdf9e1836792a3337c0ff718c88e012feb217bd","bb94b1547397cd89441edd74d0581913d8bb3005d070fa6f9744af44f654c25a:0",117]}
 ```
 
 </details>

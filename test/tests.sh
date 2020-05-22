@@ -83,10 +83,10 @@ if [[ $FEATURES == *"http"* ]]; then
     declare "evt_$category=`jq -c .params <<< "$evt"`"
   done < <(get /stream --max-time 1 | grep '^data:' | cut -d: -f2-)
   # and check we got the expected ones
-  test -n "$evt_Transaction" -a -n "$evt_TxoCreated"
+  test -n "$evt_Transaction" -a -n "$evt_TxoFunded"
   txid=`jq -r .[0] <<< "$evt_Transaction"`
   test `get_jq .funding[0].amount /tx/$txid` == 977700000
-  test `jq -r .[0] <<< "$evt_TxoCreated" | cut -d: -f1` == $txid
+  test `jq -r .[0] <<< "$evt_TxoFunded" | cut -d: -f1` == $txid
 fi
 
 echo -e "\e[32mAll tests pass.\e[0m"

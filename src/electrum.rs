@@ -307,21 +307,21 @@ impl Connection {
         })
     }
 
-    fn make_notification(&mut self, change: IndexChange) -> Result<(String, Value)> {
-        Ok(match change {
-            IndexChange::ChainTip(BlockId(tip_height, tip_hash)) => {
+    fn make_notification(&mut self, msg: Message) -> Result<(String, Value)> {
+        Ok(match msg {
+            Message::ChainTip(BlockId(tip_height, tip_hash)) => {
                 let hex_header = self.query.get_header_hex(&tip_hash)?;
                 let header = json!({"hex": hex_header, "height": tip_height });
                 ("blockchain.headers.subscribe".into(), json!([header]))
             }
-            IndexChange::History(scripthash, ..) => {
+            Message::HistoryChange(scripthash) => {
                 let new_status_hash = get_status_hash(&self.query, &scripthash);
                 (
                     "blockchain.scripthash.subscribe".into(),
                     json!([scripthash, new_status_hash]),
                 )
             }
-            _ => unreachable!(), // we're not supposed to receive anything else
+            _ => unreachable!(),
         })
     }
 
@@ -350,8 +350,8 @@ impl Connection {
                     };
                     self.send_values(&[reply])?
                 }
-                Message::IndexChange(change) => {
-                    let (method, params) = self.make_notification(change)?;
+                Message::ChainTip(_) | Message::HistoryChange(_) => {
+                    let (method, params) = self.make_notification(msg)?;
                     debug!("sending notification {} {}", method, params);
                     self.send_values(&[json!({
                         "jsonrpc": "2.0",
@@ -448,7 +448,8 @@ fn electrum_height(status: TxStatus) -> u32 {
 #[derive(Debug)]
 pub enum Message {
     Request(String),
-    IndexChange(IndexChange),
+    ChainTip(BlockId),
+    HistoryChange(ScriptHash),
     Done,
 }
 
@@ -541,7 +542,9 @@ impl ElectrumServer {
         let changelog: Vec<IndexChange> = changelog
             .iter()
             .filter(|change| match change {
-                IndexChange::ChainTip(..) | IndexChange::History(..) => true,
+                IndexChange::ChainTip(..)
+                | IndexChange::TxoFunded(..)
+                | IndexChange::TxoSpent(..) => true,
                 _ => false,
             })
             .cloned()
@@ -624,22 +627,30 @@ impl SubscriptionManager {
             self.subscribers.len()
         );
 
+        // TODO determine status hash here, so its only computed once when there are multiple
+        // subscribers to the same scripthash. could also send the header hex directly, so
+        // bitcoind is only queried for it once.
+
+        // TODO avoid sending the same scripthash more than once (appears in multiple inputs etc)
+
         self.subscribers.retain(|subscriber_id, subscriber| {
             for change in &changelog {
-                let is_interested = match change {
-                    IndexChange::ChainTip(..) => subscriber.blocks,
-                    IndexChange::History(sh, ..) => subscriber.scripthashes.contains(sh),
-                    _ => unreachable!(), //we're not suppoed to be sent anything else
-                };
-                if is_interested {
-                    // TODO determine status hash here, so its only computed once when there are multiple
-                    // subscribers to the same scripthash. could also send the header hex directly, so
-                    // bitcoind is only queried for it once.
-                    let msg = Message::IndexChange(change.clone());
-                    if let Err(TrySendError::Disconnected(_)) = subscriber.sender.try_send(msg) {
-                        warn!("dropping disconnected subscriber #{}", subscriber_id);
-                        return false;
+                let msg = match change {
+                    IndexChange::ChainTip(blockid) if subscriber.blocks => {
+                        Message::ChainTip(blockid.clone())
                     }
+                    IndexChange::TxoFunded(_, scripthash, ..)
+                    | IndexChange::TxoSpent(_, scripthash, ..)
+                        if subscriber.scripthashes.contains(scripthash) =>
+                    {
+                        Message::HistoryChange(*scripthash)
+                    }
+                    _ => continue,
+                };
+
+                if let Err(TrySendError::Disconnected(_)) = subscriber.sender.try_send(msg) {
+                    warn!("dropping disconnected subscriber #{}", subscriber_id);
+                    return false;
                 }
             }
             true
