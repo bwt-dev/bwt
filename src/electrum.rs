@@ -19,7 +19,7 @@ use crate::types::{BlockId, ScriptHash, StatusHash, TxStatus};
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
 // released under the MIT license. https://github.com/romanz/electrs
 
-const PXT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const BWT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL_VERSION: &str = "1.4";
 const MAX_HEADERS: u32 = 2016;
 
@@ -63,7 +63,8 @@ impl Connection {
     }
 
     fn server_version(&self) -> Result<Value> {
-        Ok(json!([format!("bwt {}", PXT_VERSION), PROTOCOL_VERSION]))
+        // TODO check the versions are compatible and disconnect otherwise
+        Ok(json!([format!("bwt {}", BWT_VERSION), PROTOCOL_VERSION]))
     }
 
     fn server_banner(&self) -> Result<Value> {
