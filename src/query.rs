@@ -198,15 +198,12 @@ impl Query {
     // History
     //
 
+    /// Get a copy of the scripthash history, ordered with oldest first.
     pub fn get_history(&self, scripthash: &ScriptHash) -> Vec<HistoryEntry> {
-        self.indexer
-            .read()
-            .unwrap()
-            .store()
-            .get_history(scripthash)
-            .map_or_else(Vec::new, |entries| entries.iter().cloned().collect())
+        self.map_history(scripthash, Clone::clone)
     }
 
+    /// Map the scripthash history as refs through `f`, ordered with oldest first.
     pub fn map_history<T>(
         &self,
         scripthash: &ScriptHash,
@@ -218,26 +215,25 @@ impl Query {
             .store()
             .get_history(scripthash)
             .map(|history| history.iter().map(f).collect())
-            .unwrap_or_else(|| vec![])
+            .unwrap_or_else(Vec::new)
     }
 
+    /// Get a copy of all history entries for all scripthashes since `min_block_height` (including
+    /// unconfirmed transactions), ordered with oldest first.
     pub fn get_history_since(&self, min_block_height: u32) -> Vec<HistoryEntry> {
-        self.map_history_since(min_block_height, |history_entry| history_entry.clone())
+        self.map_history_since(min_block_height, Clone::clone)
     }
 
+    /// Map all history entries for all scripthashes since `min_block_height` (including
+    /// unconfirmed transactions) as refs through `f`, ordered with oldest first.
     pub fn map_history_since<T>(
         &self,
         min_block_height: u32,
         f: impl Fn(&HistoryEntry) -> T,
     ) -> Vec<T> {
-        self.indexer
-            .read()
-            .unwrap()
-            .store()
-            .get_history_since(min_block_height)
-            .into_iter()
-            .map(f)
-            .collect()
+        let indexer = self.indexer.read().unwrap();
+        let entries = indexer.store().get_history_since(min_block_height);
+        entries.into_iter().map(f).collect()
     }
 
     //

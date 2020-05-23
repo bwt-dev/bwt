@@ -350,12 +350,12 @@ impl MemoryStore {
         Some(self.scripthashes.get(scripthash)?.address.clone())
     }
 
-    /// Get all history since `min_block_height`, including unconfirmed mempool transactions,
-    /// for *all* tracked scripthashes
-    pub fn get_history_since(&self, min_block_height: u32) -> BTreeSet<&HistoryEntry> {
-        // XXX this is terribly inefficient. okayish for now, but should be rewritten not to
-        // require a full scan at some point
-        self.scripthashes
+    /// Get all history entries for all scripthashes since `min_block_height` (including
+    /// unconfirmed transactions) as refs, ordered with oldest first.
+    pub fn get_history_since(&self, min_block_height: u32) -> Vec<&HistoryEntry> {
+        // TODO consider keeping a combined sorted index to avoid a full scan
+        let mut entries = self
+            .scripthashes
             .values()
             .map(|script_entry| {
                 script_entry
@@ -369,7 +369,10 @@ impl MemoryStore {
                     })
             })
             .flatten()
-            .collect()
+            .collect::<Vec<_>>();
+        entries.sort_unstable();
+        entries.dedup();
+        entries
     }
 
     pub fn stats_str(&self) -> String {
