@@ -472,7 +472,7 @@ Get the merkle inclusion proof for the transaction.
 
 <details><summary>Expand...</summary><p></p>
 
-Returned in [bitcoind's `merkleblock`](https://bitcoin.org/en/developer-reference#merkleblock) format.
+Returned in [bitcoind's `merkleblock`](https://developer.bitcoin.org/reference/p2p_networking.html#merkleblock) format.
 
 Example:
 ```
