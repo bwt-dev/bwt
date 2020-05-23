@@ -2,7 +2,8 @@ use std::net;
 use std::sync::{mpsc, Arc, Mutex};
 
 use async_std::task;
-use tokio::stream::{Stream, StreamExt};
+use serde::{Deserialize, Deserializer};
+use tokio::stream::{self, Stream, StreamExt};
 use tokio::sync::mpsc as tmpsc;
 use warp::http::{header, StatusCode};
 use warp::sse::ServerSentEvent;
@@ -10,6 +11,7 @@ use warp::{reply, Filter, Reply};
 
 use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{Address, BlockHash, OutPoint, Txid};
+use bitcoin_hashes::hex::FromHex;
 
 use crate::error::{fmt_error_chain, Error, OptionExt};
 use crate::types::{BlockId, ScriptHash};
@@ -295,10 +297,14 @@ async fn run(
         .and(warp::path!("stream"))
         .and(warp::query::<ChangelogFilter>())
         .and(listeners.clone())
-        .map(|filter: ChangelogFilter, listeners: Listeners| {
-            let stream = make_connection_sse_stream(listeners, filter);
-            warp::sse::reply(warp::sse::keep_alive().stream(stream))
-        });
+        .and(query.clone())
+        .map(
+            |filter: ChangelogFilter, listeners: Listeners, query: Arc<Query>| {
+                let stream = make_sse_stream(filter, listeners, &query)?;
+                Ok(warp::sse::reply(warp::sse::keep_alive().stream(stream)))
+            },
+        )
+        .map(handle_error);
 
     // GET /hd/:fingerprint/:index/stream
     // GET /scripthash/:scripthash/stream
@@ -308,13 +314,18 @@ async fn run(
         .and(warp::path!("stream"))
         .and(warp::query::<ChangelogFilter>())
         .and(listeners.clone())
+        .and(query.clone())
         .map(
-            |scripthash: ScriptHash, mut filter: ChangelogFilter, listeners: Listeners| {
+            |scripthash: ScriptHash,
+             mut filter: ChangelogFilter,
+             listeners: Listeners,
+             query: Arc<Query>| {
                 filter.scripthash = Some(scripthash);
-                let stream = make_connection_sse_stream(listeners, filter);
-                warp::sse::reply(warp::sse::keep_alive().stream(stream))
+                let stream = make_sse_stream(filter, listeners, &query)?;
+                Ok(warp::sse::reply(warp::sse::keep_alive().stream(stream)))
             },
-        );
+        )
+        .map(handle_error);
 
     // GET /block/tip
     let block_tip_handler = warp::get()
@@ -347,7 +358,7 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /block/:height
+    // GET /block/:block_height
     let block_height_handler = warp::get()
         .and(warp::path!("block" / u32))
         .and(query.clone())
@@ -497,18 +508,41 @@ struct Listener {
     filter: ChangelogFilter,
 }
 
-fn make_connection_sse_stream(
-    listeners: Listeners,
+// Create a stream of real-time changelog events matching `filter`, optionally also including
+// historical events occuring after `synced-tip`
+fn make_sse_stream(
     filter: ChangelogFilter,
-) -> impl Stream<Item = Result<impl ServerSentEvent, warp::Error>> {
+    listeners: Listeners,
+    query: &Query,
+) -> Result<impl Stream<Item = Result<impl ServerSentEvent, warp::Error>>, Error> {
     debug!("subscribing sse client with {:?}", filter);
+
     let (tx, rx) = tmpsc::unbounded_channel();
-    listeners.lock().unwrap().push(Listener { tx, filter });
-    rx.map(|change: IndexChange| Ok(warp::sse::json(change)))
+    listeners.lock().unwrap().push(Listener {
+        tx,
+        filter: filter.clone(),
+    });
+
+    // fetch historical changelog since the requested start point (if requesed)
+    let changelog = match &filter.synced_tip {
+        Some(synced_tip) => query.get_changelog_after(*synced_tip)?,
+        None => vec![],
+    }
+    .into_iter()
+    .filter(move |change| filter.matches(change));
+    // TODO don't produce unwanted events to begin with instead of filtering them
+
+    Ok(stream::iter(changelog)
+        .chain(rx)
+        .map(|change: IndexChange| Ok(warp::sse::json(change))))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "kebab-case")]
 struct ChangelogFilter {
+    #[serde(default, deserialize_with = "parse_synced_tip")]
+    synced_tip: Option<BlockId>,
+
     scripthash: Option<ScriptHash>,
     outpoint: Option<OutPoint>,
     category: Option<String>,
@@ -545,6 +579,24 @@ impl ChangelogFilter {
                 .map_or(false, |change_outpoint| filter_outpoint == change_outpoint)
         })
     }
+}
+
+pub fn parse_synced_tip<'de, D>(deserializer: D) -> std::result::Result<Option<BlockId>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    fn parse(s: &str) -> Result<BlockId, Error> {
+        let mut parts = s.splitn(2, ':');
+        let height: u32 = parts.next().req()?.parse()?;
+        Ok(match parts.next() {
+            Some(block_hash) => BlockId(height, BlockHash::from_hex(block_hash)?),
+            None => BlockId(height, BlockHash::default()),
+        })
+    }
+
+    let s = String::deserialize(deserializer)?;
+    let blockid = parse(&s).map_err(|err| serde::de::Error::custom(err.to_string()))?;
+    Ok(Some(blockid))
 }
 
 #[derive(Deserialize, Debug)]

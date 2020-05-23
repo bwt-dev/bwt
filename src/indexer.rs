@@ -69,9 +69,9 @@ impl Indexer {
         let (synced_tip, mut changelog) = self._sync()?;
         self.watcher.do_imports(&self.rpc, /*rescan=*/ false)?;
 
-        if self.tip.as_ref() != Some(&synced_tip) {
+        if self.tip != Some(synced_tip) {
             info!("synced up to height {}", synced_tip.0);
-            changelog.push(IndexChange::ChainTip(synced_tip.clone()));
+            changelog.push(IndexChange::ChainTip(synced_tip));
             self.tip = Some(synced_tip);
         }
 
@@ -294,6 +294,24 @@ impl Indexer {
         }
 
         Ok(())
+    }
+
+    /// Get historical events that happened at or after `min_block_height`, including unconfirmed,
+    /// ordered with oldest first.
+    ///
+    /// Includes the `Transaction`, `TxoFunded` and `TxoSpent` events, and a *single* `ChainTip`
+    /// event with the currently synced tip as the last entry (when bwt is synced).
+    pub fn get_changelog_since(&self, min_block_height: u32) -> Vec<IndexChange> {
+        self.store
+            .get_history_since(min_block_height)
+            .into_iter()
+            .map(|txhist| {
+                let tx_entry = self.store.get_tx_entry(&txhist.txid).unwrap();
+                IndexChange::from_tx(&txhist.txid, tx_entry)
+            })
+            .flatten()
+            .chain(self.tip.clone().map(IndexChange::ChainTip).into_iter())
+            .collect()
     }
 }
 

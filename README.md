@@ -991,9 +991,43 @@ data:{"category":"TxoSpent","params":["a3bc61a974b113223c336c866bc656cd23481d146
 
 data:{"category":"TxoSpent","params":["a3bc61a974b113223c336c866bc656cd23481d1466e063e46930a5983e70c20d:1","97e9cc06a9a9d95a7ff26a9e5fdf9e1836792a3337c0ff718c88e012feb217bd","bb94b1547397cd89441edd74d0581913d8bb3005d070fa6f9744af44f654c25a:0",117]}
 ```
-
 </details>
 
+#### Catching up with missed events & re-org detection
+
+To catch-up with historical events that your app missed while being down, you can specify the `synced-tip` query string parameter with the `<block-height>:<block-hash>` of the latest block known to be processed.
+
+If the `synced-tip` is still part of the best chain, this will return all historical  `Transaction`, `TxoFunded` and `TxoSpent` events that occurred after `block-height` (exclusive, ordered with oldest first, unconfirmed included at the end), followed by a *single* `ChainTip` event with the currently synced tip, followed by a stream of real-time events.
+
+If the `synced-tip` is no longer part of the best chain, an error will be returned indicating that a reorg took place.
+One way to recover from reorgs is to delete all entries that occurred in the last  `N` blocks before the orphaned `synced-tip` and re-sync them (where `N` is large enough such that reorgs deeper than it are unlikely).
+
+You can specify `synced-tip` with just the height to skip reorg detection (for example, `0` to get all events since the genesis block).
+
+<details><summary>Expand...</summary><p></p>
+Example:
+
+```
+# Start by syncing everything from the beginning
+$ curl localhost:3060/stream?synced-tip=0
+data:{"category":"TxoFunded","params":["ac42d918b45351835bf9448bbd0c2f8e9ddad56a8bd118fe93919cc74bd0c487:1","48138c88b8cb17544ac2450c4bd147106a9f773d6cf2b7f31a5a9dde75a8387a",399999856,114]}
+data:{"category":"ChainTip","params":[120,"5cc1fb1153f8eb12d445d0db06e96bbb39c45b8ed22d4f0de718aa6b0ef00cd1"]}
+
+# Oops, we got disconnected! Let's try again with the last `ChainTip` we heard of
+$ curl localhost:3060/stream?synced-tip=120:5cc1fb1153f8eb12d445d0db06e96bbb39c45b8ed22d4f0de718aa6b0ef00cd1
+data:{"category":"TxoSpent","params":["a3bc61a974b113223c336c866bc656cd23481d1466e063e46930a5983e70c20d:1","97e9cc06a9a9d95a7ff26a9e5fdf9e1836792a3337c0ff718c88e012feb217bd","bb94b1547397cd89441edd74d0581913d8bb3005d070fa6f9744af44f654c25a:0",122]}
+data:{"category":"ChainTip","params":[130,"57d17db78d5017c89e86e863a7397c02027f09327222feb72cdfe8372644c589"]}
+
+# Disconnected again, this time while a reorg happened
+$ curl localhost:3060/stream?synced-tip=130:57d17db78d5017c89e86e863a7397c02027f09327222feb72cdfe8372644c589
+< HTTP/1.1 410 Gone
+Reorg detected at height 130
+
+# Re-sync from height 110 (N=20)
+$ curl localhost:3060/stream?synced-tip=110
+```
+
+</details>
 
 ### Miscellaneous
 

@@ -11,7 +11,7 @@ use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
 use crate::error::{OptionExt, Result};
 use crate::hd::{HDWallet, KeyOrigin};
-use crate::indexer::Indexer;
+use crate::indexer::{IndexChange, Indexer};
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
 use crate::types::{BlockId, ScriptHash, TxStatus};
 use crate::util::make_fee_histogram;
@@ -234,6 +234,27 @@ impl Query {
         let indexer = self.indexer.read().unwrap();
         let entries = indexer.store().get_history_since(min_block_height);
         entries.into_iter().map(f).collect()
+    }
+
+    /// Get historical events that occurred after the `synced_tip` block, including unconfirmed,
+    /// ordered with oldest first.
+    ///
+    /// Verifies that the `synced_tip` is still part of the best chain and returns an error if not.
+    /// Using the default BlockHash disables this validation.
+    pub fn get_changelog_after(&self, synced_tip: BlockId) -> Result<Vec<IndexChange>> {
+        let BlockId(synced_height, synced_blockhash) = synced_tip;
+
+        if synced_blockhash != BlockHash::default() {
+            let current_blockhash = self.get_block_hash(synced_height)?;
+            ensure!(
+                synced_blockhash == current_blockhash,
+                "Reorg detected at height {}",
+                synced_height,
+            );
+        }
+
+        let indexer = self.indexer.read().unwrap();
+        Ok(indexer.get_changelog_since(synced_height + 1))
     }
 
     //

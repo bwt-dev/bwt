@@ -638,7 +638,7 @@ impl SubscriptionManager {
             for change in &changelog {
                 let msg = match change {
                     IndexChange::ChainTip(blockid) if subscriber.blocks => {
-                        Message::ChainTip(blockid.clone())
+                        Message::ChainTip(*blockid)
                     }
                     IndexChange::TxoFunded(_, scripthash, ..)
                     | IndexChange::TxoSpent(_, scripthash, ..)

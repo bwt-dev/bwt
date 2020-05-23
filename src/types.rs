@@ -4,7 +4,6 @@ use serde::Serialize;
 
 use bitcoin::{Address, BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
-
 pub use bitcoincore_rpc::json::ImportMultiRescanSince as RescanSince;
 
 hash_newtype!(
@@ -30,7 +29,7 @@ impl From<Address> for ScriptHash {
 #[cfg(feature = "electrum")]
 hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
 
-#[derive(Serialize, Debug, PartialEq, Clone)]
+#[derive(Serialize, Debug, PartialEq, Clone, Copy)]
 pub struct BlockId(pub u32, pub BlockHash);
 
 #[derive(Debug, Copy, Clone)]
