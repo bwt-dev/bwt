@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
+use anyhow::Context;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -9,7 +10,7 @@ use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{BlockHash, BlockHeader, Network, OutPoint, Txid};
 use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
-use crate::error::{OptionExt, Result};
+use crate::error::{BwtError, OptionExt, Result};
 use crate::hd::{HDWallet, KeyOrigin};
 use crate::indexer::{IndexChange, Indexer};
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
@@ -174,7 +175,10 @@ impl Query {
 
     pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
         let indexer = self.indexer.read().unwrap();
-        let tx_entry = indexer.store().get_tx_entry(txid).or_err("tx not found")?;
+        let tx_entry = indexer
+            .store()
+            .get_tx_entry(txid)
+            .with_context(|| BwtError::TxNotFound(*txid))?;
         Ok(match tx_entry.status {
             TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
             _ => None,
@@ -241,15 +245,14 @@ impl Query {
     ///
     /// Verifies that the `synced_tip` is still part of the best chain and returns an error if not.
     /// Using the default BlockHash disables this validation.
-    pub fn get_changelog_after(&self, synced_tip: BlockId) -> Result<Vec<IndexChange>> {
+    pub fn get_changelog_after(&self, synced_tip: &BlockId) -> Result<Vec<IndexChange>> {
         let BlockId(synced_height, synced_blockhash) = synced_tip;
 
-        if synced_blockhash != BlockHash::default() {
-            let current_blockhash = self.get_block_hash(synced_height)?;
+        if *synced_blockhash != BlockHash::default() {
+            let current_blockhash = self.get_block_hash(*synced_height)?;
             ensure!(
-                synced_blockhash == current_blockhash,
-                "Reorg detected at height {}",
-                synced_height,
+                *synced_blockhash == current_blockhash,
+                BwtError::ReorgDetected(*synced_height, *synced_blockhash, current_blockhash)
             );
         }
 
@@ -273,8 +276,11 @@ impl Query {
         let req_script_info =
             scripthash.map_or(Ok(None), |scripthash| -> Result<Option<ScriptInfo>> {
                 let indexer = self.indexer.read().unwrap();
-                let info = indexer.store().get_script_info(scripthash);
-                Ok(Some(info.or_err("unknown scripthash")?))
+                let info = indexer
+                    .store()
+                    .get_script_info(scripthash)
+                    .with_context(|| BwtError::ScriptHashNotFound(*scripthash))?;
+                Ok(Some(info))
             })?;
 
         Ok(unspents
@@ -301,8 +307,11 @@ impl Query {
         let address =
             scripthash.map_or(Ok(None), |scripthash| -> Result<Option<bitcoin::Address>> {
                 let indexer = self.indexer.read().unwrap();
-                let address = indexer.store().get_script_address(scripthash);
-                Ok(Some(address.or_err("unknown scripthash")?))
+                let address = indexer
+                    .store()
+                    .get_script_address(scripthash)
+                    .with_context(|| BwtError::ScriptHashNotFound(*scripthash))?;
+                Ok(Some(address))
             })?;
 
         // an empty array indicates not to filter by the address

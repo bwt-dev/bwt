@@ -13,7 +13,7 @@ use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{Address, BlockHash, OutPoint, Txid};
 use bitcoin_hashes::hex::FromHex;
 
-use crate::error::{fmt_error_chain, Error, OptionExt};
+use crate::error::{fmt_error_chain, BwtError, Error, OptionExt};
 use crate::types::{BlockId, ScriptHash};
 use crate::{store, IndexChange, Query};
 
@@ -54,7 +54,9 @@ async fn run(
         .and(warp::path!("hd" / Fingerprint))
         .and(query.clone())
         .map(|fingerprint: Fingerprint, query: Arc<Query>| {
-            let wallet = query.get_hd_wallet(fingerprint).or_err("not found")?;
+            let wallet = query
+                .get_hd_wallet(fingerprint)
+                .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&wallet))
         })
         .map(handle_error);
@@ -66,7 +68,7 @@ async fn run(
         .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
             let script_info = query
                 .get_hd_script_info(fingerprint, index)
-                .or_err("not found")?;
+                .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&script_info))
         })
         .map(handle_error);
@@ -76,7 +78,9 @@ async fn run(
         .and(warp::path!("hd" / Fingerprint / "gap"))
         .and(query.clone())
         .map(|fingerprint: Fingerprint, query: Arc<Query>| {
-            let gap = query.find_hd_gap(fingerprint).or_err("not found")?;
+            let gap = query
+                .find_hd_gap(fingerprint)
+                .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&gap))
         })
         .map(handle_error);
@@ -86,7 +90,9 @@ async fn run(
         .and(warp::path!("hd" / Fingerprint / "next"))
         .and(query.clone())
         .map(|fingerprint: Fingerprint, query: Arc<Query>| {
-            let wallet = query.get_hd_wallet(fingerprint).or_err("not found")?;
+            let wallet = query
+                .get_hd_wallet(fingerprint)
+                .or_err(StatusCode::NOT_FOUND)?;
             let next_index = wallet.get_next_index();
             let uri = format!("/hd/{}/{}", fingerprint, next_index);
             // issue a 307 redirect to the hdkey resource uri, and also include the derivation
@@ -112,7 +118,7 @@ async fn run(
         .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
             let script_info = query
                 .get_hd_script_info(fingerprint, index)
-                .or_err("not found")?;
+                .or_err(StatusCode::NOT_FOUND)?;
             Ok(script_info.scripthash)
         })
         .and_then(reject_error);
@@ -131,7 +137,9 @@ async fn run(
         .and(warp::path::end())
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
-            let script_info = query.get_script_info(&scripthash).or_err("not found")?;
+            let script_info = query
+                .get_script_info(&scripthash)
+                .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&script_info))
         })
         .map(handle_error);
@@ -144,7 +152,9 @@ async fn run(
         .and(warp::path!("stats"))
         .and(query.clone())
         .map(|scripthash, query: Arc<Query>| {
-            let script_stats = query.get_script_stats(&scripthash)?.or_err("not found")?;
+            let script_stats = query
+                .get_script_stats(&scripthash)?
+                .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&script_stats))
         })
         .map(handle_error);
@@ -201,7 +211,7 @@ async fn run(
         .and(warp::path::end())
         .and(query.clone())
         .map(|txid: Txid, query: Arc<Query>| {
-            let tx_info = query.get_tx_detail(&txid).or_err("tx not found")?;
+            let tx_info = query.get_tx_detail(&txid).or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&tx_info))
         })
         .map(handle_error);
@@ -276,7 +286,7 @@ async fn run(
         .map(|txid: Txid, vout: u32, query: Arc<Query>| {
             let txo = query
                 .lookup_txo(&OutPoint::new(txid, vout))
-                .or_err("not found")?;
+                .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&txo))
         })
         .map(handle_error);
@@ -525,7 +535,7 @@ fn make_sse_stream(
 
     // fetch historical changelog since the requested start point (if requesed)
     let changelog = match &filter.synced_tip {
-        Some(synced_tip) => query.get_changelog_after(*synced_tip)?,
+        Some(synced_tip) => query.get_changelog_after(synced_tip)?,
         None => vec![],
     }
     .into_iter()
@@ -623,17 +633,28 @@ where
         Ok(x) => x.into_response(),
         Err(e) => {
             warn!("processing failed: {:#?}", e);
-            let status = StatusCode::INTERNAL_SERVER_ERROR;
+            let status = get_error_status(&e);
             let body = fmt_error_chain(&e);
             reply::with_status(body, status).into_response()
         }
     }
 }
+
 async fn reject_error<T>(result: Result<T, Error>) -> Result<T, warp::Rejection> {
     result.map_err(|err| {
         warn!("pre-processing failed: {:?}", err);
         warp::reject::custom(WarpError(err))
     })
+}
+
+fn get_error_status(e: &Error) -> StatusCode {
+    if let Some(status_code) = e.downcast_ref::<StatusCode>() {
+        *status_code
+    } else if let Some(bwt_err) = e.downcast_ref::<BwtError>() {
+        bwt_err.status_code()
+    } else {
+        StatusCode::INTERNAL_SERVER_ERROR
+    }
 }
 
 #[derive(Debug)]

@@ -999,7 +999,7 @@ To catch-up with historical events that your app missed while being down, you ca
 
 If the `synced-tip` is still part of the best chain, this will return all historical  `Transaction`, `TxoFunded` and `TxoSpent` events that occurred after `block-height` (exclusive, ordered with oldest first, unconfirmed included at the end), followed by a *single* `ChainTip` event with the currently synced tip, followed by a stream of real-time events.
 
-If the `synced-tip` is no longer part of the best chain, an error will be returned indicating that a reorg took place.
+If the `synced-tip` is no longer part of the best chain, a `410 Gone` error will be returned indicating that a reorg took place.
 One way to recover from reorgs is to delete all entries that occurred in the last  `N` blocks before the orphaned `synced-tip` and re-sync them (where `N` is large enough such that reorgs deeper than it are unlikely).
 
 You can specify `synced-tip` with just the height to skip reorg detection (for example, `0` to get all events since the genesis block).
@@ -1023,7 +1023,7 @@ $ curl localhost:3060/stream?synced-tip=130:57d17db78d5017c89e86e863a7397c02027f
 < HTTP/1.1 410 Gone
 Reorg detected at height 130
 
-# Re-sync from height 110 (N=20)
+# Re-sync events since N=20 blocks before the reported reorg
 $ curl localhost:3060/stream?synced-tip=110
 ```
 
