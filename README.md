@@ -38,7 +38,7 @@
 ## Intro
 
 `bwt` is a lightweight and performant HD wallet indexer backed by a bitcoin full node, using a model similar to that of Electrum Personal Server.
-It can serve as a personal alternative to public Electrum servers or power bitcoin apps such as wallet backends, payment processing and more.
+It can serve as a personal alternative to public Electrum servers or power bitcoin apps such as wallet backends, payment processors and more.
 
 It uses bitcoind to keep track of your wallet addresses (derived from your xpub(s)) and builds an index of their
 history that can be queried using the Electrum RPC protocol or using bwt's custom designed [HTTP API](#http-api).
@@ -74,7 +74,7 @@ $ wget -qO - https://github.com/shesek/bwt/releases/download/v0.1.0/SHA256SUMS.a
   | gpg --decrypt - | grep ' bwt-0.1.0-x86_64-linux.tar.gz$' | sha256sum -c -
 
 $ tar zxvf bwt-0.1.0-x86_64-linux.tar.gz
-$ ./bwt-0.1.0-x86_64-linux/bwt --xpub <xpub>
+$ ./bwt-0.1.0-x86_64-linux/bwt --xpub <xpub> ...
 ```
 
 #### From source
@@ -85,7 +85,7 @@ $ ./bwt-0.1.0-x86_64-linux/bwt --xpub <xpub>
 $ sudo apt install build-essential
 $ git clone https://github.com/shesek/bwt && cd bwt
 $ cargo build --release
-$ ./target/release/bwt --network mainnet --xpub <xpub> ...
+$ ./target/release/bwt --xpub <xpub> ...
 ```
 
 Or using the crates.io package:
@@ -104,6 +104,8 @@ Assuming your bitcoin datadir is at `~/.bitcoin`,
 ```bash
 $ docker run --net host -v ~/.bitcoin:/bitcoin shesek/bwt --xpub <xpub> ...
 ```
+
+(Mounting the bitcoin datadir is not necessary if you're not using the cookie file.)
 
 #### Running bwt
 
@@ -1000,7 +1002,8 @@ To catch-up with historical events that your app missed while being down, you ca
 If the `synced-tip` is still part of the best chain, this will return all historical  `Transaction`, `TxoFunded` and `TxoSpent` events that occurred after `block-height` (exclusive, ordered with oldest first, unconfirmed included at the end), followed by a *single* `ChainTip` event with the currently synced tip, followed by a stream of real-time events.
 
 If the `synced-tip` is no longer part of the best chain, a `410 Gone` error will be returned indicating that a reorg took place.
-One way to recover from reorgs is to delete all entries that occurred in the last  `N` blocks before the orphaned `synced-tip` and re-sync them (where `N` is large enough such that reorgs deeper than it are unlikely).
+One way to recover from reorgs it to re-sync since `N` blocks before the orphaned `synced-tip` and consider any entries that
+no longer show up as double-spent (where `N` is large enough such that reorgs deeper than it are unlikely).
 
 You can specify `synced-tip` with just the height to skip reorg detection (for example, `0` to get all events since the genesis block).
 
@@ -1027,7 +1030,7 @@ Reorg detected at height 130
 $ curl localhost:3060/stream?synced-tip=110
 ```
 
-The `synced-tip` functionality also supports using SSE's `Last-Event-ID` header. This makes it work transparently with the [built-in automatic reconnection mechanism](https://kaazing.com/kaazing.io/doc/understanding-server-sent-events/#last-event-id). You'll still need to manually persist and specify the `synced-tip` in case your app restarts.
+The `synced-tip` functionality also supports the SSE `Last-Event-ID` header. This makes it work transparently with the [built-in automatic reconnection mechanism](https://kaazing.com/kaazing.io/doc/understanding-server-sent-events/#last-event-id). You'll still need to manually persist and specify the `synced-tip` in case your app restarts.
 
 </details>
 
@@ -1099,7 +1102,7 @@ You can use `scripts/check.sh` to run `cargo check` for all (sensible) feature c
 End-to-end integration tests can be run with [`./test/tests.sh`](https://github.com/shesek/bwt/blob/master/test/tests.sh).
 The tests deploy a regtest network, a bwt instance and an Electrum wallet connected to it (in headless mode), then run some basic tests using the Electrum client and against the HTTP REST API.
 
-To increase verbosity, set `VERBOSE=1`.
+Run with `bash -x test/tests.sh -v` to get more verbose output.
 
 ### Contributions
 
