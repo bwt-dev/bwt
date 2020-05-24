@@ -35,7 +35,7 @@
     },
 
     TxoFunded (outpoint, scripthash, amount, block_height) {
-      console.log(`new unspent txo ${outpoint}:`, utxos[outpoint])
+      console.log(`new unspent txo ${outpoint} worth ${amount} sats`)
       utxos[outpoint] = { amount, scripthash, block_height }
       showBalance()
     },
