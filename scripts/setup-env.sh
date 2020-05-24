@@ -120,6 +120,7 @@ runbwt --network regtest --bitcoind-dir $BTC_DIR --bitcoind-url http://localhost
   --unix-listener-path $BWT_SOCKET --poll-interval ${INTERVAL:=120} \
   --initial-import-size 30 \
   --xpub `ele1 getmpk` --xpub `ele2 getmpk` \
+  $([[ $FEATURES == *"http"* ]] && echo "--http-server-addr $BWT_HTTP_ADDR --http-cors any") \
   -v "$@" $BWT_OPTS
 pid=$!
 

@@ -33,6 +33,8 @@ async fn run(
 
     let mut headers = header::HeaderMap::new();
     if let Some(cors) = cors {
+        // allow using "any" as an alias for "*", avoiding expansion when passing "*" can be tricky
+        let cors = if cors == "any" { "*".into() } else { cors };
         headers.insert(
             "Access-Control-Allow-Origin",
             header::HeaderValue::from_str(&cors).unwrap(),
