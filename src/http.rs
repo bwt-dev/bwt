@@ -305,7 +305,7 @@ async fn run(
     // GET /stream
     let sse_handler = warp::get()
         .and(warp::path!("stream"))
-        .and(warp::query::<ChangelogFilter>())
+        .and(ChangelogFilter::param())
         .and(listeners.clone())
         .and(query.clone())
         .map(
@@ -322,7 +322,7 @@ async fn run(
     let spk_sse_handler = warp::get()
         .and(spk_route.clone())
         .and(warp::path!("stream"))
-        .and(warp::query::<ChangelogFilter>())
+        .and(ChangelogFilter::param())
         .and(listeners.clone())
         .and(query.clone())
         .map(
@@ -542,15 +542,24 @@ fn make_sse_stream(
     .filter(move |change| filter.matches(change));
     // TODO don't produce unwanted events to begin with instead of filtering them
 
-    Ok(stream::iter(changelog)
-        .chain(rx)
-        .map(|change: IndexChange| Ok(warp::sse::json(change))))
+    Ok(stream::iter(changelog).chain(rx).map(make_sse_msg).map(Ok))
+}
+
+fn make_sse_msg(change: IndexChange) -> impl ServerSentEvent {
+    match &change {
+        IndexChange::ChainTip(blockid) => {
+            // set the synced tip as the sse identifier field, so the client will send it back to
+            // us on reconnection via the Last-Event-Id header.
+            (warp::sse::id(blockid.to_string()), warp::sse::json(change)).into_a()
+        }
+        _ => warp::sse::json(change).into_b(),
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 struct ChangelogFilter {
-    #[serde(default, deserialize_with = "parse_synced_tip")]
+    #[serde(default, deserialize_with = "deser_synced_tip")]
     synced_tip: Option<BlockId>,
 
     scripthash: Option<ScriptHash>,
@@ -589,23 +598,39 @@ impl ChangelogFilter {
                 .map_or(false, |change_outpoint| filter_outpoint == change_outpoint)
         })
     }
+
+    fn param() -> impl Filter<Extract = (ChangelogFilter,), Error = warp::Rejection> + Clone {
+        warp::query::<ChangelogFilter>()
+            .and(warp::sse::last_event_id::<String>())
+            .map(
+                |mut filter: ChangelogFilter, last_event_id: Option<String>| {
+                    // When available, use the Server-Sent-Events Last-Event-Id header as the synced tip
+                    if let Some(last_event_id) = last_event_id {
+                        if let Ok(synced_tip) = parse_synced_tip(&last_event_id) {
+                            filter.synced_tip = Some(synced_tip);
+                        }
+                    }
+                    filter
+                },
+            )
+    }
 }
 
-pub fn parse_synced_tip<'de, D>(deserializer: D) -> std::result::Result<Option<BlockId>, D::Error>
+fn parse_synced_tip(s: &str) -> Result<BlockId, Error> {
+    let mut parts = s.splitn(2, ':');
+    let height: u32 = parts.next().req()?.parse()?;
+    Ok(match parts.next() {
+        Some(block_hash) => BlockId(height, BlockHash::from_hex(block_hash)?),
+        None => BlockId(height, BlockHash::default()),
+    })
+}
+
+fn deser_synced_tip<'de, D>(deserializer: D) -> std::result::Result<Option<BlockId>, D::Error>
 where
     D: Deserializer<'de>,
 {
-    fn parse(s: &str) -> Result<BlockId, Error> {
-        let mut parts = s.splitn(2, ':');
-        let height: u32 = parts.next().req()?.parse()?;
-        Ok(match parts.next() {
-            Some(block_hash) => BlockId(height, BlockHash::from_hex(block_hash)?),
-            None => BlockId(height, BlockHash::default()),
-        })
-    }
-
     let s = String::deserialize(deserializer)?;
-    let blockid = parse(&s).map_err(|err| serde::de::Error::custom(err.to_string()))?;
+    let blockid = parse_synced_tip(&s).map_err(|err| serde::de::Error::custom(err.to_string()))?;
     Ok(Some(blockid))
 }
 

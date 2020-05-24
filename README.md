@@ -490,7 +490,7 @@ for all tracked addresses.
 
 <details><summary>Expand...</summary><p></p>
 
-Returned in the [wallet transaction format](#wallet-transaction-format).
+Returned in the [wallet transaction format](#wallet-transaction-format). Sorted with oldest first.
 
 Example:
 ```
@@ -514,7 +514,7 @@ Get a compact minimal representation of all wallet transactions since `block-hei
 
 <details><summary>Expand...</summary><p></p>
 
-Returns a simple JSON array of `[txid, block_height]` tuples, where `block_height` is null for unconfirmed transactions.
+Returns a simple JSON array of `[txid, block_height]` tuples, where `block_height` is null for unconfirmed transactions. Sorted with oldest first.
 
 Example:
 ```
@@ -1023,9 +1023,11 @@ $ curl localhost:3060/stream?synced-tip=130:57d17db78d5017c89e86e863a7397c02027f
 < HTTP/1.1 410 Gone
 Reorg detected at height 130
 
-# Re-sync events since N=20 blocks before the reported reorg
+# Re-sync events from height 110 (N=20 blocks before the reported reorg)
 $ curl localhost:3060/stream?synced-tip=110
 ```
+
+The `synced-tip` functionality also supports using SSE's `Last-Event-ID` header. This makes it work transparently with the [built-in automatic reconnection mechanism](https://kaazing.com/kaazing.io/doc/understanding-server-sent-events/#last-event-id). You'll still need to manually persist and specify the `synced-tip` in case your app restarts.
 
 </details>
 
@@ -1054,14 +1056,15 @@ It is recommended to include a secret key within the URL to verify the authentic
 You can specify multiple `--webhook-url` to notify all of them.
 
 Note that bwt currently attempts to send the webhook request once and does not retry in case of failures.
-It is recommended to occasionally catch up using the [`GET /txs/since/:block-height`](#get-txssinceblock-height) endpoint.
+It is recommended to occasionally catch up using the [`GET /txs/since/:block-height`](#get-txssinceblock-height) or
+[`GET /stream`](#get-stream) endpoints (see ["Catching up with missed events"](#catching-up-with-missed-events--re-org-detection)).
 
 Tip: services like [webhook.site](https://webhook.site/) or [requestbin](http://requestbin.net/) can come in handy for debugging webhooks. (needless to say, for non-privacy-sensitive regtest/testnet use only)
 
 
 ## Developing
 
-### Resources
+### Developer Resources
 
 Documentation for the public Rust API is [available on docs.rs](https://docs.rs/bwt).
 

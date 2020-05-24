@@ -32,6 +32,12 @@ hash_newtype!(StatusHash, sha256::Hash, 32, doc = "The status hash.");
 #[derive(Serialize, Debug, PartialEq, Clone, Copy)]
 pub struct BlockId(pub u32, pub BlockHash);
 
+impl std::fmt::Display for BlockId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}:{}", self.0, self.1)
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct InPoint {
     pub txid: Txid,
