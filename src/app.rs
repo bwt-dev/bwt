@@ -78,10 +78,7 @@ impl App {
         }
 
         #[cfg(feature = "webhooks")]
-        let webhook = config
-            .webhook_urls
-            .clone()
-            .map(|urls| WebHookNotifier::start(urls));
+        let webhook = config.webhook_urls.clone().map(WebHookNotifier::start);
 
         Ok(App {
             config,
@@ -99,8 +96,9 @@ impl App {
     /// Start a sync loop blocking the current thread
     pub fn sync(self) {
         loop {
+            #[allow(clippy::option_map_unit_fn)]
             match self.indexer.write().unwrap().sync() {
-                Ok(updates) if updates.len() > 0 => {
+                Ok(updates) if !updates.is_empty() => {
                     #[cfg(feature = "electrum")]
                     self.electrum.send_updates(&updates);
 

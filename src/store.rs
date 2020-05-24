@@ -11,7 +11,7 @@ use crate::types::{ScriptHash, TxStatus};
 #[cfg(feature = "track-spends")]
 use crate::{types::InPoint, util::remove_if};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct MemoryStore {
     scripthashes: HashMap<ScriptHash, ScriptEntry>,
     transactions: HashMap<Txid, TxEntry>,
@@ -71,12 +71,7 @@ pub struct SpendingInfo(pub ScriptHash, pub OutPoint, pub u64);
 
 impl MemoryStore {
     pub fn new() -> Self {
-        MemoryStore {
-            scripthashes: HashMap::new(),
-            transactions: HashMap::new(),
-            #[cfg(feature = "track-spends")]
-            txo_spends: HashMap::new(),
-        }
+        Default::default()
     }
 
     pub fn index_scripthash(

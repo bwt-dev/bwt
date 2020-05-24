@@ -278,8 +278,7 @@ impl Indexer {
                 #[cfg(feature = "track-spends")]
                 self.store.index_txo_spend(prevout, inpoint);
 
-                changelog
-                    .push(|| IndexChange::TxoSpent(inpoint.clone(), scripthash, prevout, status));
+                changelog.push(|| IndexChange::TxoSpent(inpoint, scripthash, prevout, status));
 
                 // we could keep just the previous_output and lookup the scripthash and amount
                 // from the corrospanding FundingInfo, but we keep it here anyway for quick access

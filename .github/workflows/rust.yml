@@ -37,7 +37,7 @@ jobs:
       run: ./scripts/check.sh
 
     - name: Check with Clippy
-      run: cargo clippy --all-targets --all-features
+      run: cargo clippy --all-targets --all-features -- -A clippy::redundant_field_names -A clippy::implicit_hasher
 
     - name: Build
       run: cargo build --verbose

@@ -222,14 +222,14 @@ impl Query {
             .unwrap_or_else(Vec::new)
     }
 
-    /// Get a copy of all history entries for all scripthashes since `min_block_height` (including
-    /// unconfirmed transactions), ordered with oldest first.
+    /// Get a copy of all history entries for all scripthashes since `min_block_height` (inclusive,
+    /// including all unconfirmed), ordered with oldest first.
     pub fn get_history_since(&self, min_block_height: u32) -> Vec<HistoryEntry> {
         self.map_history_since(min_block_height, Clone::clone)
     }
 
-    /// Map all history entries for all scripthashes since `min_block_height` (including
-    /// unconfirmed transactions) as refs through `f`, ordered with oldest first.
+    /// Map all history entries for all scripthashes since `min_block_height` (inclusive, including
+    /// all unconfirmed) as refs through `f`, ordered with oldest first.
     pub fn map_history_since<T>(
         &self,
         min_block_height: u32,
@@ -240,8 +240,8 @@ impl Query {
         entries.into_iter().map(f).collect()
     }
 
-    /// Get historical events that occurred after the `synced_tip` block, including unconfirmed,
-    /// ordered with oldest first.
+    /// Get historical events that occurred after the `synced_tip` block (exclusive, including
+    /// all unconfirmed), ordered with oldest first.
     ///
     /// Verifies that the `synced_tip` is still part of the best chain and returns an error if not.
     /// Using the default BlockHash disables this validation.
@@ -254,6 +254,8 @@ impl Query {
                 *synced_blockhash == current_blockhash,
                 BwtError::ReorgDetected(*synced_height, *synced_blockhash, current_blockhash)
             );
+            // XXX make this a non-fatal warning if we don't have any wallet transactions in the
+            // last N blocks before the detected reorg?
         }
 
         let indexer = self.indexer.read().unwrap();

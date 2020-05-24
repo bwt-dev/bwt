@@ -69,13 +69,10 @@ pub enum TxStatus {
 
 impl TxStatus {
     pub fn from_confirmations(confirmations: i32, tip_height: u32) -> Self {
-        if confirmations > 0 {
-            TxStatus::Confirmed(tip_height - (confirmations as u32) + 1)
-        } else if confirmations == 0 {
-            TxStatus::Unconfirmed
-        } else {
-            // negative confirmations indicate the tx conflicts with the best chain (aka was double-spent)
-            TxStatus::Conflicted
+        match confirmations.cmp(&0) {
+            Ordering::Greater => TxStatus::Confirmed(tip_height - (confirmations as u32) + 1),
+            Ordering::Equal => TxStatus::Unconfirmed,
+            Ordering::Less => TxStatus::Conflicted,
         }
     }
 
