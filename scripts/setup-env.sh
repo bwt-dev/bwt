@@ -76,11 +76,6 @@ EOL
 bitcoind -datadir=$BTC_DIR $BTC_OPTS &
 
 echo - Waiting for bitcoind to warm up...
-if command -v inotifywait > /dev/null; then
-  sed --quiet '/^\.cookie$/ q' <(inotifywait -e create,moved_to --format '%f' -qmr $BTC_DIR)
-else
-  sleep 2
-fi
 btc -rpcwait getblockchaininfo > /dev/null
 echo - Creating watch-only wallet...
 btc createwallet bwt true > /dev/null
@@ -127,7 +122,7 @@ runbwt --network regtest --bitcoind-dir $BTC_DIR --bitcoind-url http://localhost
 pid=$!
 
 echo - Waiting for bwt... "(building may take awhile)"
-sed $([ -n "$PRINT_LOGS" ] || echo "--quiet") '/Electrum RPC server running/ q' <(tail -F -n+0 $DIR/bwt.log 2> /dev/null)
+sed '/Electrum RPC server running/ q' <(tail -F -n+0 $DIR/bwt.log 2> /dev/null)
 
 # these are showing up a lot because of the 1 second interval
 annoying_msgs='syncing mempool transactions|fetching 25 transactions starting at'
