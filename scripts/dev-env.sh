@@ -8,7 +8,7 @@ cat <<EOL
 bwt is running:
 - HTTP API server on http://$BWT_HTTP_ADDR
 - Electrum RPC server on $BWT_ELECTRUM_ADDR
-- Logs at $DIR/bwt.log
+- Logs at $DIR/{bwt,check}.log
 
 You can access bitcoind with:
 $ bitcoin-cli -datadir=$BTC_DIR -rpcwallet=internal <cmd>

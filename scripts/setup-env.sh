@@ -5,7 +5,7 @@ shopt -s expand_aliases
 (command -v electrum && command -v bitcoind && command -v bitcoin-cli) > /dev/null \
   || { echo >&2 "bitcoind, bitcoin-cli and electrum must be installed in PATH"; exit 1; }
 
-: ${FEATURES:=http electrum webhooks track-spends}
+export FEATURES=${FEATURES:-http electrum webhooks track-spends}
 
 if [ -z "$DIR" ]; then
   DIR=`mktemp -d --suffix -bwt-env`
@@ -37,8 +37,10 @@ runbwt () {
     $BWT_BIN "$@" &> $DIR/bwt.log &
   elif [ -z "$NO_WATCH" ] && command -v cargo-watch > /dev/null; then
     echo - Using cargo-watch
-    FEATURES="$FEATURES" ARGS="$@" \
-      cargo-watch -w src -w Cargo.toml -s 'cargo run --no-default-features --features "$FEATURES" -- $ARGS' &> $DIR/bwt.log &
+    # https://github.com/passcod/cargo-watch#restarting-an-application-only-if-the-buildcheck-succeeds
+    touch .trigger
+    ARGS="$@" cargo-watch --no-gitignore -w .trigger -s 'cargo run --no-default-features --features "$FEATURES" -- $ARGS' &> $DIR/bwt.log &
+    cargo-watch --postpone -w src -w Cargo.toml -s 'cargo check --no-default-features --features "$FEATURES" && touch .trigger' &> $DIR/check.log &
   else
     cargo run --no-default-features --features "$FEATURES" -- "$@" &> $DIR/bwt.log &
   fi
