@@ -10,7 +10,7 @@ PRINT_LOGS=1
 source scripts/setup-env.sh
 
 # Send some funds
-addr=`ele1 createnewaddress`
+addr=`ele1 getunusedaddress`
 btc sendtoaddress $addr 1.234 > /dev/null
 btc generatetoaddress 1 `btc getnewaddress` > /dev/null
 btc sendtoaddress $addr 5.678 > /dev/null
@@ -63,8 +63,7 @@ if [[ $FEATURES == *"http"* ]]; then
   test `jq -r .txid <<< "$tx"` == $txid
 
   echo - Testing /address/:address
-  test `get_jq .origin /address/$addr | cut -d/ -f2` == 20
-  # we used `createnewaddress` with 20 prior addresses, which should've gave us the 21st one
+  test `get_jq .origin /address/$addr | cut -d/ -f2` == 0
 
   echo - Testing /address/:address/stats
   test `get_jq .confirmed_balance /address/$addr/stats` == 123400000

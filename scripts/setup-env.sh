@@ -105,8 +105,8 @@ if [ -z "$NO_FUNDING" ]; then
   echo - Sending some funds...
   for i in `seq 1 3`; do
     for n in `seq 4 5`; do
-      btc sendtoaddress `ele1 createnewaddress` $n.$i > /dev/null
-      btc sendtoaddress `ele2 createnewaddress` $i$n > /dev/null
+      btc sendtoaddress `ele1 getunusedaddress` $n.$i > /dev/null
+      btc sendtoaddress `ele2 getunusedaddress` $i$n > /dev/null
     done
     # leave the last round as unconfirmed
     [ $i != 3 ] && btc generatetoaddress $i `btc getnewaddress` > /dev/null
