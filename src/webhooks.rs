@@ -42,7 +42,7 @@ impl WebHookNotifier {
 
     pub fn send_updates(&self, changelog: &[IndexChange]) {
         info!(
-            "sending {} events to {} urls",
+            "sending {} update(s) to {} url(s)",
             changelog.len(),
             self.num_urls
         );

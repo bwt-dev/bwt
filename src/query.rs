@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use anyhow::Context;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -10,7 +9,7 @@ use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{BlockHash, BlockHeader, Network, OutPoint, Txid};
 use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
-use crate::error::{BwtError, OptionExt, Result};
+use crate::error::{BwtError, Context, OptionExt, Result};
 use crate::hd::{HDWallet, KeyOrigin};
 use crate::indexer::{IndexChange, Indexer};
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};

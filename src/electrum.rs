@@ -623,7 +623,7 @@ impl SubscriptionManager {
         }
 
         info!(
-            "sending {} updates to {} rpc clients",
+            "sending {} update(s) to {} rpc client(s)",
             changelog.len(),
             self.subscribers.len()
         );

@@ -17,7 +17,7 @@ pub enum BwtError {
     #[error("Transaction not found: {0}")]
     TxNotFound(Txid),
 
-    #[error("Script hash not found: {0}")]
+    #[error("Address or script hash not found: {0}")]
     ScriptHashNotFound(ScriptHash),
 }
 

@@ -499,7 +499,7 @@ impl HttpServer {
             return;
         }
         info!(
-            "sending {} updates to {} sse clients",
+            "sending {} update(s) to {} sse client(s)",
             changelog.len(),
             listeners.len()
         );

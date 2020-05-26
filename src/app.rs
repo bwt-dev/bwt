@@ -32,7 +32,7 @@ pub struct App {
 
 impl App {
     pub fn boot(config: Config) -> Result<Self> {
-        info!("{:?}", config);
+        debug!("{:?}", config);
 
         let wallets = HDWallet::from_xpubs(
             &config.xpubs[..],
