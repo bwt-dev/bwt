@@ -36,17 +36,26 @@ cargo fmt -- --check
 if [ -z "$SKIP_BUILD" ]; then
   echo Building executables...
   build_bin() {
-    echo "Building $1 with: $2"
+    echo "- Building $1 with: $2"
     cargo build --release --no-default-features --features "$2"
     mkdir -p dist/$1
     mv target/release/bwt dist/$1
     cp README.md LICENSE dist/$1
     (cd dist && tar -czf $1.tar.gz $1)
-    rm -r dist/$1
   }
   rm -rf dist/*
   build_bin "bwt-$version-electrum_only-x86_64-linux" "electrum"
   build_bin "bwt-$version-x86_64-linux" "http electrum webhooks track-spends"
+
+  echo - Building electrum plugin
+  plugin_name=bwt-$version-electrum_plugin-x86_64-linux
+  mkdir dist/$plugin_name
+  cp contrib/electrum-plugin/*.py dist/$plugin_name
+  cp dist/bwt-$version-electrum_only-x86_64-linux/bwt README.md LICENSE dist/$plugin_name
+  # needs to be inside a directory with a name that matches the plugin module name for electrum to load it
+  (cd dist/$plugin_name && tar --transform 's|^\.|bwt|' -cvzf ../$plugin_name.tar.gz .)
+
+  rm -r dist/*/
 
   echo Making SHA256SUMS...
   (cd dist && sha256sum *) | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc

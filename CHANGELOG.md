@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make bwt available as an Electrum plugin! 💥
+
 - HTTP: Implement the `synced-tip` option to catch up with missed events (#6)
 
 - Unite the `History` event into `Txo{Funded,Spent}`

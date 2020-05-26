@@ -17,7 +17,8 @@
 
 - [Intro](#intro)
 - [Setup](#setup)
-  - [Electrum-only mode](#electrum-only-mode)
+  - [Electrum plugin](#electrum-plugin) 💥
+  - [Electrum-only server](#electrum-only-server)
   - [Real-time indexing](#real-time-indexing)
   - [Advanced options](#advanced-options)
 - [HTTP API](#http-api)
@@ -27,10 +28,10 @@
   - [Outputs](#outputs)
   - [Blocks](#blocks)
   - [Mempool & Fees](#mempool--fees)
-  - [Server-Sent Events 🌟](#server-sent-events)
+  - [Server-Sent Events](#server-sent-events) 🌟
   - [Miscellaneous](#miscellaneous)
 - [Web Hooks](#web-hooks)
-- [Developing](#developing)
+- [Developing](#developing) 👩‍💻
 - [Thanks](#thanks)
 
 <sub>*Support development: bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d*</sub>
@@ -54,6 +55,9 @@ The index is currently managed in-memory and does not get persisted (this is exp
 ## Setup
 
 Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficient. `txindex` is not required) and install bwt using one of the methods below.
+
+You can also [install bwt as an Electrum plugin](#electrum-plugin) that embeds the server,
+in which case you can skip the instructions below for setting up a standalone server.
 
 #### Signed pre-built binaries
 
@@ -142,9 +146,24 @@ XPUBS=<xpub1>,<xpub2>
 
 Setting the environment variables directly is also supported.
 
-### Electrum-only mode
+### Electrum plugin
 
-If you're only interested in the Electrum server, you may disable the HTTP API server
+You can setup bwt as an Electrum plugin that embeds the Electrum server into the Electrum wallet.
+
+Download the `electrum_plugin` package from the [releases page](https://github.com/shesek/bwt/releases), verify the signature and unpack into your `electrum/plugins` directory.
+After restarting Electrum, you should see bwt in the list of installed plugins under `Tools -> Plugins`.
+
+The supported Electrum version is 3.3.8.
+The plugin is currently available for Linux.
+
+Note that it is currently not possible to install external plugins with the Electrum AppImage.
+You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
+
+![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
+
+### Electrum-only server
+
+If you're only interested in a standalone Electrum server, you may disable the HTTP API server
 by building bwt with `--no-default-features --features electrum`,
 using the `shesek/bwt:electrum` docker image,
 or downloading the `electrum_only` pre-built binary.
