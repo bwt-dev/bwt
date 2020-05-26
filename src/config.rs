@@ -339,6 +339,7 @@ fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {
 fn parse_rescan(s: &str) -> Result<RescanSince> {
     Ok(match s {
         "none" => RescanSince::Now,
+        "all" => RescanSince::Timestamp(0),
         s => {
             // try as a unix timestamp first, then as a datetime string
             RescanSince::Timestamp(
