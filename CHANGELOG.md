@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1 - 2020-05-27
 
 - Make bwt available as an Electrum plugin! 💥
 
