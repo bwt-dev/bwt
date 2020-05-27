@@ -133,3 +133,37 @@ impl PartialOrd for TxStatus {
         Some(self.cmp(other))
     }
 }
+
+// Needed until a fix gets merged upstream:
+// https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/110
+
+use bitcoin::Amount;
+use bitcoincore_rpc::json::{GetNetworkInfoResultAddress, GetNetworkInfoResultNetwork};
+
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+pub struct GetNetworkInfoResult {
+    pub version: usize,
+    pub subversion: String,
+    #[serde(rename = "protocolversion")]
+    pub protocol_version: usize,
+    #[serde(rename = "localservices")]
+    pub local_services: String,
+    #[serde(rename = "localrelay")]
+    pub local_relay: bool,
+    #[serde(rename = "timeoffset")]
+    pub time_offset: isize,
+    pub connections: usize,
+    #[serde(rename = "networkactive")]
+    pub network_active: bool,
+    pub networks: Vec<GetNetworkInfoResultNetwork>,
+    #[serde(rename = "relayfee", with = "bitcoin::util::amount::serde::as_btc")]
+    pub relay_fee: Amount,
+    #[serde(
+        rename = "incrementalfee",
+        with = "bitcoin::util::amount::serde::as_btc"
+    )]
+    pub incremental_fee: Amount,
+    #[serde(rename = "localaddresses")]
+    pub local_addresses: Vec<GetNetworkInfoResultAddress>,
+    pub warnings: String,
+}
