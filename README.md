@@ -9,18 +9,19 @@
 `bwt` is a lightweight wallet xpub tracker and query engine for Bitcoin, implemented in Rust.
 
 🔸 Personal HD wallet indexer (EPS-like)<br>
-🔸 Electrum RPC server<br>
+🔸 Electrum RPC server (also available as a plugin!)<br>
 🔸 Developer-friendly, modern HTTP REST API<br>
 🔸 Real-time updates with Server-Sent-Events or Web Hooks
 
 > ⚠️ This is early alpha software that is likely to be buggy. Use with care.
 
 - [Intro](#intro)
-- [Setup](#setup)
-  - [Electrum plugin](#electrum-plugin) 💥
+- [Server setup](#server-setup)
+  - [Installation](#installation)
   - [Electrum-only server](#electrum-only-server)
   - [Real-time indexing](#real-time-indexing)
   - [Advanced options](#advanced-options)
+- [Electrum plugin](#electrum-plugin) 💥
 - [HTTP API](#http-api)
   - [HD Wallets](#hd-wallets)
   - [Transactions](#transactions)
@@ -34,7 +35,7 @@
 - [Developing](#developing) 👩‍💻
 - [Thanks](#thanks)
 
-<sub>*Support development: bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d*</sub>
+<sub>*Support development: bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d or [tippin.me](https://tippin.me/@shesek)*</sub>
 
 ## Intro
 
@@ -52,12 +53,14 @@ The index is currently managed in-memory and does not get persisted (this is exp
 *TL;DR: EPS + Rust + Modern HTTP API + Push updates*
 
 
-## Setup
+## Server setup
 
 Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficient. `txindex` is not required) and install bwt using one of the methods below.
 
-You can also [install bwt as an Electrum plugin](#electrum-plugin) that embeds the server,
-in which case you can skip the instructions below for setting up a standalone server.
+### Installation
+
+*New in v0.1.1*: You can now also [install bwt as an Electrum plugin](#electrum-plugin) with an embedded server
+(which doesn't require the standalone server installation described below).
 
 #### Signed pre-built binaries
 
@@ -66,7 +69,7 @@ Available for download on [the releases page](https://github.com/shesek/bwt/rele
 The releases are signed by Nadav Ivgi (@shesek).
 The public key can be verified on [keybase](https://keybase.io/nadav),
 [github](https://api.github.com/users/shesek/gpg_keys),
-[twitter](https://twitter.com/shesek) (under bio) and
+[twitter](https://twitter.com/shesek) and
 [HN](https://news.ycombinator.com/user?id=nadaviv).
 
 ```bash
@@ -146,21 +149,6 @@ XPUBS=<xpub1>,<xpub2>
 
 Setting the environment variables directly is also supported.
 
-### Electrum plugin
-
-You can setup bwt as an Electrum plugin that embeds the Electrum server into the Electrum wallet.
-
-Download the `electrum_plugin` package from the [releases page](https://github.com/shesek/bwt/releases), verify the signature and unpack into your `electrum/plugins` directory.
-After restarting Electrum, you should see bwt in the list of installed plugins under `Tools -> Plugins`.
-
-The supported Electrum version is 3.3.8.
-The plugin is currently available for Linux and Windows.
-
-Note that it is not possible to install external plugins with the Electrum AppImage or standalone Windows executable.
-You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) on Linux, use the Windows installer, or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
-
-![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
-
 ### Electrum-only server
 
 If you're only interested in a standalone Electrum server, you may disable the HTTP API server
@@ -171,6 +159,7 @@ or downloading the `electrum_only` pre-built binary.
 This removes several large dependencies and disables the `track-spends` database index
 (which is not needed for the electrum server).
 
+(Also see the [Electrum plugin](#electrum-plugin).)
 
 ### Real-time indexing
 
@@ -226,6 +215,22 @@ you can specify which wallet to use with `--bitcoind-wallet <name>`.
 It is recommended to use a separate watch-only wallet for bwt (can be created with `bitcoin-cli createwallet bwt true`).
 
 *Note that EPS and bwt should not be run on the same bitcoind wallet with the same xpub, they will conflict.*
+
+
+## Electrum plugin
+
+You can setup bwt as an Electrum plugin that embeds the Electrum server into the Electrum wallet.
+
+Download the `electrum_plugin` package from the [releases page](https://github.com/shesek/bwt/releases), verify the signature and unpack into your `electrum/plugins` directory.
+After restarting Electrum, you should see bwt in the list of installed plugins under `Tools -> Plugins`.
+
+The supported Electrum version is 3.3.8.
+The plugin is currently available for Linux and Windows.
+
+Note that it is not possible to install external plugins with the Electrum AppImage or standalone Windows executable.
+You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) on Linux, use the Windows installer, or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
+
+![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
 
 
 ## HTTP API
