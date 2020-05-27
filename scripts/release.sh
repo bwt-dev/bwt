@@ -35,25 +35,43 @@ cargo fmt -- --check
 
 if [ -z "$SKIP_BUILD" ]; then
   echo Building executables...
-  build_bin() {
-    echo "- Building $1 with: $2"
-    cargo build --release --no-default-features --features "$2"
-    mkdir -p dist/$1
-    mv target/release/bwt dist/$1
-    cp README.md LICENSE dist/$1
-    (cd dist && tar -czf $1.tar.gz $1)
-  }
   rm -rf dist/*
-  build_bin "bwt-$version-electrum_only-x86_64-linux" "electrum"
-  build_bin "bwt-$version-x86_64-linux" "http electrum webhooks track-spends"
+
+  pack() {
+    pname=$1; name=$2; dir=${3:-$2}
+    pushd dist
+    if [ $pname == 'linux' ]; then tar -czhf $name.tar.gz $dir
+    else zip -rq $name.zip $dir; fi
+    popd
+  }
+  build() {
+    pname=$1; name=$2; toolchain=$3; platform=$4; features=$5; ext=$6
+    echo "- Building $name using $toolchain for $platform with features: $features"
+    cargo +$toolchain build --release --target $platform --no-default-features --features "$features"
+    mkdir -p dist/$name
+    mv target/$platform/release/bwt$ext dist/$name
+    cp README.md LICENSE dist/$name
+    pack $pname $name
+  }
+  for cfg in linux,stable,x86_64-unknown-linux-gnu, \
+             win,nightly,x86_64-pc-windows-gnu,.exe; do
+    IFS=',' read pname toolchain platform ext <<< $cfg
+    build $pname bwt-$version-x86_64-$pname $toolchain $platform 'http electrum webhooks track-spends' $ext
+    build $pname bwt-$version-electrum_only-x86_64-$pname $toolchain $platform electrum $ext
+  done
 
   echo - Building electrum plugin
-  plugin_name=bwt-$version-electrum_plugin-x86_64-linux
-  mkdir dist/$plugin_name
-  cp contrib/electrum-plugin/*.py dist/$plugin_name
-  cp dist/bwt-$version-electrum_only-x86_64-linux/bwt README.md LICENSE dist/$plugin_name
-  # needs to be inside a directory with a name that matches the plugin module name for electrum to load it
-  (cd dist/$plugin_name && tar --transform 's|^\.|bwt|' -cvzf ../$plugin_name.tar.gz .)
+  for pname in linux win; do
+    name=bwt-$version-electrum_plugin-x86_64-$pname
+    mkdir dist/$name
+    cp contrib/electrum-plugin/*.py dist/$name
+    cp dist/bwt-$version-electrum_only-x86_64-$pname/bwt* README.md LICENSE dist/$name
+    # needs to be inside a directory with a name that matches the plugin module name for electrum to load it,
+    # create a temporary link to get tar/zip to pack it properly. (can also be done for tar.gz with --transform)
+    ln -s $name dist/bwt
+    pack $pname $name bwt
+    rm dist/bwt
+  done
 
   rm -r dist/*/
 

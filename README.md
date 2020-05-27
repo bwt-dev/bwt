@@ -61,7 +61,7 @@ in which case you can skip the instructions below for setting up a standalone se
 
 #### Signed pre-built binaries
 
-Available for download on [the releases page](https://github.com/shesek/bwt/releases) (Linux only).
+Available for download on [the releases page](https://github.com/shesek/bwt/releases) (Linux and Windows).
 
 The releases are signed by Nadav Ivgi (@shesek).
 The public key can be verified on [keybase](https://keybase.io/nadav),
@@ -154,10 +154,10 @@ Download the `electrum_plugin` package from the [releases page](https://github.c
 After restarting Electrum, you should see bwt in the list of installed plugins under `Tools -> Plugins`.
 
 The supported Electrum version is 3.3.8.
-The plugin is currently available for Linux.
+The plugin is currently available for Linux and Windows.
 
-Note that it is currently not possible to install external plugins with the Electrum AppImage.
-You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
+Note that it is not possible to install external plugins with the Electrum AppImage or standalone Windows executable.
+You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) on Linux, use the Windows installer, or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
 
 ![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
 

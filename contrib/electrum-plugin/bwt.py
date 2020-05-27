@@ -1,7 +1,6 @@
 import subprocess
 import threading
 import platform
-import pathlib
 import socket
 from os import path
 
@@ -28,7 +27,7 @@ class BwtPlugin(BasePlugin):
 
         self.enabled = config.get('bwt_enabled')
         self.bitcoind_url = config.get('bwt_bitcoind_url', default_bitcoind_url())
-        self.bitcoind_dir = config.get('bwt_bitcoind_dir', path.join(pathlib.Path.home(), '.bitcoin'))
+        self.bitcoind_dir = config.get('bwt_bitcoind_dir', default_bitcoind_dir())
         self.bitcoind_wallet = config.get('bwt_bitcoind_wallet')
         self.bitcoind_cred = config.get('bwt_bitcoind_cred')
         self.rescan_since = config.get('bwt_rescan_since', 'all')
@@ -71,7 +70,14 @@ class BwtPlugin(BasePlugin):
         _logger.info('Starting bwt daemon')
         _logger.debug('bwt options: %s' % ' '.join(args))
 
-        self.proc = subprocess.Popen([ bwt_bin ] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if platform.system() == 'Windows':
+            # hide the console window. can be done with subprocess.CREATE_NO_WINDOW in python 3.7.
+            suinfo = subprocess.STARTUPINFO()
+            suinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        else: suinfo = None
+
+        self.proc = subprocess.Popen([ bwt_bin ] + args, startupinfo=suinfo, \
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
         self.thread = threading.Thread(target=proc_logger, args=(self.proc, self.handle_log), daemon=True)
         self.thread.start()
 
@@ -144,6 +150,13 @@ def get_network_name():
 def default_bitcoind_url():
     return 'http://localhost:%d/' % \
       { 'bitcoin': 8332, 'testnet': 18332, 'regtest': 18443 }[get_network_name()]
+
+def default_bitcoind_dir():
+    _logger.info("expand: %s" % path.expandvars('$HOME/.bitcoin'))
+    if platform.system() == 'Windows':
+        return path.expandvars('%APPDATA%\\Bitcoin')
+    else:
+        return path.expandvars('$HOME/.bitcoin')
 
 def free_port():
     with socket.socket() as s:

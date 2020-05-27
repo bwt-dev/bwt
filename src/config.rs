@@ -2,7 +2,6 @@ use std::str::FromStr;
 use std::{env, net, path, time};
 
 use chrono::{TimeZone, Utc};
-use dirs::home_dir;
 use log::Level;
 use pretty_env_logger::env_logger::Builder as LogBuilder;
 use structopt::StructOpt;
@@ -370,10 +369,7 @@ fn parse_duration(s: &str) -> Result<time::Duration> {
 }
 
 fn get_cookie(config: &Config) -> Option<path::PathBuf> {
-    let mut dir = config
-        .bitcoind_dir
-        .clone()
-        .or_else(|| Some(home_dir()?.join(".bitcoin")))?;
+    let mut dir = config.bitcoind_dir.clone().or_else(bitcoind_default_dir)?;
     match config.network {
         Network::Bitcoin => (),
         Network::Testnet => dir.push("testnet3"),
@@ -386,4 +382,12 @@ fn get_cookie(config: &Config) -> Option<path::PathBuf> {
         println!("cookie file not found in {:?}", cookie);
         None
     }
+}
+
+fn bitcoind_default_dir() -> Option<path::PathBuf> {
+    #[cfg(not(windows))]
+    return Some(dirs::home_dir()?.join(".bitcoin"));
+
+    #[cfg(windows)]
+    return Some(dirs::data_dir()?.join("Bitcoin"));
 }
