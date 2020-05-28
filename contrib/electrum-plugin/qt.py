@@ -173,7 +173,7 @@ def show_log(log_t, level, pkg, msg):
     scrollbar = log_t.verticalScrollBar()
     wasOnBottom = scrollbar.value() >= scrollbar.maximum() - 5
 
-    color = { 'ERROR': '#CD0200', 'WARN': '#D47500', 'INFO': '#4BBF73', 'DEBUG': '#2780E3', 'TRACE': '#888'}[level] or 'auto'
+    color = { 'ERROR': '#CD0200', 'WARN': '#D47500', 'INFO': '#4BBF73', 'DEBUG': '#2780E3', 'TRACE': '#888'}.get(level, 'auto')
     frag = '<p><span style="color:%s">%s</span> <strong>%s</strong> » %s</p>' \
            % (color, escape(level), escape(pkg), escape(msg))
     log_t.append(frag)
