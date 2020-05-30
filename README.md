@@ -13,7 +13,7 @@
 🔸 Developer-friendly, modern HTTP REST API<br>
 🔸 Real-time updates with Server-Sent-Events or Web Hooks
 
-> ⚠️ This is early alpha software that is likely to be buggy. Use with care.
+> ⚠️ This is early alpha software that is likely to be buggy. Use with care, preferably on testnet/regtest.
 
 - [Intro](#intro)
 - [Server setup](#server-setup)
@@ -125,7 +125,7 @@ your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 
 You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
 
-Be default, the Electrum server will be bound on port `50001`/`60001`/`60401` (according to the network)
+By default, the Electrum server will be bound on port `50001`/`60001`/`60401` (according to the network)
 and the HTTP server will be bound on port `3060`. This can be controlled with `--electrum-rpc-addr`
 and `--http-server-addr`.
 
@@ -167,7 +167,7 @@ By default, bwt will query bitcoind for new blocks/transactions every 5 seconds.
 This can be adjusted with `--poll-interval <seconds>`.
 
 To get *real* real-time updates, you may configure your bitcoind node to send a `POST /sync` request to the bwt
-http server whenever a new block or a wallet transaction is found, using the `walletnotify` and `blocknotify` options.
+http server whenever a new block or wallet transaction is found, using the `walletnotify` and `blocknotify` options.
 
 Example bitcoind configuration:
 ```
@@ -230,8 +230,9 @@ The plugin is currently available for Linux and Windows.
 Note that it is not possible to install external plugins with the Electrum AppImage or standalone Windows executable.
 You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) on Linux, use the Windows installer, or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
 
-![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
+To build the plugin from source, first build the binary as [described here](#from-source), copy it into the `contrib/electrum-plugin` directory, then place that directory under `electrum/plugins`, *but renamed to `bwt`* (Electrum won't recognize it otherwise).
 
+![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
 
 ## HTTP API
 
@@ -257,7 +258,7 @@ $ curl localhost:3060/hd
 
 {
   "9f0d3265": {
-    "master": "tpubDAfKzTwp5MBqcSM3PUqkGjftNDSgKYtKQNoT6CosG7oGDAKpQWgGmB7t2VBt5a9z2k1u7F7FZnMzDtDmdnUwRcdiVakHXt4n7uXCd8LFJzz",
+    "xpub": "tpubDAfKzTwp5MBqcSM3PUqkGjftNDSgKYtKQNoT6CosG7oGDAKpQWgGmB7t2VBt5a9z2k1u7F7FZnMzDtDmdnUwRcdiVakHXt4n7uXCd8LFJzz",
     "origin": "3f37f4f0/0",
     "network": "regtest",
     ...
@@ -1048,7 +1049,7 @@ data:{"category":"ChainTip","params":[130,"57d17db78d5017c89e86e863a7397c02027f0
 # Disconnected again, this time while a reorg happened
 $ curl localhost:3060/stream?synced-tip=130:57d17db78d5017c89e86e863a7397c02027f09327222feb72cdfe8372644c589
 < HTTP/1.1 410 Gone
-Reorg detected at height 130
+Reorg detected at height 130 (previous=57d17db78d5017c89e86e863a7397c02027f09327222feb72cdfe8372644c589 current=43b482862ba3fc883187f534be1971186b11c534494129397e8a2b4faf4bf2f4)
 
 # Re-sync events from height 110 (N=20 blocks before the reported reorg)
 $ curl localhost:3060/stream?synced-tip=110
