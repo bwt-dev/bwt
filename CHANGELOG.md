@@ -1,11 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 - 2020-05-30
 
-- Electrum plugin: Restore the previous `oneserver` setting when the plugin is disabled,
+- Electrum plugin: restore the previous `oneserver` setting when the plugin is disabled,
   to prevent users from inadvertently connecting to public Electrum servers with this setting still on.
 
 - Electrum plugin: allow specifying additional custom CLI arguments using the GUI
+
+- Electrum plugin: check for permissions before attempting the bind the real-time sync unix socket.
+
+- Make builds over 40% smaller by stripping symbols, which rust apparently doesn't do for release builds.
+  Thanks @elichai for brining this to my attention.
 
 ## 0.1.1 - 2020-05-27
 

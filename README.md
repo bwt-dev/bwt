@@ -73,15 +73,15 @@ The public key can be verified on [keybase](https://keybase.io/nadav),
 [HN](https://news.ycombinator.com/user?id=nadaviv).
 
 ```bash
-$ wget https://github.com/shesek/bwt/releases/download/v0.1.1/bwt-0.1.1-x86_64-linux.tar.gz
+$ wget https://github.com/shesek/bwt/releases/download/v0.1.2/bwt-0.1.2-x86_64-linux.tar.gz
 
 # Verify signature
 $ gpg --keyserver keyserver.ubuntu.com --recv-keys FCF19B67866562F08A43AAD681F6104CD0F150FC
-$ wget -qO - https://github.com/shesek/bwt/releases/download/v0.1.1/SHA256SUMS.asc \
-  | gpg --decrypt - | grep ' bwt-0.1.1-x86_64-linux.tar.gz$' | sha256sum -c -
+$ wget -qO - https://github.com/shesek/bwt/releases/download/v0.1.2/SHA256SUMS.asc \
+  | gpg --decrypt - | grep ' bwt-0.1.2-x86_64-linux.tar.gz$' | sha256sum -c -
 
-$ tar zxvf bwt-0.1.1-x86_64-linux.tar.gz
-$ ./bwt-0.1.1-x86_64-linux/bwt --xpub <xpub> ...
+$ tar zxvf bwt-0.1.2-x86_64-linux.tar.gz
+$ ./bwt-0.1.2-x86_64-linux/bwt --xpub <xpub> ...
 ```
 
 #### From source
