@@ -32,8 +32,8 @@ class BwtPlugin(BasePlugin):
         self.bitcoind_wallet = config.get('bwt_bitcoind_wallet')
         self.bitcoind_cred = config.get('bwt_bitcoind_cred')
         self.rescan_since = config.get('bwt_rescan_since', 'all')
+        self.custom_opt = config.get('bwt_custom_opt')
         self.socket_path = config.get('bwt_socket_path', default_socket_path())
-        self.poll_interval = config.get('bwt_poll_interval', 5)
         self.verbose = config.get('bwt_verbose', 0)
 
         if config.get('bwt_was_oneserver') is None:
@@ -69,6 +69,10 @@ class BwtPlugin(BasePlugin):
 
         for i in range(self.verbose):
             args.append('-v')
+
+        if self.custom_opt:
+            # XXX this doesn't support arguments with spaces. thankfully bwt doesn't currently have any.
+            args.extend(self.custom_opt.split(' '))
 
         self.stop()
         _logger.info('Starting bwt daemon')

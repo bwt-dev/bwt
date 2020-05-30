@@ -85,6 +85,11 @@ class Plugin(BwtPlugin, QObject):
         form.addRow(_('Scan:'), rescan_l)
         form.addRow('', helptext(_('Set to the wallet creation date to reduce scanning time.'), False))
 
+        custom_opt_e = input(self.custom_opt)
+        custom_opt_e.setPlaceholderText('e.g. --gap-limit 50 --poll-interval 1')
+        form.addRow('Options', custom_opt_e)
+        form.addRow('', helptext(_('Additional custom options. Optional.'), False))
+
         verbose_c = QComboBox()
         verbose_c.addItems([ _('info'), _('debug'), _('trace') ])
         verbose_c.setCurrentIndex(self.verbose)
@@ -111,6 +116,7 @@ class Plugin(BwtPlugin, QObject):
             self.bitcoind_cred = str(cred_e.text())
             self.bitcoind_wallet = str(wallet_e.text())
             self.rescan_since = get_rescan_value(rescan_c, rescan_e)
+            self.custom_opt = str(custom_opt_e.text())
             self.verbose = verbose_c.currentIndex()
 
             self.config.set_key('bwt_enabled', self.enabled)
@@ -119,6 +125,7 @@ class Plugin(BwtPlugin, QObject):
             self.config.set_key('bwt_bitcoind_cred', self.bitcoind_cred)
             self.config.set_key('bwt_bitcoind_wallet', self.bitcoind_wallet)
             self.config.set_key('bwt_rescan_since', self.rescan_since)
+            self.config.set_key('bwt_custom_opt', self.custom_opt)
             self.config.set_key('bwt_verbose', self.verbose)
 
             log_t.clear()
