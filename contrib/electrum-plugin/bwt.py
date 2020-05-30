@@ -2,7 +2,7 @@ import subprocess
 import threading
 import platform
 import socket
-from os import path
+import os
 
 from electrum import constants
 from electrum.plugin import BasePlugin, hook
@@ -13,8 +13,9 @@ from electrum.network import Network
 
 _logger = get_logger('plugins.bwt')
 
-bwt_bin = path.join(path.dirname(__file__), 'bwt')
+plugin_dir = os.path.dirname(__file__)
 
+bwt_bin = os.path.join(plugin_dir, 'bwt')
 if platform.system() == 'Windows':
     bwt_bin = '%s.exe' % bwt_bin
 
@@ -31,7 +32,7 @@ class BwtPlugin(BasePlugin):
         self.bitcoind_wallet = config.get('bwt_bitcoind_wallet')
         self.bitcoind_cred = config.get('bwt_bitcoind_cred')
         self.rescan_since = config.get('bwt_rescan_since', 'all')
-        self.socket_path = config.get('bwt_socket_path', path.join(path.dirname(__file__), 'bwt-socket'))
+        self.socket_path = config.get('bwt_socket_path', default_socket_path())
         self.poll_interval = config.get('bwt_poll_interval', 5)
         self.verbose = config.get('bwt_verbose', 0)
 
@@ -56,7 +57,7 @@ class BwtPlugin(BasePlugin):
         if self.bitcoind_wallet:
             args.extend([ '--bitcoind-wallet', self.bitcoind_wallet ])
 
-        if platform.system() == 'Linux':
+        if self.socket_path:
             args.extend([ '--unix-listener-path', self.socket_path ])
 
         for wallet in self.wallets:
@@ -152,11 +153,14 @@ def default_bitcoind_url():
       { 'bitcoin': 8332, 'testnet': 18332, 'regtest': 18443 }[get_network_name()]
 
 def default_bitcoind_dir():
-    _logger.info("expand: %s" % path.expandvars('$HOME/.bitcoin'))
     if platform.system() == 'Windows':
-        return path.expandvars('%APPDATA%\\Bitcoin')
+        return os.path.expandvars('%APPDATA%\\Bitcoin')
     else:
-        return path.expandvars('$HOME/.bitcoin')
+        return os.path.expandvars('$HOME/.bitcoin')
+
+def default_socket_path():
+    if platform.system() == 'Linux' and os.access(plugin_dir, os.W_OK | os.X_OK):
+        return os.path.join(plugin_dir, 'bwt-socket')
 
 def free_port():
     with socket.socket() as s:
