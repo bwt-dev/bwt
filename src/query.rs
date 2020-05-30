@@ -19,8 +19,8 @@ use crate::util::make_fee_histogram;
 #[cfg(feature = "track-spends")]
 use crate::types::InPoint;
 
-const FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(60);
-const FEE_ESTIMATES_TTL: Duration = Duration::from_secs(60);
+const FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(120);
+const FEE_ESTIMATES_TTL: Duration = Duration::from_secs(120);
 
 pub struct Query {
     network: Network,

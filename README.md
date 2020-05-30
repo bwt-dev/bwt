@@ -900,7 +900,7 @@ Returns an array of `(feerate, vsize)` tuples, where each entry's `vsize` is the
 paying more than `feerate` but less than the previous entry's `feerate` (except for the first entry, which has no upper bound).
 This matches the format used by the Electrum RPC protocol for `mempool.get_fee_histogram`.
 
-Cached for one minute.
+Cached for 2 minutes.
 
 Example:
 
@@ -924,7 +924,7 @@ Uses bitcoind's `smartestimatefee`.
 
 Returned in `sat/vB`, or `null` if no estimate is available.
 
-Cached for one minute.
+Cached for 2 minutes.
 
 Example:
 ```
