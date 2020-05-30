@@ -36,6 +36,9 @@ class BwtPlugin(BasePlugin):
         self.poll_interval = config.get('bwt_poll_interval', 5)
         self.verbose = config.get('bwt_verbose', 0)
 
+        if config.get('bwt_was_oneserver') is None:
+            config.set_key('bwt_was_oneserver', config.get('oneserver'))
+
         self.start()
 
     def start(self):
@@ -118,6 +121,12 @@ class BwtPlugin(BasePlugin):
     def close(self):
         BasePlugin.close(self)
         self.stop()
+
+        # restore the user's previous oneserver setting when the plugin is disabled
+        was_oneserver = self.config.get('bwt_was_oneserver')
+        if was_oneserver is not None:
+          self.config.set_key('oneserver', was_oneserver)
+          self.config.set_key('bwt_was_oneserver', None)
 
     def handle_log(self, level, pkg, msg):
         if msg.startswith('Electrum RPC server running'):
