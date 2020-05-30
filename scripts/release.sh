@@ -50,6 +50,7 @@ if [ -z "$SKIP_BUILD" ]; then
     cargo +$toolchain build --release --target $platform --no-default-features --features "$features"
     mkdir -p dist/$name
     mv target/$platform/release/bwt$ext dist/$name
+    strip dist/$name/bwt$ext
     cp README.md LICENSE dist/$name
     pack $pname $name
   }
