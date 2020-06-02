@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2020-06-02
+
+- Electrum: Use dummy SPV proofs to support pruning with the  `--skipmerklecheck` option.
+
 ## 0.1.2 - 2020-05-30
 
 - Electrum plugin: restore the previous `oneserver` setting when the plugin is disabled,
