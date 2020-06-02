@@ -1,7 +1,8 @@
 use bitcoin::Txid;
 use bitcoin_hashes::{sha256d, Hash};
+use bitcoincore_rpc as rpc;
 
-use crate::error::{OptionExt, Result};
+use crate::error::{Error, OptionExt, Result};
 use crate::query::Query;
 
 pub fn get_merkle_proof(
@@ -10,7 +11,13 @@ pub fn get_merkle_proof(
     height: u32,
 ) -> Result<(Vec<sha256d::Hash>, usize)> {
     let block_hash = query.get_block_hash(height)?;
-    let txids = query.get_block_txids(&block_hash)?;
+    let txids = match query.get_block_txids(&block_hash) {
+        Ok(txids) => txids,
+        // if we can't generate the spv proof due to pruning, return a fauxed proof instead of an
+        // error, which electrum will accept when run with --skipmerklecheck.
+        Err(e) if is_pruned_error(&e) => vec![*txid],
+        Err(e) => bail!(e),
+    };
     let pos = txids
         .iter()
         .position(|c_txid| c_txid == txid)
@@ -97,4 +104,13 @@ fn create_merkle_branch_and_root(
             .collect()
     }
     (merkle, hashes[0])
+}
+
+fn is_pruned_error(e: &Error) -> bool {
+    if let Some(e) = e.downcast_ref::<rpc::Error>() {
+        if let rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)) = e {
+            return e.code == -1 && e.message == "Block not available (pruned data)";
+        }
+    }
+    false
 }
