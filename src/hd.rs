@@ -158,9 +158,6 @@ pub struct HDWallet {
     pub done_initial_import: bool,
 }
 
-// TODO figure out the imported indexes, either with listreceivedbyaddress (lots of data)
-// or using getaddressesbylabel and a binary search (lots of requests)
-
 impl HDWallet {
     pub fn new(
         master: ExtendedPubKey,
