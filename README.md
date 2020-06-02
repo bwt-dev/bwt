@@ -19,6 +19,7 @@
 - [Server setup](#server-setup)
   - [Installation](#installation)
   - [Electrum-only server](#electrum-only-server)
+  - [Pruning](#pruning)
   - [Real-time indexing](#real-time-indexing)
   - [Advanced options](#advanced-options)
 - [Electrum plugin](#electrum-plugin) 💥
@@ -160,6 +161,14 @@ This removes several large dependencies and disables the `track-spends` database
 (which is not needed for the electrum server).
 
 (Also see the [Electrum plugin](#electrum-plugin).)
+
+### Pruning
+
+You can use bwt with pruning, but:
+
+1. You will have to provide a rescan date that is within the range of non-pruned blocks, or use `none` to disable rescanning entirely (see [here](#rescan-policy--wallet-birthday)).
+
+2. Electrum needs to be run with `--skipmerklecheck` to tolerate missing SPV proofs for transactions in pruned blocks.
 
 ### Real-time indexing
 
