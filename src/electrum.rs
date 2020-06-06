@@ -97,7 +97,7 @@ impl Connection {
                 json!({
                     "header": header_hex,
                     "root": root.to_hex(),
-                    "branch": map_str(branch),
+                    "branch": branch,
                 })
             }
             None => json!(header_hex),
@@ -135,7 +135,7 @@ impl Connection {
                     get_header_merkle_proof(&self.query, start_height + (count - 1), cp_height)?;
 
                 result["root"] = json!(root.to_hex());
-                result["branch"] = json!(map_str(branch));
+                result["branch"] = json!(branch);
             }
         }
 
@@ -249,7 +249,7 @@ impl Connection {
 
         Ok(json!({
             "block_height": height,
-            "merkle": map_str(merkle),
+            "merkle": merkle,
             "pos": pos,
         }))
     }
@@ -266,7 +266,7 @@ impl Connection {
         } else {
             json!({
                 "tx_hash": txid,
-                "merkle": map_str(merkle),
+                "merkle": merkle,
             })
         })
     }
@@ -425,13 +425,6 @@ fn pad_params(mut params: Value, n: usize) -> Value {
         }
     } // passing a non-array is a noop
     params
-}
-
-fn map_str<T>(items: Vec<T>) -> Vec<String>
-where
-    T: ToString,
-{
-    items.into_iter().map(|item| item.to_string()).collect()
 }
 
 fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
