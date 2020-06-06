@@ -3,6 +3,7 @@ use core::fmt::Display;
 pub use anyhow::{Context, Error, Result};
 
 use bitcoin::{BlockHash, Txid};
+use bitcoincore_rpc as rpc;
 
 use crate::types::ScriptHash;
 
@@ -19,6 +20,15 @@ pub enum BwtError {
 
     #[error("Address or script hash not found: {0}")]
     ScriptHashNotFound(ScriptHash),
+
+    #[error("Blocks unavailable due to pruning")]
+    PrunedBlocks,
+
+    #[error("JSON-RPC connection error: {0}")]
+    Rpc(rpc::Error),
+
+    #[error("JSON-RPC error code {}: {}", .0.code, .0.message)]
+    RpcMessage(rpc::jsonrpc::error::RpcError),
 }
 
 impl BwtError {
@@ -26,7 +36,22 @@ impl BwtError {
     pub fn status_code(&self) -> StatusCode {
         match self {
             BwtError::ReorgDetected(..) => StatusCode::GONE,
-            BwtError::TxNotFound(_) | BwtError::ScriptHashNotFound(_) => StatusCode::NOT_FOUND,
+            BwtError::PrunedBlocks => StatusCode::GONE,
+            BwtError::TxNotFound(_) => StatusCode::NOT_FOUND,
+            BwtError::ScriptHashNotFound(_) => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+impl From<rpc::Error> for BwtError {
+    fn from(err: rpc::Error) -> Self {
+        if let rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(e)) = err {
+            match (e.code, e.message.as_str()) {
+                (-1, "Block not available (pruned data)") => BwtError::PrunedBlocks,
+                _ => BwtError::RpcMessage(e),
+            }
+        } else {
+            BwtError::Rpc(err)
         }
     }
 }

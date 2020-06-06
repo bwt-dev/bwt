@@ -87,7 +87,7 @@ impl Query {
     }
 
     pub fn get_block_txids(&self, blockhash: &BlockHash) -> Result<Vec<Txid>> {
-        let info = self.rpc.get_block_info(blockhash)?;
+        let info = self.rpc.get_block_info(blockhash).map_err(BwtError::from)?;
         Ok(info.tx)
     }
 

@@ -10,7 +10,7 @@ use bitcoin::Txid;
 use bitcoin_hashes::{hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
-use crate::error::{fmt_error_chain, Context, Result};
+use crate::error::{fmt_error_chain, BwtError, Context, Result};
 use crate::indexer::IndexChange;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
@@ -234,7 +234,18 @@ impl Connection {
     fn blockchain_transaction_get_merkle(&self, params: Value) -> Result<Value> {
         let (txid, height): (Txid, u32) = from_value(params)?;
 
-        let (merkle, pos) = get_merkle_proof(&self.query, &txid, height)?;
+        let (merkle, pos) = match get_merkle_proof(&self.query, &txid, height) {
+            Ok(proof) => proof,
+            Err(e) => {
+                if let Some(BwtError::PrunedBlocks) = e.downcast_ref::<BwtError>() {
+                    // if we can't generate the spv proof due to pruning, return a dummy proof instead of an
+                    // error, which electrum will accept when run with --skipmerklecheck.
+                    (vec![], 0)
+                } else {
+                    bail!(e)
+                }
+            }
+        };
 
         Ok(json!({
             "block_height": height,
