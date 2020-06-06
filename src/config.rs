@@ -146,9 +146,9 @@ pub struct Config {
     //addresses: Vec<(String, RescanSince)>,
     #[cfg(feature = "electrum")]
     #[structopt(
-        short,
+        short = "e",
         long,
-        help = "Address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:50001' for testnet or '127.0.0.1:60401' for regtest]",
+        help = "Address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:60001' for testnet or '127.0.0.1:60401' for regtest]",
         env,
         hide_env_values(true),
         display_order(40)
