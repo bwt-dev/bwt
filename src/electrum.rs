@@ -266,10 +266,10 @@ impl Connection {
             | "blockchain.scripthash.subscribe"
             | "blockchain.estimatefee"
             | "mempool.get_fee_histogram" => {
-                trace!("rpc #{} <--- {} {}", id, method, params);
+                trace!("rpc #{} <- {} {}", id, method, params);
             }
             _ => {
-                debug!("rpc #{} <--- {} {}", id, method, params);
+                debug!("rpc #{} <- {} {}", id, method, params);
             }
         }
 
@@ -298,7 +298,7 @@ impl Connection {
 
         Ok(match result {
             Ok(result) => {
-                trace!("rpc #{} ---> {} {}", id, method, result);
+                trace!("rpc #{} -> {} {}", id, method, result);
                 json!({"jsonrpc": "2.0", "id": id, "result": result})
             }
             Err(e) => {

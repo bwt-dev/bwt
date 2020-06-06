@@ -8,6 +8,7 @@ cat <<EOL
 bwt is running:
 - HTTP API server on http://$BWT_HTTP_ADDR
 - Electrum RPC server on $BWT_ELECTRUM_ADDR
+- Bitcoin Core RPC server on 127.0.0.1:$BTC_RPC_PORT
 - Logs at $DIR/{bwt,check}.log
 
 You can access bitcoind with:

@@ -133,6 +133,7 @@ and `--http-server-addr`.
 > ⚠️ Both the HTTP API server and the Electrum server are *unauthenticated and unencrypted.*
 If you're exposing them over the internet, they should be put behind something like an SSH tunnel,
 VPN, or a Tor hidden service.
+([more information](https://www.reddit.com/r/Bitcoin/comments/grlpbm/you_can_now_connect_your_electrum_wallet_directly/fsa7jjd/))
 
 You may set `-v` to increase verbosity or `-vv` to increase it more.
 
