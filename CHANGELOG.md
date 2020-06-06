@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Electrum: Implement `--electrum-skip-merkle` to avoid generating SPV proofs entirely, even when it's possible.
+
 ## 0.1.3 - 2020-06-02
 
 - Electrum: Use dummy SPV proofs to support pruning with the  `--skipmerklecheck` option.

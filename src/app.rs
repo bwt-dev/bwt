@@ -61,7 +61,11 @@ impl App {
         let sync_tx = debounce_sender(sync_tx, DEBOUNCE_SEC);
 
         #[cfg(feature = "electrum")]
-        let electrum = ElectrumServer::start(config.electrum_rpc_addr(), query.clone());
+        let electrum = ElectrumServer::start(
+            config.electrum_rpc_addr(),
+            config.electrum_skip_merkle,
+            query.clone(),
+        );
 
         #[cfg(feature = "http")]
         let http = HttpServer::start(

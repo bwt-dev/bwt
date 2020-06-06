@@ -36,6 +36,7 @@ pub struct Config {
     )]
     pub verbose: usize,
 
+    // XXX this is not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
     #[structopt(
         short = "t",
         long,
@@ -155,6 +156,15 @@ pub struct Config {
     )]
     pub electrum_rpc_addr: Option<net::SocketAddr>,
 
+    // XXX this is not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
+    #[cfg(feature = "electrum")]
+    #[structopt(
+        long,
+        help = "Skip generating merkle proofs. Reduces resource usage, requires running Electrum with --skipmerklecheck",
+        display_order(41)
+    )]
+    pub electrum_skip_merkle: bool,
+
     #[cfg(feature = "http")]
     #[structopt(
         short,
@@ -163,7 +173,7 @@ pub struct Config {
         default_value = "127.0.0.1:3060",
         env,
         hide_env_values(true),
-        display_order(41)
+        display_order(45)
     )]
     pub http_server_addr: net::SocketAddr,
 
@@ -173,7 +183,7 @@ pub struct Config {
         help = "Allowed cross-origins for http api server (Access-Control-Allow-Origin)",
         env,
         hide_env_values(true),
-        display_order(42)
+        display_order(46)
     )]
     pub http_cors: Option<String>,
 

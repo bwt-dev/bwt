@@ -25,6 +25,7 @@ const MAX_HEADERS: u32 = 2016;
 
 struct Connection {
     query: Arc<Query>,
+    skip_merkle: bool,
     stream: TcpStream,
     addr: SocketAddr,
     chan: SyncChannel<Message>,
@@ -35,6 +36,7 @@ struct Connection {
 impl Connection {
     pub fn new(
         query: Arc<Query>,
+        skip_merkle: bool,
         stream: TcpStream,
         addr: SocketAddr,
         subman: Arc<Mutex<SubscriptionManager>>,
@@ -43,6 +45,7 @@ impl Connection {
         let subscriber_id = subman.lock().unwrap().register(chan.sender());
         Connection {
             query,
+            skip_merkle,
             subman,
             subscriber_id,
             stream,
@@ -234,17 +237,22 @@ impl Connection {
     fn blockchain_transaction_get_merkle(&self, params: Value) -> Result<Value> {
         let (txid, height): (Txid, u32) = from_value(params)?;
 
-        let (merkle, pos) = match get_merkle_proof(&self.query, &txid, height) {
-            Ok(proof) => proof,
-            Err(e) => {
-                if let Some(BwtError::PrunedBlocks) = e.downcast_ref::<BwtError>() {
-                    // if we can't generate the spv proof due to pruning, return a dummy proof instead of an
-                    // error, which electrum will accept when run with --skipmerklecheck.
-                    (vec![], 0)
-                } else {
-                    bail!(e)
+        let (merkle, pos) = if !self.skip_merkle {
+            match get_merkle_proof(&self.query, &txid, height) {
+                Ok(proof) => proof,
+                Err(e) => {
+                    if let Some(BwtError::PrunedBlocks) = e.downcast_ref::<BwtError>() {
+                        // if we can't generate the spv proof due to pruning, return a dummy proof instead of an
+                        // error, which electrum will accept when run with --skipmerklecheck.
+                        (vec![], 0)
+                    } else {
+                        bail!(e)
+                    }
                 }
             }
+        } else {
+            // always return dummy SPV proofs when --electrum-skip-merkle is set
+            (vec![], 0)
         };
 
         Ok(json!({
@@ -507,7 +515,7 @@ impl ElectrumServer {
         chan
     }
 
-    pub fn start(addr: SocketAddr, query: Arc<Query>) -> Self {
+    pub fn start(addr: SocketAddr, skip_merkle: bool, query: Arc<Query>) -> Self {
         let notification = Channel::unbounded();
         Self {
             notification: notification.sender(),
@@ -524,7 +532,7 @@ impl ElectrumServer {
                     let subman = subman.clone();
                     children.push(spawn_thread("peer", move || {
                         info!("[{}] connected peer", addr);
-                        let conn = Connection::new(query, stream, addr, subman);
+                        let conn = Connection::new(query, skip_merkle, stream, addr, subman);
                         conn.run();
                         info!("[{}] disconnected peer", addr);
                     }));
