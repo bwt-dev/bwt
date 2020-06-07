@@ -48,14 +48,17 @@ pub fn make_fee_histogram(mempool_entries: HashMap<Txid, Value>) -> Vec<(f32, u3
     histogram
 }
 
-pub fn remove_if<K, V>(hm: &mut HashMap<K, V>, key: K, predicate: impl Fn(&V) -> bool)
+pub fn remove_if<K, V>(hm: &mut HashMap<K, V>, key: K, predicate: impl Fn(&mut V) -> bool) -> bool
 where
     K: Eq + std::hash::Hash,
 {
-    if let Entry::Occupied(entry) = hm.entry(key) {
-        if predicate(entry.get()) {
+    if let Entry::Occupied(mut entry) = hm.entry(key) {
+        if predicate(entry.get_mut()) {
             entry.remove_entry();
         }
+        true
+    } else {
+        false
     }
 }
 

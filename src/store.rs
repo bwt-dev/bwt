@@ -7,9 +7,10 @@ use bitcoin::{Address, OutPoint, Txid};
 
 use crate::hd::KeyOrigin;
 use crate::types::{ScriptHash, TxStatus};
+use crate::util::remove_if;
 
 #[cfg(feature = "track-spends")]
-use crate::{types::InPoint, util::remove_if};
+use crate::types::InPoint;
 
 #[derive(Debug, Serialize, Default)]
 pub struct MemoryStore {
@@ -275,21 +276,22 @@ impl MemoryStore {
                 txid: *txid,
             };
             for scripthash in old_entry.scripthashes() {
-                assert!(self
-                    .scripthashes
-                    .get_mut(scripthash)
-                    .expect("missing expected script entry")
-                    .history
-                    .remove(&old_txhist));
-                // TODO remove the scripthashes entirely if have no more history entries
+                // remove the history entry, and remove the script entry entirely if it has no
+                // remaining history entries
+                let had_entry = remove_if(&mut self.scripthashes, *scripthash, |script_entry| {
+                    assert!(script_entry.history.remove(&old_txhist));
+                    script_entry.history.is_empty()
+                });
+                assert!(had_entry)
             }
 
             #[cfg(feature = "track-spends")]
             for (_, SpendingInfo(_, prevout, _)) in old_entry.spending {
                 // remove prevout spending edge, but only if it still references the purged tx
-                remove_if(&mut self.txo_spends, prevout, |spending_input| {
+                let had_entry = remove_if(&mut self.txo_spends, prevout, |spending_input| {
                     spending_input.txid == *txid
                 });
+                assert!(had_entry)
             }
 
             true
@@ -308,7 +310,6 @@ impl MemoryStore {
 
     #[cfg(feature = "track-spends")]
     pub fn lookup_txo_spend(&self, outpoint: &OutPoint) -> Option<InPoint> {
-        // XXX don't return non-viabla (double-spent) spends?
         self.txo_spends.get(outpoint).copied()
     }
 
@@ -317,9 +318,8 @@ impl MemoryStore {
     }
 
     pub fn has_history(&self, scripthash: &ScriptHash) -> bool {
-        self.scripthashes
-            .get(scripthash)
-            .map_or(false, |script_entry| !script_entry.history.is_empty())
+        // if the scriptentry exists, it must have some history
+        self.scripthashes.contains_key(scripthash)
     }
 
     pub fn get_tx_count(&self, scripthash: &ScriptHash) -> usize {
