@@ -329,18 +329,14 @@ impl Connection {
 
     fn make_notification(&mut self, msg: Message) -> Result<(String, Value)> {
         Ok(match msg {
-            Message::ChainTip(BlockId(tip_height, tip_hash)) => {
-                let hex_header = self.query.get_header_hex(&tip_hash)?;
-                let header = json!({"hex": hex_header, "height": tip_height });
-                ("blockchain.headers.subscribe".into(), json!([header]))
-            }
-            Message::HistoryChange(scripthash) => {
-                let new_status_hash = get_status_hash(&self.query, &scripthash);
-                (
-                    "blockchain.scripthash.subscribe".into(),
-                    json!([scripthash, new_status_hash]),
-                )
-            }
+            Message::ChainTip(height, hex_header) => (
+                "blockchain.headers.subscribe".into(),
+                json!([{"hex": hex_header, "height": height }]),
+            ),
+            Message::HistoryChange(scripthash, new_status_hash) => (
+                "blockchain.scripthash.subscribe".into(),
+                json!([scripthash, new_status_hash]),
+            ),
             _ => unreachable!(),
         })
     }
@@ -370,7 +366,7 @@ impl Connection {
                     };
                     self.send_values(&[reply])?
                 }
-                Message::ChainTip(_) | Message::HistoryChange(_) => {
+                Message::ChainTip(..) | Message::HistoryChange(..) => {
                     let (method, params) = self.make_notification(msg)?;
                     debug!("sending notification {} {}", method, params);
                     self.send_values(&[json!({
@@ -458,11 +454,11 @@ fn electrum_height(status: TxStatus) -> u32 {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Message {
     Request(String),
-    ChainTip(BlockId),
-    HistoryChange(ScriptHash),
+    ChainTip(u32, String), // height, hex header
+    HistoryChange(ScriptHash, StatusHash),
     Done,
 }
 
@@ -486,7 +482,9 @@ impl ElectrumServer {
             for msg in notification.receiver().iter() {
                 match msg {
                     Notification::IndexChangelog(changelog) => {
-                        subman.lock().unwrap().dispatch(changelog);
+                        if let Err(e) = subman.lock().unwrap().dispatch(changelog) {
+                            warn!("failed dispatching events: {:?}", e);
+                        }
                     }
                     Notification::Exit => acceptor.send(None).unwrap(),
                 }
@@ -523,6 +521,7 @@ impl ElectrumServer {
                 let subman = Arc::new(Mutex::new(SubscriptionManager {
                     next_id: 0,
                     subscribers: HashMap::new(),
+                    query: query.clone(),
                 }));
                 let acceptor = Self::start_acceptor(addr);
                 Self::start_notifier(notification, subman.clone(), acceptor.sender());
@@ -592,6 +591,7 @@ impl Drop for ElectrumServer {
 struct SubscriptionManager {
     next_id: usize,
     subscribers: HashMap<usize, Subscriber>,
+    query: Arc<Query>,
 }
 
 struct Subscriber {
@@ -629,9 +629,9 @@ impl SubscriptionManager {
     pub fn remove(&mut self, subscriber_id: usize) {
         self.subscribers.remove(&subscriber_id);
     }
-    pub fn dispatch(&mut self, changelog: Vec<IndexChange>) {
+    pub fn dispatch(&mut self, changelog: Vec<IndexChange>) -> Result<()> {
         if self.subscribers.is_empty() {
-            return;
+            return Ok(());
         }
 
         info!(
@@ -640,34 +640,52 @@ impl SubscriptionManager {
             self.subscribers.len()
         );
 
-        // TODO determine status hash here, so its only computed once when there are multiple
-        // subscribers to the same scripthash. could also send the header hex directly, so
-        // bitcoind is only queried for it once.
+        let mut scripthashes: HashMap<ScriptHash, Option<Option<StatusHash>>> =
+            HashMap::with_capacity(changelog.len());
+        let mut tip_msgs: Vec<Message> = Vec::with_capacity(1); // typically only one, but account for the possibility of more
+        for change in changelog {
+            match change {
+                IndexChange::TxoFunded(_, scripthash, ..)
+                | IndexChange::TxoSpent(_, scripthash, ..) => {
+                    scripthashes.insert(scripthash, None);
+                }
+                IndexChange::ChainTip(BlockId(tip_height, tip_hash)) => {
+                    let hex_header = self.query.get_header_hex(&tip_hash)?;
+                    tip_msgs.push(Message::ChainTip(tip_height, hex_header));
+                }
+                _ => unreachable!(),
+            }
+        }
 
-        // TODO avoid sending the same scripthash more than once (appears in multiple inputs etc)
+        let query = self.query.clone();
 
         self.subscribers.retain(|subscriber_id, subscriber| {
-            for change in &changelog {
-                let msg = match change {
-                    IndexChange::ChainTip(blockid) if subscriber.blocks => {
-                        Message::ChainTip(*blockid)
-                    }
-                    IndexChange::TxoFunded(_, scripthash, ..)
-                    | IndexChange::TxoSpent(_, scripthash, ..)
-                        if subscriber.scripthashes.contains(scripthash) =>
-                    {
-                        Message::HistoryChange(*scripthash)
-                    }
-                    _ => continue,
-                };
-
-                if let Err(TrySendError::Disconnected(_)) = subscriber.sender.try_send(msg) {
-                    warn!("dropping disconnected subscriber #{}", subscriber_id);
-                    return false;
-                }
+            if subscriber.blocks {
+                tip_msgs.clone().into_iter()
+            } else {
+                vec![].into_iter()
             }
-            true
+            .chain(
+                scripthashes
+                    .iter_mut()
+                    .filter(|(scripthash, _)| subscriber.scripthashes.contains(*scripthash))
+                    .filter_map(|(scripthash, status_hash)| {
+                        // calculate the status hash once per script hash and cache it
+                        let status_hash =
+                            status_hash.get_or_insert_with(|| get_status_hash(&query, scripthash));
+                        Some(Message::HistoryChange(*scripthash, (*status_hash)?))
+                    }),
+            )
+            .all(|msg| match subscriber.sender.try_send(msg) {
+                Err(TrySendError::Disconnected(_)) => {
+                    debug!("dropping disconnected subscriber #{}", subscriber_id);
+                    false
+                }
+                Ok(_) | Err(TrySendError::Full(_)) => true,
+            })
         });
+
+        Ok(())
     }
 }
 
