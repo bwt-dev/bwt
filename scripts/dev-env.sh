@@ -26,6 +26,7 @@ if [ -z "$NO_GUI" ]; then
   # disable "Would you like to be notified when there is a newer version of Electrum available?" popup
   # and enable some advanced features
   ele setconfig check_updates false > /dev/null
+  ele setconfig dont_show_testnet_warning true > /dev/null
   for opt in fee addresses_tab utxo_tab console_tab; do ele setconfig show_$opt true > /dev/null; done
 
   ele daemon stop > /dev/null 2>&1
