@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Electrum: Implement `--electrum-skip-merkle` to avoid generating SPV proofs entirely, even when it's possible.
+- Electrum: Implement `--electrum-skip-merkle` to avoid generating SPV proofs entirely, even when it's possible. (#34)
+
+- Indexer: Use `listsinceblock` instead of `listtransactions`. This makes syncing more bandwidth-efficient and simplifies the implementation. (#33)
 
 ## 0.1.3 - 2020-06-02
 
