@@ -5,13 +5,13 @@ use std::str::FromStr;
 use serde::Serialize;
 
 use bitcoin::secp256k1::{self, Secp256k1};
-use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey, Fingerprint};
+use bitcoin::util::bip32::ExtendedPubKey;
 use bitcoin::{util::base58, Address, Network};
-use bitcoincore_rpc::json::{ImportMultiRequest, ImportMultiRequestScriptPubkey};
+use bitcoincore_rpc::json::ImportMultiRequest;
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::error::{Context, Result};
-use crate::types::{RescanSince, ScriptType};
+use crate::types::{Descriptor, DescriptorChecksum, RescanSince, ScriptType};
 
 const LABEL_PREFIX: &str = "bwt";
 
@@ -21,7 +21,7 @@ lazy_static! {
 
 #[derive(Debug)]
 pub struct HDWatcher {
-    wallets: HashMap<Fingerprint, HDWallet>,
+    wallets: HashMap<DescriptorChecksum, HDWallet>,
 }
 
 impl HDWatcher {
@@ -29,25 +29,23 @@ impl HDWatcher {
         HDWatcher {
             wallets: wallets
                 .into_iter()
-                .map(|wallet| (wallet.master.fingerprint(), wallet))
+                .map(|wallet| (wallet.descriptor.checksum(), wallet))
                 .collect(),
         }
-        // XXX indexing by the fingerprint prevents using the same underlying public key with
-        // different script types ([xyz]pub), they will have the same fingerprint and conflict.
     }
 
-    pub fn wallets(&self) -> &HashMap<Fingerprint, HDWallet> {
+    pub fn wallets(&self) -> &HashMap<DescriptorChecksum, HDWallet> {
         &self.wallets
     }
 
-    pub fn get(&self, fingerprint: Fingerprint) -> Option<&HDWallet> {
-        self.wallets.get(&fingerprint)
+    pub fn get(&self, desc_check: DescriptorChecksum) -> Option<&HDWallet> {
+        self.wallets.get(&desc_check)
     }
 
     // Mark an address as funded
     pub fn mark_funded(&mut self, origin: &KeyOrigin) {
-        if let KeyOrigin::Derived(parent_fingerprint, index) = origin {
-            if let Some(wallet) = self.wallets.get_mut(parent_fingerprint) {
+        if let KeyOrigin::Derived(desc_check, index) = origin {
+            if let Some(wallet) = self.wallets.get_mut(desc_check) {
                 if wallet.max_imported_index.map_or(true, |max| *index > max) {
                     wallet.max_imported_index = Some(*index);
                 }
@@ -63,25 +61,25 @@ impl HDWatcher {
     pub fn check_imports(&mut self, rpc: &RpcClient) -> Result<()> {
         debug!("checking previous imports");
         let labels: Vec<String> = rpc.call("listlabels", &[]).map_err(labels_error)?;
-        let mut imported_indexes: HashMap<Fingerprint, u32> = HashMap::new();
+        let mut imported_indexes: HashMap<DescriptorChecksum, u32> = HashMap::new();
         for label in labels {
-            if let Some(KeyOrigin::Derived(fingerprint, index)) = KeyOrigin::from_label(&label) {
-                if self.wallets.contains_key(&fingerprint) {
+            if let Some(KeyOrigin::Derived(desc_check, index)) = KeyOrigin::from_label(&label) {
+                if self.wallets.contains_key(&desc_check) {
                     imported_indexes
-                        .entry(fingerprint)
+                        .entry(desc_check)
                         .and_modify(|current| *current = (*current).max(index))
                         .or_insert(index);
                 }
             }
         }
 
-        for (fingerprint, max_imported_index) in imported_indexes {
+        for (desc_check, max_imported_index) in imported_indexes {
             trace!(
                 "wallet {} was imported up to index {}",
-                fingerprint,
+                desc_check,
                 max_imported_index
             );
-            let wallet = self.wallets.get_mut(&fingerprint).unwrap();
+            let wallet = self.wallets.get_mut(&desc_check).unwrap();
             wallet.max_imported_index = Some(max_imported_index);
 
             // if anything was imported at all, assume we've finished the initial sync. this might
@@ -96,7 +94,7 @@ impl HDWatcher {
         let mut import_reqs = vec![];
         let mut pending_updates = vec![];
 
-        for (fingerprint, wallet) in self.wallets.iter_mut() {
+        for (desc_check, wallet) in self.wallets.iter_mut() {
             let watch_index = wallet.watch_index();
             if wallet.max_imported_index.map_or(true, |i| watch_index > i) {
                 let start_index = wallet
@@ -105,21 +103,21 @@ impl HDWatcher {
 
                 debug!(
                     "importing {} range {}-{} with rescan={}",
-                    fingerprint, start_index, watch_index, rescan,
+                    desc_check, start_index, watch_index, rescan,
                 );
 
                 import_reqs.append(&mut wallet.make_imports(start_index, watch_index, rescan));
 
-                pending_updates.push((wallet, fingerprint, watch_index));
+                pending_updates.push((wallet, desc_check, watch_index));
             } else if !wallet.done_initial_import {
                 debug!(
                     "done initial import for {} up to index {}",
-                    fingerprint,
+                    desc_check,
                     wallet.max_imported_index.unwrap()
                 );
                 wallet.done_initial_import = true;
             } else {
-                trace!("no imports needed for {}", fingerprint);
+                trace!("no imports needed for {}", desc_check);
             }
         }
 
@@ -135,8 +133,8 @@ impl HDWatcher {
             info!("done importing batch");
         }
 
-        for (wallet, fingerprint, imported_index) in pending_updates {
-            debug!("imported {} up to index {}", fingerprint, imported_index);
+        for (wallet, desc_check, imported_index) in pending_updates {
+            debug!("imported {} up to index {}", desc_check, imported_index);
             wallet.max_imported_index = Some(imported_index);
         }
 
@@ -146,9 +144,8 @@ impl HDWatcher {
 
 #[derive(Debug, Clone)]
 pub struct HDWallet {
-    master: ExtendedPubKey,
+    descriptor: Descriptor,
     network: Network,
-    script_type: ScriptType,
     gap_limit: u32,
     initial_import_size: u32,
     rescan_policy: RescanSince,
@@ -160,17 +157,15 @@ pub struct HDWallet {
 
 impl HDWallet {
     pub fn new(
-        master: ExtendedPubKey,
+        descriptor: Descriptor,
         network: Network,
-        script_type: ScriptType,
         gap_limit: u32,
         initial_import_size: u32,
         rescan_policy: RescanSince,
     ) -> Self {
         Self {
-            master,
+            descriptor,
             network,
-            script_type,
             gap_limit,
             // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
             initial_import_size: initial_import_size.max(gap_limit),
@@ -181,111 +176,59 @@ impl HDWallet {
         }
     }
 
-    pub fn from_bare_xpub(
-        xpub: XyzPubKey,
+    pub fn from_descriptors(
+        descriptors: &[(String, RescanSince)],
         network: Network,
         gap_limit: u32,
         initial_import_size: u32,
-        rescan_policy: RescanSince,
-    ) -> Result<Self> {
-        ensure!(
-            xpub.matches_network(network),
-            "xpub network mismatch, {} is {} and not {}",
-            xpub,
-            xpub.network,
-            network
-        );
-        Ok(Self::new(
-            xpub.extended_pubkey,
-            network,
-            xpub.script_type,
-            gap_limit,
-            initial_import_size,
-            rescan_policy,
-        ))
-    }
-
-    pub fn from_xpub(
-        xpub: XyzPubKey,
-        network: Network,
-        gap_limit: u32,
-        initial_import_size: u32,
-        rescan_policy: RescanSince,
-    ) -> Result<Vec<Self>> {
-        ensure!(
-            xpub.matches_network(network),
-            "xpub network mismatch, {} is {} and not {}",
-            xpub,
-            xpub.network,
-            network
-        );
-        Ok(vec![
-            // external chain (receive)
-            Self::new(
-                xpub.extended_pubkey
-                    .derive_pub(&*EC, &[ChildNumber::from(0)])?,
-                network,
-                xpub.script_type,
-                gap_limit,
-                initial_import_size,
-                rescan_policy,
-            ),
-            // internal chain (change)
-            Self::new(
-                xpub.extended_pubkey
-                    .derive_pub(&*EC, &[ChildNumber::from(1)])?,
-                network,
-                xpub.script_type,
-                gap_limit,
-                initial_import_size,
-                rescan_policy,
-            ),
-        ])
-    }
-
-    pub fn from_xpubs(
-        xpubs: &[(XyzPubKey, RescanSince)],
-        bare_xpubs: &[(XyzPubKey, RescanSince)],
-        network: Network,
-        gap_limit: u32,
-        initial_import_size: u32,
+        rpc: &RpcClient,
     ) -> Result<Vec<Self>> {
         let mut wallets = vec![];
-        for (xpub, rescan) in xpubs {
-            wallets.append(
-                &mut Self::from_xpub(
-                    xpub.clone(),
-                    network,
-                    gap_limit,
-                    initial_import_size,
-                    *rescan,
-                )
-                .with_context(|| format!("invalid xpub {}", xpub))?,
-            );
-        }
-        for (xpub, rescan) in bare_xpubs {
+        for (descriptor, rescan) in descriptors {
             wallets.push(
-                Self::from_bare_xpub(
-                    xpub.clone(),
+                Self::from_descriptor(
+                    descriptor.clone(),
                     network,
                     gap_limit,
                     initial_import_size,
                     *rescan,
+                    rpc,
                 )
-                .with_context(|| format!("invalid xpub {}", xpub))?,
+                .with_context(|| format!("invalid descriptor {}", descriptor))?
+                .clone(),
             );
         }
         if wallets.is_empty() {
-            error!("Please provide at least one xpub to track (via --xpub or --bare-xpub).");
-            bail!("no xpubs provided");
+            warn!("Please provide at least one descriptor to track (via --descriptors).");
+            bail!("No descriptors provided");
         }
         Ok(wallets)
     }
 
-    pub fn derive(&self, index: u32) -> ExtendedPubKey {
-        self.master
-            .derive_pub(&*EC, &[ChildNumber::from(index)])
-            .unwrap()
+    pub fn from_descriptor(
+        descriptor: String,
+        network: Network,
+        gap_limit: u32,
+        initial_import_size: u32,
+        rescan_policy: RescanSince,
+        rpc: &RpcClient,
+    ) -> Result<Self> {
+        let descriptor = Descriptor::new(&descriptor, rpc).unwrap();
+        // FIXME
+        //ensure!(
+        //xpub.matches_network(network),
+        //"xpub network mismatch, {} is {} and not {}",
+        //xpub,
+        //xpub.network,
+        //network
+        //);
+        Ok(Self::new(
+            descriptor,
+            network,
+            gap_limit,
+            initial_import_size,
+            rescan_policy,
+        ))
     }
 
     /// Returns the maximum index that needs to be watched
@@ -305,7 +248,7 @@ impl HDWallet {
         start_index: u32,
         end_index: u32,
         rescan: bool,
-    ) -> Vec<(Address, RescanSince, String)> {
+    ) -> Vec<(Descriptor, u32, String, RescanSince)> {
         let rescan_since = if rescan {
             self.rescan_policy
         } else {
@@ -314,24 +257,15 @@ impl HDWallet {
 
         (start_index..=end_index)
             .map(|index| {
-                let key = self.derive(index);
-                let address = self.to_address(&key);
-                let origin = KeyOrigin::Derived(key.parent_fingerprint, index);
-                (address, rescan_since, origin.to_label())
+                let label = format!("{}/{}", self.descriptor.checksum(), index);
+                (self.descriptor.clone(), index, label, rescan_since)
             })
             .collect()
     }
 
-    pub fn to_address(&self, key: &ExtendedPubKey) -> Address {
-        match self.script_type {
-            ScriptType::P2pkh => Address::p2pkh(&key.public_key, self.network),
-            ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, self.network),
-            ScriptType::P2shP2wpkh => Address::p2shwpkh(&key.public_key, self.network),
-        }
-    }
-
-    pub fn derive_address(&self, index: u32) -> Address {
-        self.to_address(&self.derive(index))
+    pub fn derive_address(&self, index: u32, rpc: &RpcClient) -> Result<Address> {
+        let res = rpc.derive_addresses(&self.descriptor.0, Some([index, index]))?;
+        Ok(res[0].to_owned())
     }
 
     pub fn get_next_index(&self) -> u32 {
@@ -339,24 +273,23 @@ impl HDWallet {
             .map_or(0, |max_funded_index| max_funded_index + 1)
     }
 }
-fn batch_import(rpc: &RpcClient, import_reqs: Vec<(Address, RescanSince, String)>) -> Result<()> {
-    // XXX use importmulti with ranged descriptors? the key derivation info won't be
-    //     directly available on `listtransactions` and would require an additional rpc all.
-
+fn batch_import(
+    rpc: &RpcClient,
+    import_reqs: Vec<(Descriptor, u32, String, RescanSince)>,
+) -> Result<()> {
     let results = rpc.import_multi(
         &import_reqs
             .iter()
-            .map(|(address, rescan, label)| {
-                trace!("importing {} as {}", address, label,);
-
-                ImportMultiRequest {
+            .map(
+                |(descriptor, index, label, rescan_since)| ImportMultiRequest {
                     label: Some(&label),
                     watchonly: Some(true),
-                    timestamp: *rescan,
-                    script_pubkey: Some(ImportMultiRequestScriptPubkey::Address(&address)),
+                    timestamp: *rescan_since,
+                    range: Some((*index as usize, *index as usize)),
+                    descriptor: Some(&descriptor.0),
                     ..Default::default()
-                }
-            })
+                },
+            )
             .collect::<Vec<_>>(),
         None,
     )?;
@@ -375,10 +308,10 @@ fn batch_import(rpc: &RpcClient, import_reqs: Vec<(Address, RescanSince, String)
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum KeyOrigin {
-    Derived(Fingerprint, u32),
+    Derived(DescriptorChecksum, u32),
     Standalone,
     // bwt never does hardended derivation itself, but can receive an hardend --bare-xpub
-    DerivedHard(Fingerprint, u32),
+    DerivedHard(DescriptorChecksum, u32),
 }
 
 impl_string_serializer!(
@@ -386,11 +319,11 @@ impl_string_serializer!(
     origin,
     match origin {
         KeyOrigin::Standalone => "standalone".into(),
-        KeyOrigin::Derived(parent_fingerprint, index) => {
-            format!("{}/{}", parent_fingerprint, index)
+        KeyOrigin::Derived(parent_desc_check, index) => {
+            format!("{}/{}", parent_desc_check, index)
         }
-        KeyOrigin::DerivedHard(parent_fingerprint, index) => {
-            format!("{}/{}'", parent_fingerprint, index)
+        KeyOrigin::DerivedHard(parent_desc_check, index) => {
+            format!("{}/{}'", parent_desc_check, index)
         }
     }
 );
@@ -398,9 +331,12 @@ impl_string_serializer!(
 impl KeyOrigin {
     pub fn to_label(&self) -> String {
         match self {
-            KeyOrigin::Derived(parent_fingerprint, index) => {
-                format!("{}/{}/{}", LABEL_PREFIX, parent_fingerprint, index)
-            }
+            KeyOrigin::Derived(parent_desc_check, index) => format!(
+                "{}/{}/{}",
+                LABEL_PREFIX,
+                hex::encode(parent_desc_check.0.as_bytes()),
+                index
+            ),
             KeyOrigin::Standalone => LABEL_PREFIX.into(),
             KeyOrigin::DerivedHard(..) => unreachable!(),
         }
@@ -409,24 +345,12 @@ impl KeyOrigin {
     pub fn from_label(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.splitn(3, '/').collect();
         match (parts.get(0), parts.get(1), parts.get(2)) {
-            (Some(&LABEL_PREFIX), Some(parent), Some(index)) => Some(KeyOrigin::Derived(
-                Fingerprint::from_str(parent).ok()?,
+            (Some(parent), Some(index), None) => Some(KeyOrigin::Derived(
+                DescriptorChecksum(parent.to_string()),
                 index.parse().ok()?,
             )),
             (Some(&LABEL_PREFIX), None, None) => Some(KeyOrigin::Standalone),
             _ => None,
-        }
-    }
-
-    pub fn from_extkey(key: &ExtendedPubKey) -> Self {
-        let parent = key.parent_fingerprint;
-        if parent[..] == [0, 0, 0, 0] {
-            KeyOrigin::Standalone
-        } else {
-            match key.child_number {
-                ChildNumber::Normal { index } => KeyOrigin::Derived(parent, index),
-                ChildNumber::Hardened { index } => KeyOrigin::DerivedHard(parent, index),
-            }
         }
     }
 
@@ -526,10 +450,8 @@ impl Serialize for HDWallet {
         S: serde::Serializer,
     {
         let mut rgb = serializer.serialize_struct("HDWallet", 3)?;
-        rgb.serialize_field("xpub", &self.master)?;
-        rgb.serialize_field("origin", &KeyOrigin::from_extkey(&self.master))?;
+        rgb.serialize_field("descriptor", &self.descriptor.0)?;
         rgb.serialize_field("network", &self.network)?;
-        rgb.serialize_field("script_type", &self.script_type)?;
         rgb.serialize_field("gap_limit", &self.gap_limit)?;
         rgb.serialize_field("initial_import_size", &self.initial_import_size)?;
         rgb.serialize_field("rescan_policy", &self.rescan_policy)?;

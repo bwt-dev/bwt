@@ -5,7 +5,6 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::Value;
 
-use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{BlockHash, BlockHeader, Network, OutPoint, Txid};
 use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
@@ -17,7 +16,7 @@ use crate::types::{BlockId, MempoolEntry, ScriptHash, TxStatus};
 use crate::util::make_fee_histogram;
 
 #[cfg(feature = "track-spends")]
-use crate::types::InPoint;
+use crate::types::{DescriptorChecksum, InPoint};
 
 const FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(120);
 const FEE_ESTIMATES_TTL: Duration = Duration::from_secs(120);
@@ -415,38 +414,43 @@ impl Query {
     // HD Wallets
     //
 
-    pub fn get_hd_wallets(&self) -> HashMap<Fingerprint, HDWallet> {
+    pub fn get_hd_wallets(&self) -> HashMap<DescriptorChecksum, HDWallet> {
         self.indexer.read().unwrap().watcher().wallets().clone()
     }
 
-    pub fn get_hd_wallet(&self, fingerprint: Fingerprint) -> Option<HDWallet> {
+    pub fn get_hd_wallet(&self, desc_check: DescriptorChecksum) -> Option<HDWallet> {
         self.indexer
             .read()
             .unwrap()
             .watcher()
-            .get(fingerprint)
+            .get(desc_check)
             .cloned()
     }
 
     // get the ScriptInfo entry of a derived hd key, without it necessarily being indexed
-    pub fn get_hd_script_info(&self, fingerprint: Fingerprint, index: u32) -> Option<ScriptInfo> {
+    pub fn get_hd_script_info(
+        &self,
+        desc_check: DescriptorChecksum,
+        index: u32,
+    ) -> Option<ScriptInfo> {
         let indexer = self.indexer.read().unwrap();
-        let wallet = indexer.watcher().get(fingerprint)?;
-        let key = wallet.derive(index);
-        let address = wallet.to_address(&key);
+        let wallet = indexer.watcher().get(desc_check.clone());
+        let address = wallet.unwrap().derive_address(index, &self.rpc).unwrap();
         let scripthash = ScriptHash::from(&address);
-        let origin = KeyOrigin::Derived(fingerprint, index);
+        let origin = KeyOrigin::Derived(desc_check.clone(), index);
         Some(ScriptInfo::new(scripthash, address, origin))
     }
 
-    pub fn find_hd_gap(&self, fingerprint: Fingerprint) -> Option<usize> {
+    pub fn find_hd_gap(&self, desc_check: DescriptorChecksum) -> Option<usize> {
         let indexer = self.indexer.read().unwrap();
         let store = indexer.store();
-        let wallet = indexer.watcher().get(fingerprint)?;
+        let wallet = indexer.watcher().get(desc_check)?;
         let max_funded_index = wallet.max_funded_index?; // return None if this wallet has no history at all
 
         let gap = (0..=max_funded_index)
-            .map(|derivation_index| ScriptHash::from(&wallet.derive_address(derivation_index)))
+            .map(|derivation_index| {
+                ScriptHash::from(&wallet.derive_address(derivation_index, &self.rpc).unwrap())
+            })
             .fold((0, 0), |(curr_gap, max_gap), scripthash| {
                 if store.has_history(&scripthash) {
                     (0, curr_gap.max(max_gap))

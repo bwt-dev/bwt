@@ -9,12 +9,11 @@ use warp::http::{header, StatusCode};
 use warp::sse::ServerSentEvent;
 use warp::{reply, Filter, Reply};
 
-use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{Address, BlockHash, OutPoint, Txid};
 use bitcoin_hashes::hex::FromHex;
 
 use crate::error::{fmt_error_chain, BwtError, Error, OptionExt};
-use crate::types::{BlockId, ScriptHash};
+use crate::types::{BlockId, DescriptorChecksum, ScriptHash};
 use crate::{store, IndexChange, Query};
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
@@ -53,11 +52,11 @@ async fn run(
 
     // GET /hd/:fingerprint
     let hd_wallet_handler = warp::get()
-        .and(warp::path!("hd" / Fingerprint))
+        .and(warp::path!("hd" / DescriptorChecksum))
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, query: Arc<Query>| {
+        .map(|desc_check: DescriptorChecksum, query: Arc<Query>| {
             let wallet = query
-                .get_hd_wallet(fingerprint)
+                .get_hd_wallet(desc_check)
                 .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&wallet))
         })
@@ -65,23 +64,25 @@ async fn run(
 
     // GET /hd/:fingerprint/:index
     let hd_key_handler = warp::get()
-        .and(warp::path!("hd" / Fingerprint / u32))
+        .and(warp::path!("hd" / DescriptorChecksum / u32))
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
-            let script_info = query
-                .get_hd_script_info(fingerprint, index)
-                .or_err(StatusCode::NOT_FOUND)?;
-            Ok(reply::json(&script_info))
-        })
+        .map(
+            |desc_check: DescriptorChecksum, index: u32, query: Arc<Query>| {
+                let script_info = query
+                    .get_hd_script_info(desc_check, index)
+                    .or_err(StatusCode::NOT_FOUND)?;
+                Ok(reply::json(&script_info))
+            },
+        )
         .map(handle_error);
 
     // GET /hd/:fingerprint/gap
     let hd_gap_handler = warp::get()
-        .and(warp::path!("hd" / Fingerprint / "gap"))
+        .and(warp::path!("hd" / DescriptorChecksum / "gap"))
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, query: Arc<Query>| {
+        .map(|desc_check: DescriptorChecksum, query: Arc<Query>| {
             let gap = query
-                .find_hd_gap(fingerprint)
+                .find_hd_gap(desc_check)
                 .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&gap))
         })
@@ -89,14 +90,14 @@ async fn run(
 
     // GET /hd/:fingerprint/next
     let hd_next_handler = warp::get()
-        .and(warp::path!("hd" / Fingerprint / "next"))
+        .and(warp::path!("hd" / DescriptorChecksum / "next"))
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, query: Arc<Query>| {
+        .map(|desc_check: DescriptorChecksum, query: Arc<Query>| {
             let wallet = query
-                .get_hd_wallet(fingerprint)
+                .get_hd_wallet(desc_check.clone())
                 .or_err(StatusCode::NOT_FOUND)?;
             let next_index = wallet.get_next_index();
-            let uri = format!("/hd/{}/{}", fingerprint, next_index);
+            let uri = format!("/hd/{}/{}", desc_check.clone(), next_index);
             // issue a 307 redirect to the hdkey resource uri, and also include the derivation
             // index in the response
             Ok(reply::with_header(
@@ -115,14 +116,16 @@ async fn run(
     // TODO check address version bytes matches the configured network
 
     // GET /hd/:fingerprint/:index/*
-    let hd_key_route = warp::path!("hd" / Fingerprint / u32 / ..)
+    let hd_key_route = warp::path!("hd" / DescriptorChecksum / u32 / ..)
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
-            let script_info = query
-                .get_hd_script_info(fingerprint, index)
-                .or_err(StatusCode::NOT_FOUND)?;
-            Ok(script_info.scripthash)
-        })
+        .map(
+            |desc_check: DescriptorChecksum, index: u32, query: Arc<Query>| {
+                let script_info = query
+                    .get_hd_script_info(desc_check, index)
+                    .or_err(StatusCode::NOT_FOUND)?;
+                Ok(script_info.scripthash)
+            },
+        )
         .and_then(reject_error);
 
     let spk_route = address_route

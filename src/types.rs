@@ -1,10 +1,14 @@
 use std::cmp::Ordering;
+use std::fmt;
+use std::str::FromStr;
 
 use serde::Serialize;
 
+use crate::error::BwtError;
 use bitcoin::{Address, BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
 pub use bitcoincore_rpc::json::ImportMultiRescanSince as RescanSince;
+use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::bitcoincore_ext::GetMempoolEntryResult;
 
@@ -178,5 +182,37 @@ impl From<GetMempoolEntryResult> for MempoolEntry {
             ancestor_fee: entry.fees.ancestor.as_sat(),
             bip125_replaceable: entry.bip125_replaceable,
         }
+    }
+}
+
+#[derive(Serialize, Clone, Eq, PartialEq, Debug, Hash)]
+pub struct DescriptorChecksum(pub String);
+
+impl FromStr for DescriptorChecksum {
+    type Err = BwtError;
+    fn from_str(s: &str) -> Result<DescriptorChecksum, Self::Err> {
+        Ok(DescriptorChecksum(s.to_string()))
+    }
+}
+
+#[derive(Serialize, Clone, Eq, PartialEq, Debug, Hash)]
+pub struct Descriptor(pub String);
+
+impl Descriptor {
+    pub fn new(descriptor: &str, rpc: &RpcClient) -> Result<Self, BwtError> {
+        // TODO: what to do about non-ranged descriptors?
+        let info = rpc.get_descriptor_info(descriptor).unwrap();
+        Ok(Self(info.descriptor))
+    }
+
+    pub fn checksum(&self) -> DescriptorChecksum {
+        // This assumes that the descriptor is legit ...
+        DescriptorChecksum(self.0.split("#").collect::<Vec<_>>()[1].to_string())
+    }
+}
+
+impl fmt::Display for DescriptorChecksum {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }

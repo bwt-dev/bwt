@@ -97,6 +97,16 @@ pub struct Config {
     pub bitcoind_cookie: Option<path::PathBuf>,
 
     #[structopt(
+        short = "D",
+        long = "descriptors",
+        help = "descriptors to track and since when (rescans from genesis by default, use <desc>:<yyyy-mm-dd> or <desc>:<unix-epoch> to specify a timestmap, or <desc>:none to disable rescan)",
+        parse(try_from_str = parse_descriptor),
+        env, hide_env_values(true), use_delimiter(true),
+        display_order(20)
+    )]
+    pub descriptors: Vec<(String, RescanSince)>,
+
+    #[structopt(
         short = "x",
         long = "xpub",
         help = "xpubs to track and since when (rescans from genesis by default, use <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch> to specify a timestmap, or <xpub>:none to disable rescan)",
@@ -344,6 +354,16 @@ fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {
         .next()
         .map_or(Ok(RescanSince::Timestamp(0)), parse_rescan)?;
     Ok((xpub, rescan))
+}
+
+fn parse_descriptor(s: &str) -> Result<(String, RescanSince)> {
+    let mut parts = s.splitn(2, ':');
+    let descriptor = String::from(parts.next().unwrap());
+    let rescan = parts
+        .next()
+        .map_or(Ok(RescanSince::Timestamp(0)), parse_rescan)
+        .unwrap();
+    Ok((descriptor, rescan))
 }
 
 fn parse_rescan(s: &str) -> Result<RescanSince> {
