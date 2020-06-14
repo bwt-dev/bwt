@@ -3,6 +3,7 @@ import threading
 import platform
 import socket
 import os
+import re
 
 from electrum import constants
 from electrum.plugin import BasePlugin, hook
@@ -171,10 +172,10 @@ def proc_logger(proc, log_handler):
         line = line.decode('utf-8').strip()
         _logger.debug(line)
 
-        if '::' in line and '>' in line:
-            level, _, line = line.partition(' ')
-            pkg, _, msg = line.partition('>')
-            log_handler(level, pkg.strip(), msg.strip())
+        m = re.match(r"^(ERROR|WARN|INFO|DEBUG|TRACE) ([^ ]+) +> (.*)", line)
+
+        if m is not None:
+            log_handler(*m.groups())
         elif line.lower().startswith('error: '):
             log_handler('ERROR', 'bwt', line[7:])
         else:
