@@ -66,6 +66,7 @@ cat >$BTC_DIR/bitcoin.conf <<EOL
 regtest=1
 printtoconsole=0
 nolisten=1
+fallbackfee=0.00001
 
 blocknotify=nc -U $BWT_SOCKET > /dev/null 2>&1
 walletnotify=nc -U $BWT_SOCKET > /dev/null 2>&1
