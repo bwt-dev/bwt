@@ -20,11 +20,12 @@ if platform.system() == 'Windows':
     bwt_bin = '%s.exe' % bwt_bin
 
 class BwtPlugin(BasePlugin):
+    wallets = set()
+    proc = None
+    prev_settings = None
 
     def __init__(self, parent, config, name):
         BasePlugin.__init__(self, parent, config, name)
-        self.proc = None
-        self.wallets = set()
 
         self.enabled = config.get('bwt_enabled')
         self.bitcoind_url = config.get('bwt_bitcoind_url', default_bitcoind_url())
@@ -36,14 +37,15 @@ class BwtPlugin(BasePlugin):
         self.socket_path = config.get('bwt_socket_path', default_socket_path())
         self.verbose = config.get('bwt_verbose', 0)
 
-        if config.get('bwt_was_oneserver') is None:
-            config.set_key('bwt_was_oneserver', config.get('oneserver'))
-
-        self.start()
+        if self.enabled:
+            self.set_config()
+            self.start()
 
     def start(self):
         if not self.enabled or not self.wallets:
             return
+
+        self.stop()
 
         self.rpc_port = free_port()
 
@@ -52,6 +54,7 @@ class BwtPlugin(BasePlugin):
             '--bitcoind-url', self.bitcoind_url,
             '--bitcoind-dir', self.bitcoind_dir,
             '--electrum-rpc-addr', '127.0.0.1:%d' % self.rpc_port,
+            '--electrum-skip-merkle',
         ]
 
         if self.bitcoind_cred:
@@ -74,8 +77,9 @@ class BwtPlugin(BasePlugin):
             # XXX this doesn't support arguments with spaces. thankfully bwt doesn't currently have any.
             args.extend(self.custom_opt.split(' '))
 
-        self.stop()
-        _logger.info('Starting bwt daemon')
+        self.set_config()
+
+        _logger.info('Starting the bwt daemon')
         _logger.debug('bwt options: %s' % ' '.join(args))
 
         if platform.system() == 'Windows':
@@ -91,12 +95,34 @@ class BwtPlugin(BasePlugin):
 
     def stop(self):
         if self.proc:
-            _logger.info('Stopping bwt daemon')
+            _logger.info('Stopping the bwt daemon')
             self.proc.terminate()
             self.proc = None
             self.thread = None
 
+    # enable oneserver/skipmerklecheck and disable manual server selection
+    def set_config(self):
+        if self.prev_settings: return # run once
+
+        self.prev_settings = { setting: self.config.cmdline_options.get(setting)
+                               for setting in [ 'oneserver', 'skipmerklecheck', 'server' ] }
+
+        # setting `oneserver`/`skipmerklecheck` directly on `cmdline_options` keeps the settings in-memory only without
+        # persisting them to the config file, reducing the chance of accidentally leaving them on with public servers.
+        self.config.cmdline_options['oneserver'] = True
+
+        # for `skipmerklecheck`, this is also the only way to set it an runtime prior to v4 (see https://github.com/spesmilo/electrum/commit/61ccc1ccd3a437d98084089f1d4014ba46c96e3b)
+        self.config.cmdline_options['skipmerklecheck'] = True
+
+        # set a dummy server so electrum won't attempt connecting to other servers on startup. setting this
+        # in `cmdline_options` also prevents the user from switching servers using the gui, which further reduces
+        # the chance of accidentally connecting to public servers with inappropriate settings.
+        self.config.cmdline_options['server'] = '127.0.0.1:1:t'
+
     def set_server(self):
+        # first, remove the `server` config to allow `set_parameters()` below to update it and trigger the connection mechanism
+        del self.config.cmdline_options['server']
+
         network = Network.get_instance()
         net_params = network.get_parameters()._replace(
             host='127.0.0.1',
@@ -105,6 +131,9 @@ class BwtPlugin(BasePlugin):
             oneserver=True,
         )
         network.run_from_another_thread(network.set_parameters(net_params))
+
+        # now set the server in `cmdline_options` to lock it in
+        self.config.cmdline_options['server'] = '127.0.0.1:%s:t' % self.rpc_port
 
     @hook
     def load_wallet(self, wallet, main_window):
@@ -126,11 +155,12 @@ class BwtPlugin(BasePlugin):
         BasePlugin.close(self)
         self.stop()
 
-        # restore the user's previous oneserver setting when the plugin is disabled
-        was_oneserver = self.config.get('bwt_was_oneserver')
-        if was_oneserver is not None:
-          self.config.set_key('oneserver', was_oneserver)
-          self.config.set_key('bwt_was_oneserver', None)
+        # restore the user's previous settings when the plugin is disabled
+        if self.prev_settings:
+            for setting, prev_value in self.prev_settings.items():
+                if prev_value is None: self.config.cmdline_options.pop(setting, None)
+                else: self.config.cmdline_options[setting] = prev_value
+            self.prev_settings = None
 
     def handle_log(self, level, pkg, msg):
         if msg.startswith('Electrum RPC server running'):

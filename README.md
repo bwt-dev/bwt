@@ -171,7 +171,9 @@ You can use bwt with pruning, but:
 
 2. Electrum needs to be run with `--skipmerklecheck` to tolerate missing SPV proofs for transactions in pruned blocks.
 
-If you're running Electrum with `--skipmerklecheck`, you may also configure bwt with `--electrum-skip-merkle` to save some resource by not generating SPV proofs even when it's possible.
+> If you're running Electrum with `--skipmerklecheck`, you may also configure bwt with `--electrum-skip-merkle` to save some resources by not generating SPV proofs even when it's possible.
+>
+> Both of these settings are automatically enabled when using the Electrum plugin.
 
 ### Real-time indexing
 
