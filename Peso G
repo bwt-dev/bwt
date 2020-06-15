@@ -1,0 +1,430 @@
+Bitcoin Wallet Tracker
+Estado de compilación Crates.io Lanzamiento de Docker Licencia MIT Pull Requests Bienvenido
+
+bwt es un rastreador ligero de billetera xpub y un motor de consulta para Bitcoin, implementado en Rust.
+
+🔸 Indizador de billetera personal HD (similar a EPS)
+🔸 Servidor Electrum RPC (¡también disponible como complemento!)
+🔸 API HTTP REST moderna y fácil de desarrollar
+🔸 Actualizaciones en tiempo real con Server-Sent-Events o Web Hooks
+
+⚠️Este es un software alfa temprano que probablemente tenga errores. Usar con cuidado, preferiblemente en testnet / regtest.
+
+Introducción
+Configuración del servidor
+Instalación
+Servidor Electrum-only
+Poda
+Indexación en tiempo real
+Opciones avanzadas
+Complemento Electrum 💥
+API HTTP
+Carteras HD
+Actas
+Direcciones
+Salidas
+Bloques
+Mempool y tarifas
+Eventos enviados por el servidor 🌟
+Diverso
+Ganchos Web
+Desarrollando 👩‍💻
+Gracias
+Desarrollo de soporte: bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d o tippin.me
+
+Introducción
+bwtes un indexador de billetera HD liviano y de alto rendimiento respaldado por un nodo completo de bitcoin, que usa un modelo similar al del Servidor Personal Electrum. Puede servir como una alternativa personal a los servidores públicos de Electrum o aplicaciones de bitcoins de energía como backends de billetera, procesadores de pago y más.
+
+Utiliza bitcoind para realizar un seguimiento de las direcciones de su billetera (derivadas de su xpub (s)) y crea un índice de su historial que puede consultarse utilizando el protocolo Electrum RPC o utilizando la API HTTP personalizada de bwt .
+
+Las actualizaciones en tiempo real están disponibles a través de eventos enviados por el servidor (una conexión HTTP de larga duración), o mediante actualizaciones push de Web Hooks (una solicitud HTTP enviada a su URL con el evento).
+
+El índice se gestiona actualmente en la memoria y no se conserva (se espera que esto cambie), pero construirlo es bastante rápido: bwt puede indexar miles de transacciones en cuestión de segundos.
+
+TL; DR: EPS + Rust + Modern HTTP API + Actualizaciones push
+
+Configuración del servidor
+Consiga un nodo Bitcoin Core sincronizado (se recomienda v0.19, v0.17 es suficiente. txindexNo es necesario) e instale bwt usando uno de los métodos a continuación.
+
+Instalación
+Nuevo en v0.1.1 : ahora también puede instalar bwt como un complemento de Electrum con un servidor incorporado (que no requiere la instalación del servidor independiente que se describe a continuación).
+
+Binarios preconstruidos firmados
+Disponible para descargar en la página de versiones (Linux y Windows).
+
+Los lanzamientos están firmados por Nadav Ivgi (@shesek). La clave pública se puede verificar en keybase , github , twitter y HN .
+
+$ wget https://github.com/shesek/bwt/releases/download/v0.1.3/bwt-0.1.3-x86_64-linux.tar.gz
+
+# Verificar firma
+$ gpg --keyserver keyserver.ubuntu.com --recv-keys FCF19B67866562F08A43AAD681F6104CD0F150FC
+$ wget -qO - https://github.com/shesek/bwt/releases/download/v0.1.3/SHA256SUMS.asc \
+  El | gpg --decrypt - | grep ' bwt-0.1.3-x86_64-linux.tar.gz $ '  | sha256sum -c -
+
+$ tar zxvf bwt-0.1.3-x86_64-linux.tar.gz
+$ ./bwt-0.1.3-x86_64-linux/bwt --xpub < xpub > ...
+De la fuente
+Instale Rust y:
+
+$ sudo apt install build-essential
+$ git clone https://github.com/shesek/bwt &&  cd bwt
+$ construcción de carga - lanzamiento
+$ ./target/release/bwt --xpub < xpub > ...
+O usando el paquete crates.io:
+
+$ cargo instalar bwt
+$ bwt --xpub < xpub >
+(Asegúrate de que ~/.cargo/binesté en tu PATH)
+
+Con Docker
+Suponiendo que su datadir de bitcoin esté en ~/.bitcoin,
+
+$ docker run --net host -v ~ /.bitcoin:/bitcoin shesek / bwt --xpub < xpub > ...
+(No es necesario montar el datadir de bitcoin si no está utilizando el archivo cookie).
+
+Ejecutando bwt
+bwt --xpub <xpub> debería ser suficiente para ponerte en marcha.
+
+Puede configurar los --network(valores predeterminados para mainnet), sus --bitcoind-url(valores predeterminados para http://127.0.0.1:<default-rpc-port>), --bitcoind-dir(valores predeterminados para ~/.bitcoin) y --bitcoind-cred <user:pass>(valores predeterminados para usar el archivo cookie desde bitcoind-dir).
+
+Puede configurar múltiples --xpubs para rastrear. Esto también es compatible con ypubs y zpubs.
+
+Por defecto, el servidor Electrum estará vinculado en el puerto 50001/ 60001/ 60401(según la red) y el servidor HTTP estará vinculado en el puerto 3060. Esto se puede controlar con --electrum-rpc-addr y --http-server-addr.
+
+⚠️Tanto el servidor API HTTP como el servidor Electrum no están autenticados y no están encriptados. Si los está exponiendo a través de Internet, deben colocarse detrás de algo como un túnel SSH, VPN o un servicio oculto Tor. ( más información )
+
+Puede configurar -vpara aumentar la verbosidad o -vvaumentarla más.
+
+Consulte --helpla lista completa de opciones.
+
+Archivo de configuración
+Las opciones de configuración se pueden establecer ~/bwt.envcomo variables de entorno en el formato dotenv. Por ejemplo:
+
+NETWORK=regtest
+GAP_LIMIT=20
+XPUBS=<xpub1>,<xpub2>
+También se admite la configuración directa de las variables de entorno.
+
+Servidor Electrum-only
+Si solo está interesado en un servidor Electrum independiente, puede deshabilitar el servidor API HTTP compilando bwt con --no-default-features --features electrum, usando la shesek/bwt:electrumimagen del acoplador o descargando el electrum_onlybinario preconstruido.
+
+Esto elimina varias dependencias grandes y deshabilita el track-spendsíndice de la base de datos (que no es necesario para el servidor electrum).
+
+(Consulte también el complemento Electrum ).
+
+Poda
+Puede usar bwt con poda, pero:
+
+Tendrá que proporcionar una fecha de reescaneo que esté dentro del rango de bloques no podados, o usar nonepara deshabilitar completamente el reescaneo (ver aquí ).
+
+Electrum necesita ejecutarse --skipmerklecheckpara tolerar las pruebas de SPV faltantes para transacciones en bloques podados.
+
+Si está ejecutando Electrum with --skipmerklecheck, también puede configurar bwt with --electrum-skip-merklepara ahorrar algunos recursos al no generar pruebas SPV incluso cuando sea posible.
+
+Ambas configuraciones se habilitan automáticamente cuando se utiliza el complemento Electrum.
+
+Indexación en tiempo real
+Por defecto, bwt consultará bitcoind para nuevos bloques / transacciones cada 5 segundos. Esto se puede ajustar con --poll-interval <seconds>.
+
+Para obtener reales actualizaciones en tiempo real, es posible configurar el nodo bitcoind para enviar una POST /syncsolicitud al servidor http bwt cada vez que se encuentra un nuevo bloque o transacción cartera, utilizando la walletnotifyy blocknotifyopciones.
+
+Ejemplo de configuración de bitcoind:
+
+walletnotify=curl -X POST http://localhost:3060/sync
+blocknotify=curl -X POST http://localhost:3060/sync
+Después de verificar que esto funciona, puede aumentar su --interval-pollpara evitar la indexación innecesaria y reducir el uso de la CPU.
+
+Si está utilizando el modo de solo electrum sin el servidor http, en su lugar, puede configurar bwt para que se una en un socket Unix usando --unix-listener-path <path>y abrir una conexión para iniciar una sincronización del indexador.
+
+Por ejemplo, comience --unix-listener-path /home/satoshi/bwt-sync-sockety configure su bitcoind con:
+
+walletnotify=nc -U /home/satoshi/bwt-sync-socket
+blocknotify=nc -U /home/satoshi/bwt-sync-socket
+Si ncno está disponible, también puede usar socat - UNIX-CONNECT:/home/satoshi/bwt-sync-socket.
+
+Si usa Docker, puede vincular el socket en un directorio montado desde el host para que esté disponible fuera del contenedor. Por ejemplo, --unix-listener-path /bitcoin/bwt-socket.
+
+Opciones avanzadas
+Límite de espacio
+Puede configurar el límite de espacio con --gap--limit <N>(el valor predeterminado es 20). El límite de espacio establece el número máximo de direcciones consecutivas no utilizadas que se importarán antes de asumir que no hay más direcciones utilizadas para descubrir.
+
+Puede importar lotes más grandes con un espacio más alto durante la sincronización inicial utilizando --initial-import-size <N>(el valor predeterminado es 100). Un valor más alto significa menos rescanes. Debe aumentarse para billeteras grandes.
+
+Política de reescaneo / cumpleaños de billetera
+Puede especificar una política de re-escaneo con el cumpleaños de la tecla para indicar a qué distancia se debe analizar, utilizando --xpub <xpub>:<rescan>, donde <rescan>es uno de all(re-escaneo desde el principio, el valor por defecto), none(no hacer re-escaneo en absoluto), el cumpleaños clave con formato yyyy-mm-dd, o el cumpleaños como una marca de tiempo de Unix.
+
+Monedero múltiple Bitcoin Core
+Si usa una billetera múltiple , puede especificar con qué billetera usar --bitcoind-wallet <name>.
+
+Se recomienda usar una billetera de solo reloj separada para bwt (se puede crear con bitcoin-cli createwallet bwt true).
+
+Tenga en cuenta que EPS y bwt no deben ejecutarse en la misma billetera bitcoind con el mismo xpub, entrarán en conflicto.
+
+Complemento Electrum
+Puede configurar bwt como un complemento de Electrum que integra el servidor de Electrum en la billetera de Electrum.
+
+Descargue el electrum_pluginpaquete de la página de lanzamientos , verifique la firma y descomprímalo en su electrum/pluginsdirectorio. Después de reiniciar Electrum, debería ver bwt en la lista de complementos instalados en Tools -> Plugins.
+
+La versión de Electrum compatible es 3.3.8. El complemento está actualmente disponible para Linux y Windows.
+
+Tenga en cuenta que no es posible instalar complementos externos con Electrum AppImage o el ejecutable independiente de Windows. Tendrá que ejecutar desde tar.gz en Linux, usar el instalador de Windows o ejecutar desde la fuente .
+
+Para compilar el complemento desde la fuente, primero compile el binario como se describe aquí , cópielo en el contrib/electrum-plugindirectorio, luego coloque ese directorio debajo electrum/plugins, perobwt cambie su nombre a (Electrum no lo reconocerá de otra manera).
+
+Captura de pantalla de bwt integrado en Electrum
+
+API HTTP
+Todos los puntos finales devuelven JSON. Todas las cantidades de bitcoin están en satoshis.
+
+Carteras HD
+Nota: Cada --xpubespecificado se representará como dos entradas de billetera, una para la cadena externa (utilizada para recibir direcciones) y otra para la cadena interna (utilizada para cambiar direcciones). Puede asociar las billeteras a su xpub padre usando el origincampo.
+
+GET /hd
+Obtenga un mapa de todas las billeteras HD rastreadas, como un objeto json indexado por la huella digital.
+
+Expandir...
+GET /hd/:fingerprint
+Obtenga información sobre la billetera HD identificada por el código hexadecimal fingerprint.
+
+Expandir...
+GET /hd/:fingerprint/:index
+Obtenga información básica para la clave hd en el índice de derivación index.
+
+Expandir...
+GET /hd/:fingerprint/next
+Obtenga la siguiente dirección no utilizada en la billetera HD especificada.
+
+Expandir...
+GET /hd/:fingerprint/gap
+Obtenga el número máximo actual de direcciones consecutivas no utilizadas en la billetera HD especificada.
+
+Expandir...
+Actas
+Formato de transacción de billetera
+Este formato solo está disponible para transacciones de billetera e incluye información de billetera contextual sobre productos financiados e insumos gastados. No incluye entradas / salidas que no están relacionadas con la billetera.
+
+Campos de transacción:
+
+txid
+block_height- la altura del bloque de confirmación o nullpara transacciones no confirmadas
+fee (puede no estar disponible)
+funding - contiene una entrada para cada salida creada por esta transacción que es propiedad de la billetera
+vout - el índice de salida
+amount - la cantidad de salida
+scripthash - el scripthash financiado por esta salida
+address - la dirección financiada por este resultado
+origin- información del origen de la billetera hd, en <fingerprint>/<index>formato
+spent_by- la entrada de transacción gasta esta salida en txid:vinformato, o nullpara salidas no gastadas (solo disponible con track-spends)
+spending - contiene una entrada para cada entrada que gasta una salida de billetera
+vin - el índice de entrada
+amount - la cantidad de la salida anterior gastada por esta entrada
+scripthash - el scripthash del resultado anterior gastado por esta entrada
+address - la dirección de la salida anterior gastada por esta entrada
+origin - información de origen de la billetera hd
+prevout- el <txid>:<vout>ser gastado
+balance_change - el cambio neto al saldo de la billetera infligido por esta transacción
+GET /tx/:txid
+Obtenga la transacción en el formato de transacción de billetera .
+
+Expandir...
+GET /tx/:txid/verbose
+Obtenga la transacción en JSON con el formato de bitcoind'sgetrawtransaction con verbose=true.
+
+Expandir...
+GET /tx/:txid/hex
+Obtenga la transacción sin formato formateada como una cadena hexadecimal.
+
+Expandir...
+GET /tx/:txid/proof
+Obtenga la prueba de inclusión de merkle para la transacción.
+
+Expandir...
+GET /txs/since/:block-height
+Obtenga todas las transacciones de billetera confirmadas en o después block-height, más todas las transacciones no confirmadas, para todas las direcciones rastreadas.
+
+Expandir...
+GET /txs/since/:block-height/compact
+Obtenga una representación mínima compacta de todas las transacciones de billetera desde entonces block-height.
+
+Expandir...
+POST /tx
+Transmitir una transacción en bruto a la red Bitcoin.
+
+Expandir...
+Direcciones, Scripthashes y HD Keys
+GET /address/:address
+GET /scripthash/:scripthash
+GET /hd/:fingerprint/:index
+Obtenga información básica para la dirección proporcionada, scripthash o clave hd.
+
+Expandir...
+GET /address/:address/stats
+GET /scripthash/:scripthash/stats
+GET /hd/:fingerprint/:index/stats
+Obtenga información básica y estadísticas para la dirección, scripthash o clave de acceso proporcionados.
+
+Expandir...
+GET /address/:address/utxos
+GET /scripthash/:scripthash/utxos
+GET /hd/:fingerprint/:index/utxos
+Obtenga la lista de salidas de transacciones no gastadas propiedad de la dirección, scripthash o clave de acceso provistos.
+
+Expandir...
+GET /address/:address/txs
+GET /scripthash/:scripthash/txs
+GET /hd/:fingerprint/:index/txs
+Obtenga la lista de todas las transacciones en el historial de la dirección proporcionada, scripthash o clave hd.
+
+Expandir...
+GET /address/:address/txs/compact
+GET /scripthash/:scripthash/txs/compact
+GET /hd/:fingerprint/:index/txs/compact
+Obtenga una representación mínima compacta del historial de la dirección proporcionada, scripthash o clave hd.
+
+Expandir...
+Salidas
+Formato de salida
+txid - la transacción que financia este producto
+vout - el índice de salida
+amount - la cantidad de salida
+scripthash - el scripthash financiado por esta salida
+address - la dirección financiada por este resultado
+origin- información del origen de la billetera hd, en <fingerprint>/<index>formato
+block_height- la altura del bloque de confirmación o nullpara transacciones no confirmadas
+spent_by- la entrada de transacción gasta esta salida en txid:vinformato, o nullpara salidas no gastadas (solo disponible con track-spends)
+GET /txo/:txid/:vout
+Obtenga información sobre la salida de transacción especificada.
+
+Expandir...
+GET /utxos
+Obtenga todas las salidas de billetera no gastadas.
+
+Expandir...
+Ver también: GET /address/:address/utxos
+
+Bloques
+GET /block/tip
+Obtenga la punta actual de la cadena de bloques.
+
+Expandir...
+GET /block/:hash
+Obtenga el encabezado de bloque del hash de bloque especificado con el formato de bitcoind'sgetblockheader con verbose=true.
+
+Expandir...
+GET /block/:hash/hex
+Obtenga el encabezado de bloque del hash de bloque especificado como una cadena hexadecimal.
+
+Expandir...
+GET /block/:height
+Obtenga el hash de bloque a la altura de bloque especificada.
+
+Expandir...
+Mempool y tarifas
+GET /mempool/histogram
+Obtenga el histograma de distribución de tarifa de mempool.
+
+Expandir...
+GET /fee-estimate/:target
+Obtenga la estimación de tarifa para confirmar dentro de los targetbloques. Utiliza bitcoind's smartestimatefee.
+
+Expandir...
+Eventos enviados por el servidor
+Categorías de eventos
+ChainTip(block_height, block_hash) - emitido cada vez que un nuevo bloque extiende la mejor cadena.
+Reorg(block_height, prev_block_hash, curr_block_hash)- indica que se detectó una reorganización activada block_height, con el hash de bloque anterior a esta altura y el actual.
+Transaction(txid, block_height) - emitido para nuevas transacciones, así como para transacciones que cambian su estado de confirmación (generalmente de no confirmado a confirmado, posiblemente al revés en caso de reorganizaciones).
+TransactionReplaced(txid) - indica que la transacción entra en conflicto con otra transacción y ya no se puede confirmar (también conocido como doble gasto).
+TxoFunded(funding_txid:vout, scripthash, amount, block_height) - se emite cuando se crea una salida de billetera sin gastar (para nuevas transacciones y cambios de estado de confirmación).
+TxoSpent(spending_txid:vin, scripthash, prevout, block_height) - se emite cuando se gasta una salida de billetera (para nuevas transacciones y cambios de estado de confirmación).
+Para transacciones no confirmadas, block_heightserá null.
+
+GET /stream
+Suscríbase a un flujo de eventos enviados por el servidor en tiempo real de notificaciones de actualización del indexador.
+
+Expandir...
+GET /address/:address/stream
+GET /scripthash/:scripthash/stream
+GET /hd/:fingerprint/:index/stream
+Suscríbase a un flujo de notificaciones en tiempo real de TxoFunded/ TxoSpenteventos para la dirección, scripthash o clave de acceso proporcionados.
+
+Expandir...
+Ponerse al día con los eventos perdidos y la detección de reorganización
+Para ponerse al día con los eventos históricos que su aplicación perdió durante su inactividad, puede especificar el synced-tipparámetro de cadena de consulta con <block-height>:<block-hash>el último bloque que se sabe que se procesó.
+
+Si el synced-tipsigue siendo parte de la mejor cadena, esto devolverá todos los históricos Transaction, TxoFundedy TxoSpenteventos que ocurrieron después block-height(exclusivo, ordenados con antiguos primero, sin confirmar incluido al final), seguido por un solo ChainTip evento con la punta actualmente sincronizados, seguido de una flujo de eventos en tiempo real.
+
+Si synced-tipya no forma parte de la mejor cadena, 410 Gonese devolverá un error que indica que se produjo una reorganización. Una forma de recuperarse de la reorganización es volver a sincronizar desde Nbloques antes de los huérfanos synced-tipy considerar cualquier entrada que ya no se muestre como doblemente gastada (donde Nes lo suficientemente grande como para reorganizar más profundo de lo que es poco probable)
+
+Puede especificar synced-tipcon solo la altura para omitir la detección de reorganización (por ejemplo, 0para obtener todos los eventos desde el bloqueo de génesis).
+
+Expandir...
+Diverso
+POST /sync
+Activa una sincronización de indexador. Ver actualizaciones en tiempo real .
+
+GET /dump
+Vuelca el contenido del almacén de índices como JSON.
+
+GET /debug
+Vuelca el contenido del almacén de índice como una cadena de depuración.
+
+Ganchos Web
+Si está compilando bwt desde la fuente, deberá configurarlo --features webhookspara habilitar el soporte de web hooks. Esto también requerirá apt install libssl-dev pkg-config. El binario principal preconstruido y la shesek/bwtimagen del acoplador vienen con soporte para webhooks habilitado de forma predeterminada.
+
+Puede configurar --webhook-url <url>que bwt envíe notificaciones push como una POSTsolicitud a la proporcionada <url>. Las solicitudes se enviarán con una matriz serializada JSON de una o más actualizaciones de índice como cuerpo.
+
+Se recomienda incluir una clave secreta dentro de la URL para verificar la autenticidad de la solicitud.
+
+Puede especificar múltiples --webhook-urlpara notificarlos a todos.
+
+Tenga en cuenta que bwt actualmente intenta enviar la solicitud de webhook una vez y no vuelve a intentarlo en caso de fallas. Se recomienda ponerse al día ocasionalmente utilizando los puntos finales GET /txs/since/:block-heighto GET /stream(ver "Ponerse al día con los eventos perdidos" ).
+
+Consejo: servicios como webhook.site o requestbin pueden ser útiles para depurar webhooks. (no hace falta decir que solo para uso de regtest / testnet no sensible a la privacidad)
+
+Desarrollando
+Recursos para desarrolladores
+La documentación de la API pública Rust es disponible en docs.rs .
+
+Un diagrama que muestra cómo la Yum grandes piezas interactúan juntos es disponible aquí .
+
+Un ejemplo de cliente JavaScript que utiliza la API HTTP para el seguimiento de billetera está disponible en examples/wallet-tracker.js.
+
+Entorno de desarrollo
+Para configurar rápidamente un entorno de desarrollo, puede usarlo scripts/dev-env.shpara crear una red bitcoind regtest y dos billeteras Electrum, financiar las billeteras, iniciar bwt con seguimiento para los xpubs de ambas billeteras e iniciar la GUI de Electrum.
+
+Para usarlo, simplemente ejecute $ ./scripts/dev-env.shdesde el directorio raíz con bitcoind, bitcoin-clie electruminstale en su PATH.
+
+Puede configurar FEATURESpara especificar qué características habilitar (ver a continuación) o configurar NO_GUI=1para dejar la billetera Electrum ejecutándose en modo demonio sin iniciar la GUI.
+
+Si lo ha cargo watchinstalado, se usará para observar los cambios y reiniciar automáticamente bwt.
+
+Caracteristicas
+bwt tiene 4 funciones opcionales: http, electrum, webhooksy track-spends.
+
+Todos están habilitados por defecto, excepto webhooks.
+
+Si está trabajando en un código que no está relacionado con la API HTTP, es mucho más rápido construir con solo las electrum track-spendscaracterísticas.
+
+Puede usar scripts/check.shpara ejecutar cargo checktodos los combos de características (sensibles). Esto es importante para garantizar que no se introdujeron errores en las combinaciones de funciones que no utilizó.
+
+Pruebas
+Se pueden ejecutar pruebas de integración de extremo a extremo ./test/tests.sh. Las pruebas implementan una red regtest, una instancia de bwt y una billetera Electrum conectada a ella (en modo sin cabeza), luego ejecutan algunas pruebas básicas utilizando el cliente Electrum y contra la API HTTP REST.
+
+Ejecute con bash -x test/tests.sh -vpara obtener una salida más detallada.
+
+Contribuciones
+¡Son bienvenidos!
+
+La única pauta es usar cargo fmt.
+
+Puede consultar la lista de problemas de mejora para algunas ideas para trabajar (descriptores de script de salida <3).
+
+Gracias
+Los electrs de @romanz para la fantástica implementación del servidor electrum en el que se basa bwt.
+
+@ Chris-rolo 's electro-personal-servidor por inspirar este proyecto y el modelo de seguimiento personal.
+
+rust-bitcoin , rust-bitcoincore-rpc y los otros módulos increíbles de la familia rust-bitcoin.
+
+Licencia
+MIT
