@@ -24,11 +24,11 @@ pub enum BwtError {
     #[error("Blocks unavailable due to pruning")]
     PrunedBlocks,
 
-    #[error("JSON-RPC connection error: {0}")]
-    Rpc(rpc::Error),
+    #[error("Error communicating with the Bitcoin RPC: {0}")]
+    RpcProtocol(rpc::Error),
 
-    #[error("JSON-RPC error code {}: {}", .0.code, .0.message)]
-    RpcMessage(rpc::jsonrpc::error::RpcError),
+    #[error("Bitcoin RPC error code {}: {}", .0.code, .0.message)]
+    Rpc(rpc::jsonrpc::error::RpcError),
 }
 
 impl BwtError {
@@ -48,10 +48,10 @@ impl From<rpc::Error> for BwtError {
         if let rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(e)) = err {
             match (e.code, e.message.as_str()) {
                 (-1, "Block not available (pruned data)") => BwtError::PrunedBlocks,
-                _ => BwtError::RpcMessage(e),
+                _ => BwtError::Rpc(e),
             }
         } else {
-            BwtError::Rpc(err)
+            BwtError::RpcProtocol(err)
         }
     }
 }
