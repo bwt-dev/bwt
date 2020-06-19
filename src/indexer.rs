@@ -56,11 +56,13 @@ impl Indexer {
             self.watcher.do_imports(&self.rpc, /*rescan=*/ true)?
         } { /* do while */ }
 
+        let stats = self.store.stats();
         info!(
-            "completed initial sync in {:?} up to height {} (total {})",
+            "completed initial sync in {:?} up to height {} (total {} transactions and {} addresses)",
             timer.elapsed(),
             synced_tip.0,
-            self.store.stats_str(),
+            stats.transaction_count,
+            stats.scripthash_count,
         );
         self.tip = Some(synced_tip);
         Ok(())

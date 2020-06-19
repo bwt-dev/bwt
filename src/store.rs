@@ -370,12 +370,11 @@ impl MemoryStore {
         entries
     }
 
-    pub fn stats_str(&self) -> String {
-        format!(
-            "{} transactions and {} addresses",
-            self.transactions.len(),
-            self.scripthashes.len()
-        )
+    pub fn stats(&self) -> StoreStats {
+        StoreStats {
+            transaction_count: self.transactions.len(),
+            scripthash_count: self.scripthashes.len(),
+        }
     }
 }
 
@@ -427,4 +426,9 @@ impl PartialOrd for HistoryEntry {
                 .then_with(|| self.txid.cmp(&other.txid)),
         )
     }
+}
+
+pub struct StoreStats {
+    pub transaction_count: usize,
+    pub scripthash_count: usize,
 }
