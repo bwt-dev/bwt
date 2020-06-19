@@ -244,6 +244,11 @@ The plugin is currently available for Linux and Windows.
 Note that it is not possible to install external plugins with the Electrum AppImage or standalone Windows executable.
 You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) on Linux, use the Windows installer, or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
 
+The plugin automatically configures Electrum with `--oneserver` (to avoid connecting to public servers) and `--skipmerklecheck` (necessary for [pruning](#pruning)).
+
+To avoid connecting to public servers while setting up the plugin, you can start Electrum with `--offline`, enable and configure the plugin, then restart Electrum without `--offline`.
+Another option is to disconnect the internet entirely while setting things up.
+
 To build the plugin from source, first build the binary as [described here](#from-source), copy it into the `contrib/electrum-plugin` directory, then place that directory under `electrum/plugins`, *but renamed to `bwt`* (Electrum won't recognize it otherwise).
 
 ![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
