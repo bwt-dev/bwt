@@ -1112,6 +1112,9 @@ Documentation for the public Rust API is [available on docs.rs](https://docs.rs/
 
 A yuml diagram showing how the big pieces interact together is [available here](https://yuml.me/edit/eb254113).
 
+An example of initializing bwt and issuing queries against its db from Rust is available at [`examples/use-from-rust.rs`](https://github.com/shesek/bwt/blob/master/examples/use-from-rust.rs).
+(Note that the Rust API provides weaker backwards compatibility guarantees compared to the HTTP API.)
+
 An example JavaScript client utilizing the HTTP API for wallet tracking
 is available at [`examples/wallet-tracker.js`](https://github.com/shesek/bwt/blob/master/examples/wallet-tracker.js).
 

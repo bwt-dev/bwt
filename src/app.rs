@@ -21,6 +21,7 @@ const DEBOUNCE_SEC: u64 = 7;
 pub struct App {
     config: Config,
     indexer: Arc<RwLock<Indexer>>,
+    query: Arc<Query>,
     sync_chan: (mpsc::Sender<()>, mpsc::Receiver<()>),
 
     #[cfg(feature = "electrum")]
@@ -71,7 +72,7 @@ impl App {
         let http = HttpServer::start(
             config.http_server_addr,
             config.http_cors.clone(),
-            query,
+            query.clone(),
             sync_tx.clone(),
         );
 
@@ -88,6 +89,7 @@ impl App {
         Ok(App {
             config,
             indexer,
+            query,
             sync_chan: (sync_tx, sync_rx),
             #[cfg(feature = "electrum")]
             electrum,
@@ -125,6 +127,11 @@ impl App {
                 .recv_timeout(self.config.poll_interval)
                 .ok();
         }
+    }
+
+    /// Get the `Query` instance
+    pub fn query(&self) -> Arc<Query> {
+        self.query.clone()
     }
 }
 
