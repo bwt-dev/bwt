@@ -32,7 +32,7 @@ class BwtPlugin(BasePlugin):
         self.bitcoind_url = config.get('bwt_bitcoind_url', default_bitcoind_url())
         self.bitcoind_dir = config.get('bwt_bitcoind_dir', default_bitcoind_dir())
         self.bitcoind_wallet = config.get('bwt_bitcoind_wallet')
-        self.bitcoind_cred = config.get('bwt_bitcoind_cred')
+        self.bitcoind_auth = config.get('bwt_bitcoind_auth', config.get('bwt_bitcoind_cred'))
         self.rescan_since = config.get('bwt_rescan_since', 'all')
         self.custom_opt = config.get('bwt_custom_opt')
         self.socket_path = config.get('bwt_socket_path', default_socket_path())
@@ -58,8 +58,8 @@ class BwtPlugin(BasePlugin):
             '--electrum-skip-merkle',
         ]
 
-        if self.bitcoind_cred:
-            args.extend([ '--bitcoind-cred', self.bitcoind_cred ])
+        if self.bitcoind_auth:
+            args.extend([ '--bitcoind-auth', self.bitcoind_auth ])
 
         if self.bitcoind_wallet:
             args.extend([ '--bitcoind-wallet', self.bitcoind_wallet ])

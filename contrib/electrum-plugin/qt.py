@@ -56,9 +56,9 @@ class Plugin(BwtPlugin, QObject):
         url_e = input(self.bitcoind_url)
         form.addRow(_('RPC URL:'), url_e)
 
-        cred_e = input(self.bitcoind_cred)
-        cred_e.setPlaceholderText('<username>:<password>')
-        form.addRow(_('RPC Auth:'), cred_e)
+        auth_e = input(self.bitcoind_auth)
+        auth_e.setPlaceholderText('<username>:<password>')
+        form.addRow(_('RPC Auth:'), auth_e)
         form.addRow('', helptext(_('Leave blank to use the cookie.'), False))
 
         dir_e = input(self.bitcoind_dir)
@@ -113,7 +113,7 @@ class Plugin(BwtPlugin, QObject):
             self.enabled = True
             self.bitcoind_url = str(url_e.text())
             self.bitcoind_dir = str(dir_e.text())
-            self.bitcoind_cred = str(cred_e.text())
+            self.bitcoind_auth = str(auth_e.text())
             self.bitcoind_wallet = str(wallet_e.text())
             self.rescan_since = get_rescan_value(rescan_c, rescan_e)
             self.custom_opt = str(custom_opt_e.text())
@@ -122,7 +122,7 @@ class Plugin(BwtPlugin, QObject):
             self.config.set_key('bwt_enabled', self.enabled)
             self.config.set_key('bwt_bitcoind_url', self.bitcoind_url)
             self.config.set_key('bwt_bitcoind_dir', self.bitcoind_dir)
-            self.config.set_key('bwt_bitcoind_cred', self.bitcoind_cred)
+            self.config.set_key('bwt_bitcoind_auth', self.bitcoind_auth)
             self.config.set_key('bwt_bitcoind_wallet', self.bitcoind_wallet)
             self.config.set_key('bwt_rescan_since', self.rescan_since)
             self.config.set_key('bwt_custom_opt', self.custom_opt)

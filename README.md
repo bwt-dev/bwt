@@ -122,7 +122,7 @@ $ docker run --net host -v ~/.bitcoin:/bitcoin shesek/bwt --xpub <xpub> ...
 You can configure the `--network` (defaults to `mainnet`),
 your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 `--bitcoind-dir` (defaults to `~/.bitcoin`) and
-`--bitcoind-cred <user:pass>` (defaults to using the cookie file from `bitcoind-dir`).
+`--bitcoind-auth <user:pass>` (defaults to using the cookie file from `bitcoind-dir`).
 
 You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
 

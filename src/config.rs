@@ -76,14 +76,15 @@ pub struct Config {
     pub bitcoind_url: Option<String>,
 
     #[structopt(
-        short = "c",
+        short = "a",
         long,
         help = "Credentials for accessing the bitcoind RPC server (as <username>:<password>, instead of reading the cookie file)",
+        alias = "bitcoind-cred",
         env,
         hide_env_values(true),
         display_order(33)
     )]
-    pub bitcoind_cred: Option<String>,
+    pub bitcoind_auth: Option<String>,
 
     #[structopt(
         short = "C",
@@ -251,17 +252,17 @@ impl Config {
     }
 
     pub fn bitcoind_auth(&self) -> Result<RpcAuth> {
-        Ok(self.bitcoind_cred
+        Ok(self.bitcoind_auth
             .as_ref()
-            .and_then(|cred| {
-                let mut parts = cred.splitn(2, ':');
+            .and_then(|auth| {
+                let mut parts = auth.splitn(2, ':');
                 Some(RpcAuth::UserPass(parts.next()?.into(), parts.next()?.into()))
             })
             .or_else(|| {
                 let cookie = self.bitcoind_cookie.clone().or_else(|| get_cookie(self))?;
                 Some(RpcAuth::CookieFile(cookie))
             })
-            .or_err("no available authentication for bitcoind rpc, please specify credentials or a cookie file")?)
+            .or_err("no valid authentication found for bitcoind rpc, specify user/pass or a cookie file")?)
     }
 
     #[cfg(feature = "electrum")]
