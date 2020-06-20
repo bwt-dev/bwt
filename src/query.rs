@@ -146,6 +146,11 @@ impl Query {
         );
     }
 
+    pub fn get_mempool_entry<T>(&self, txid: &Txid) -> Option<MempoolEntry> {
+        let indexer = self.indexer.read().unwrap();
+        indexer.store().get_mempool_entry(txid).cloned()
+    }
+
     pub fn with_mempool_entry<T>(&self, txid: &Txid, f: impl Fn(&MempoolEntry) -> T) -> Option<T> {
         let indexer = self.indexer.read().unwrap();
         indexer.store().get_mempool_entry(txid).map(f)
@@ -187,6 +192,11 @@ impl Query {
             TxStatus::Confirmed(height) => Some(self.get_block_hash(height)?),
             _ => None,
         })
+    }
+
+    pub fn get_tx_entry<T>(&self, txid: &Txid) -> Option<TxEntry> {
+        let indexer = self.indexer.read().unwrap();
+        indexer.store().get_tx_entry(txid).cloned()
     }
 
     pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {

@@ -137,7 +137,7 @@ impl PartialOrd for TxStatus {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Clone, Debug)]
 pub struct MempoolEntry {
     /// The vsize of this transaction
     pub vsize: u64,
