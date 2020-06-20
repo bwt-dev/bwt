@@ -133,7 +133,7 @@ impl Indexer {
         let tip_hash = result.lastblock;
         let tip_height = self.rpc.get_block_header_info(&tip_hash)?.height as u32;
 
-        let mut buffered_outgoing: HashMap<Txid, (i32, u64)> = HashMap::new();
+        let mut buffered_outgoing: HashMap<Txid, i32> = HashMap::new();
 
         for ltx in result.removed {
             // transactions that were re-added in the active chain will appear in `removed`
@@ -162,38 +162,26 @@ impl Indexer {
                     // straightaway because the prevouts being spent might not be indexed yet, so
                     // the outgoing txs are buffered and processed at the end, after the txs funding
                     // the prevouts are guarranted to be indexed.
-                    buffered_outgoing.entry(ltx.info.txid).or_insert_with(|| {
-                        // "send" transactions must have a fee
-                        let fee = ltx.detail.fee.unwrap().abs().as_sat() as u64;
-                        (ltx.info.confirmations, fee)
-                    });
+                    buffered_outgoing.insert(ltx.info.txid, ltx.info.confirmations);
                 }
                 // ignore mining-related transactions
                 TxCategory::Generate | TxCategory::Immature | TxCategory::Orphan => (),
             };
         }
 
-        for (txid, (confirmations, fee)) in buffered_outgoing {
+        for (txid, confirmations) in buffered_outgoing {
             let status = TxStatus::from_confirmations(confirmations, tip_height);
-            self.process_outgoing_tx(txid, status, fee, changelog)
+            self.process_outgoing_tx(txid, status, changelog)
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
         }
-
-        // TODO: complete fee information for incoming-only txs
 
         Ok(BlockId(tip_height, tip_hash))
     }
 
     // upsert the transaction while collecting the changelog
-    fn upsert_tx(
-        &mut self,
-        txid: &Txid,
-        status: TxStatus,
-        fee: Option<u64>,
-        changelog: &mut Changelog,
-    ) {
-        let tx_updated = self.store.upsert_tx(txid, status, fee);
+    fn upsert_tx(&mut self, txid: &Txid, status: TxStatus, changelog: &mut Changelog) {
+        let tx_updated = self.store.upsert_tx(txid, status);
         if tx_updated {
             changelog.with(|changelog| {
                 let tx_entry = self.store.get_tx_entry(txid).unwrap();
@@ -224,7 +212,7 @@ impl Indexer {
             txid, vout, scripthash, ltx.detail.address, origin, status, amount
         );
 
-        self.upsert_tx(&txid, status, None, changelog);
+        self.upsert_tx(&txid, status, changelog);
 
         self.store
             .index_scripthash(&scripthash, &origin, &ltx.detail.address);
@@ -245,7 +233,6 @@ impl Indexer {
         &mut self,
         txid: Txid,
         status: TxStatus,
-        fee: u64,
         changelog: &mut Changelog,
     ) -> Result<()> {
         trace!("processing outgoing tx txid={} status={:?}", txid, status);
@@ -254,7 +241,7 @@ impl Indexer {
             // TODO keep a marker for processed transactions that had no spending inputs
             if !tx_entry.spending.is_empty() {
                 // skip indexing spent inputs, but keep the status which might be more recent
-                self.upsert_tx(&txid, status, Some(fee), changelog);
+                self.upsert_tx(&txid, status, changelog);
                 trace!("skipping outgoing tx {}, already indexed", txid);
                 return Ok(());
             }
@@ -285,7 +272,7 @@ impl Indexer {
             .collect();
 
         if !spending.is_empty() {
-            self.upsert_tx(&txid, status, Some(fee), changelog);
+            self.upsert_tx(&txid, status, changelog);
             self.store.index_tx_inputs_spending(&txid, spending);
         }
 

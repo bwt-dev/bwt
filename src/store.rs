@@ -44,16 +44,14 @@ impl HistoryEntry {
 pub struct TxEntry {
     #[serde(rename = "block_height")]
     pub status: TxStatus,
-    pub fee: Option<u64>,
     pub funding: HashMap<u32, FundingInfo>,
     pub spending: HashMap<u32, SpendingInfo>,
 }
 
 impl TxEntry {
-    pub fn new(status: TxStatus, fee: Option<u64>) -> Self {
+    pub fn new(status: TxStatus) -> Self {
         TxEntry {
             status,
-            fee,
             funding: HashMap::new(),
             spending: HashMap::new(),
         }
@@ -119,17 +117,13 @@ impl MemoryStore {
         !existed
     }
 
-    pub fn upsert_tx(&mut self, txid: &Txid, status: TxStatus, fee: Option<u64>) -> bool {
+    pub fn upsert_tx(&mut self, txid: &Txid, status: TxStatus) -> bool {
         let mut status_change = None;
         let mut updated = false;
 
         self.transactions
             .entry(*txid)
             .and_modify(|curr_entry| {
-                if let (None, &Some(_)) = (curr_entry.fee, &fee) {
-                    curr_entry.fee = fee;
-                }
-
                 if curr_entry.status != status {
                     status_change = Some(curr_entry.status);
                     curr_entry.status = status;
@@ -139,7 +133,7 @@ impl MemoryStore {
             .or_insert_with(|| {
                 trace!("new transaction: txid={} status={:?}", txid, status);
                 updated = true;
-                TxEntry::new(status, fee)
+                TxEntry::new(status)
             });
 
         if updated {
