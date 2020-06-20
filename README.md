@@ -409,7 +409,6 @@ It does not include inputs/outputs that are unrelated the wallet.
 Transaction fields:
 - `txid`
 - `block_height` - the confirming block height or `null` for unconfirmed transactions
-- `fee` (may not be available)
 - `funding` - contains an entry for every output created by this transaction that is owned by the wallet
   - `vout` - the output index
   - `amount` - the output amount
@@ -425,6 +424,17 @@ Transaction fields:
   - `origin` - hd wallet origin information
   - `prevout` - the `<txid>:<vout>` being spent
 - `balance_change` - the net change to the wallet balance inflicted by this transaction
+
+Additional fields for unconfirmed mempool transactions:
+- `own_feerate` - the fee rate paid directly by the transaction, in `sat/vB`
+- `effective_feerate` - the effective transaction fee rate, taking unconfirmed ancestor transactions into account
+- `bip125_replacelable` - whether this transaction can be replaced due to BIP 125 (replace-by-fee)
+- `unconfirmed_parents` - whether this transaction has unconfirmed parents used as its inputs
+
+The effective fee rate is calculated as `MIN(own_fee/own_vsize, (own_fee+ancestor_fee)/(own_vsize+ancestor_vsize))`.
+
+> The mempool fields may be temporarily unavailable if an error is encountered while syncing the mempool entries.
+> This should be a rare event, for example if Bitcoin Core crashes, but API clients should prepare for the possibility.
 
 #### `GET /tx/:txid`
 

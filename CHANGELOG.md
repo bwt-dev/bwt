@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Implement mempool tracking, including support for an "effective feerate" metric that takes unconfirmed ancestors into account
+  (calculated as `MIN(own_fee/own_vsize, (own_fee+ancestor_fee)/(own_vsize+ancestor_vsize))`).
+
+  HTTP API: the [wallet transaction format](https://github.com/shesek/bwt#wallet-transaction-format) now includes
+  new `own_feerate`, `effective_feerate`, `bip125_replaceable` and `unconfirmed_parents` fields available for unconfirmed transactions.
+
+  Electrum server: provide fee information for unconfirmed transactions using the effective feerate metric.
+  This is unlike other Electrum server implementations, that report the direct own fee without regard to ancestors. (#10)
+
 - Electrum server: Implement `--electrum-skip-merkle` to save some resources by not generating SPV proofs entirely, even when it's possible. (#34)
 
 - Electrum plugin: Automatically enable `--skipmerklecheck` and `--electrum-skip-merkle`, for better out-of-the-box pruning support and to save some resources. (#34)

@@ -6,7 +6,7 @@ use serde::Serialize;
 use bitcoin::{Address, OutPoint, Txid};
 
 use crate::hd::KeyOrigin;
-use crate::types::{ScriptHash, TxStatus};
+use crate::types::{MempoolEntry, ScriptHash, TxStatus};
 use crate::util::remove_if;
 
 #[cfg(feature = "track-spends")]
@@ -16,6 +16,7 @@ use crate::types::InPoint;
 pub struct MemoryStore {
     scripthashes: HashMap<ScriptHash, ScriptEntry>,
     transactions: HashMap<Txid, TxEntry>,
+    mempool: HashMap<Txid, Option<MempoolEntry>>,
     #[cfg(feature = "track-spends")]
     txo_spends: HashMap<OutPoint, InPoint>,
 }
@@ -141,8 +142,20 @@ impl MemoryStore {
                 TxEntry::new(status, fee)
             });
 
-        if let Some(old_status) = status_change {
-            self.update_tx_status(txid, old_status, status);
+        if updated {
+            match (status_change, status) {
+                // update existing transactions with an updated confirmation status
+                (Some(old_status), new_status) => {
+                    self.update_tx_status(txid, old_status, new_status)
+                }
+
+                // add newly indexed mempool transactions to the mempool hashmap, with an empty entry.
+                (None, TxStatus::Unconfirmed) => {
+                    assert!(self.mempool.insert(*txid, None).is_none());
+                }
+
+                _ => (),
+            }
         }
 
         updated
@@ -264,12 +277,22 @@ impl MemoryStore {
             assert!(scriptentry.history.remove(&old_txhist));
             assert!(scriptentry.history.insert(new_txhist.clone()));
         }
+
+        match (old_status, new_status) {
+            (TxStatus::Unconfirmed, _) => assert!(self.mempool.remove(txid).is_some()),
+            (_, TxStatus::Unconfirmed) => assert!(self.mempool.insert(*txid, None).is_none()),
+            _ => (),
+        };
     }
 
     pub fn purge_tx(&mut self, txid: &Txid) -> bool {
         // XXX should replaced transactions be kept around instead of purged entirely?
         if let Some(old_entry) = self.transactions.remove(txid) {
             info!("purge tx {:?}", txid);
+
+            if old_entry.status.is_unconfirmed() {
+                assert!(self.mempool.remove(txid).is_some());
+            }
 
             let old_txhist = HistoryEntry {
                 status: old_entry.status,
@@ -298,6 +321,19 @@ impl MemoryStore {
         } else {
             false
         }
+    }
+
+    /// Get a mutable reference to the mempool.
+    pub fn mempool_mut(&mut self) -> &mut HashMap<Txid, Option<MempoolEntry>> {
+        &mut self.mempool
+    }
+
+    /// Get a mempool entry. Returns `None` for non-mempool transactions, as well as for
+    /// mempool transactions that don't have the MempoolEntry data populated yet.
+    pub fn get_mempool_entry(&self, txid: &Txid) -> Option<&MempoolEntry> {
+        self.mempool
+            .get(txid)
+            .and_then(|opt_entry| opt_entry.as_ref())
     }
 
     pub fn lookup_txo_fund(&self, outpoint: &OutPoint) -> Option<FundingInfo> {

@@ -13,7 +13,7 @@ use crate::error::{BwtError, Context, OptionExt, Result};
 use crate::hd::{HDWallet, KeyOrigin};
 use crate::indexer::{IndexChange, Indexer};
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
-use crate::types::{BlockId, ScriptHash, TxStatus};
+use crate::types::{BlockId, MempoolEntry, ScriptHash, TxStatus};
 use crate::util::make_fee_histogram;
 
 #[cfg(feature = "track-spends")]
@@ -146,6 +146,11 @@ impl Query {
         );
     }
 
+    pub fn with_mempool_entry<T>(&self, txid: &Txid, f: impl Fn(&MempoolEntry) -> T) -> Option<T> {
+        let indexer = self.indexer.read().unwrap();
+        indexer.store().get_mempool_entry(txid).map(f)
+    }
+
     //
     // Transactions
     //
@@ -179,18 +184,14 @@ impl Query {
             .get_tx_entry(txid)
             .with_context(|| BwtError::TxNotFound(*txid))?;
         Ok(match tx_entry.status {
-            TxStatus::Confirmed(height) => Some(self.rpc.get_block_hash(height as u64)?),
+            TxStatus::Confirmed(height) => Some(self.get_block_hash(height)?),
             _ => None,
         })
     }
 
     pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {
-        self.indexer
-            .read()
-            .unwrap()
-            .store()
-            .get_tx_entry(txid)
-            .map(f)
+        let indexer = self.indexer.read().unwrap();
+        indexer.store().get_tx_entry(txid).map(f)
     }
 
     pub fn get_tx_detail(&self, txid: &Txid) -> Option<TxDetail> {
@@ -484,16 +485,23 @@ pub struct TxDetail {
     txid: Txid,
     #[serde(rename = "block_height")]
     status: TxStatus,
-    fee: Option<u64>,
     funding: Vec<TxDetailFunding>,
     spending: Vec<TxDetailSpending>,
     balance_change: i64,
+    #[serde(flatten)]
+    mempool_info: Option<TxDetailMempool>,
 }
 
 impl TxDetail {
     fn make(txid: &Txid, indexer: &Indexer) -> Option<Self> {
         let store = indexer.store();
         let tx_entry = store.get_tx_entry(txid)?;
+
+        let mempool_entry = if tx_entry.status.is_unconfirmed() {
+            store.get_mempool_entry(txid)
+        } else {
+            None
+        };
 
         let funding = tx_entry
             .funding
@@ -529,10 +537,10 @@ impl TxDetail {
         Some(TxDetail {
             txid: *txid,
             status: tx_entry.status,
-            fee: tx_entry.fee,
             funding,
             spending,
             balance_change,
+            mempool_info: mempool_entry.map(Into::into),
         })
     }
 }
@@ -554,6 +562,25 @@ struct TxDetailSpending {
     script_info: ScriptInfo,
     amount: u64,
     prevout: OutPoint,
+}
+
+#[derive(Serialize, Debug)]
+struct TxDetailMempool {
+    own_feerate: f64,
+    effective_feerate: f64,
+    bip125_replaceable: bool,
+    unconfirmed_parents: bool,
+}
+
+impl From<&MempoolEntry> for TxDetailMempool {
+    fn from(entry: &MempoolEntry) -> Self {
+        Self {
+            own_feerate: entry.own_feerate(),
+            effective_feerate: entry.effective_feerate(),
+            bip125_replaceable: entry.bip125_replaceable,
+            unconfirmed_parents: entry.has_unconfirmed_parents(),
+        }
+    }
 }
 
 #[derive(Serialize, Debug)]

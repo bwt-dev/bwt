@@ -1,10 +1,13 @@
 use std::cmp::Ordering;
+use std::time::Instant;
 
 use serde::Serialize;
 
 use bitcoin::{Address, BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
 pub use bitcoincore_rpc::json::ImportMultiRescanSince as RescanSince;
+
+use crate::bitcoincore_ext::GetMempoolEntryResult;
 
 hash_newtype!(
     ScriptHash,
@@ -131,6 +134,55 @@ impl Ord for TxStatus {
 impl PartialOrd for TxStatus {
     fn partial_cmp(&self, other: &TxStatus) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+#[derive(Serialize, Debug)]
+pub struct MempoolEntry {
+    /// The vsize of this transaction
+    pub vsize: u64,
+    /// The direct fee paid by this transaction
+    pub fee: u64,
+    /// The total vsize of in-mempool ancestors (including this tx)
+    pub ancestor_vsize: u64,
+    /// The total fee paid by in-mempool ancestors (including this tx)
+    pub ancestor_fee: u64,
+    /// Whether this transaction could be replaced due to BIP125 (replace-by-fee)
+    pub bip125_replaceable: bool,
+
+    #[serde(skip)] // Instant cannot be serialized
+    pub updated: Instant,
+}
+
+impl MempoolEntry {
+    /// Whether this transaction has unconfirmed ancestors as its inputs
+    pub fn has_unconfirmed_parents(&self) -> bool {
+        self.vsize != self.ancestor_vsize
+    }
+
+    /// The direct feerate paid by this transaction
+    pub fn own_feerate(&self) -> f64 {
+        self.fee as f64 / self.vsize as f64
+    }
+
+    /// The effective feerate paid by this transaction, taking unconfirmed ancestors into account
+    pub fn effective_feerate(&self) -> f64 {
+        // ancestors can only contribute negatively to the effective rate
+        self.own_feerate()
+            .min(self.ancestor_fee as f64 / self.ancestor_vsize as f64)
+    }
+}
+
+impl From<GetMempoolEntryResult> for MempoolEntry {
+    fn from(entry: GetMempoolEntryResult) -> Self {
+        Self {
+            vsize: entry.vsize,
+            fee: entry.fees.base.as_sat(),
+            ancestor_vsize: entry.ancestor_size,
+            ancestor_fee: entry.fees.ancestor.as_sat(),
+            bip125_replaceable: entry.bip125_replaceable,
+            updated: Instant::now(),
+        }
     }
 }
 

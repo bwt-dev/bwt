@@ -14,7 +14,7 @@ use crate::error::{fmt_error_chain, BwtError, Context, Result};
 use crate::indexer::IndexChange;
 use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
-use crate::types::{BlockId, ScriptHash, StatusHash, TxStatus};
+use crate::types::{BlockId, MempoolEntry, ScriptHash, StatusHash, TxStatus};
 
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
 // released under the MIT license. https://github.com/romanz/electrs
@@ -186,11 +186,19 @@ impl Connection {
         let (script_hash,): (ScriptHash,) = from_value(params)?;
 
         let txs: Vec<Value> = self.query.map_history(&script_hash, |txhist| {
-            let fee = self.query.with_tx_entry(&txhist.txid, |e| e.fee);
+            // unlike other electrum server implementations that return the direct fee paid by the tx itself, we
+            // return the "effective fee rate", which takes unconfirmed ancestor transactions into account.
+            let effective_fee =
+                with_mempool_entry(&self.query, &txhist.txid, txhist.status, |mempool_entry| {
+                    // report the fee as the effective feerate multiplied by the size, to get electrum to display
+                    // the effective feerate when it divides this back by the size.
+                    (mempool_entry.effective_feerate() * mempool_entry.vsize as f64) as u64
+                });
+
             json!({
                 "height": electrum_height(txhist.status),
                 "tx_hash": txhist.txid,
-                "fee": fee,
+                "fee": effective_fee,
             })
         });
         Ok(json!(txs))
@@ -451,6 +459,20 @@ fn electrum_height(status: TxStatus) -> u32 {
         TxStatus::Conflicted => {
             unreachable!("electrum_height() should not be called on conflicted txs")
         }
+    }
+}
+
+// like Query::with_mempool_entry(), but avoids the lookup when the transaction is known to be confirmed
+fn with_mempool_entry<T>(
+    query: &Query,
+    txid: &Txid,
+    status: TxStatus,
+    f: impl Fn(&MempoolEntry) -> T,
+) -> Option<T> {
+    if status.is_unconfirmed() {
+        query.with_mempool_entry(&txid, f)
+    } else {
+        None
     }
 }
 

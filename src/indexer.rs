@@ -10,10 +10,13 @@ use bitcoincore_rpc::json::{
 };
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
+use crate::bitcoincore_ext::RpcApiExt;
 use crate::error::Result;
 use crate::hd::{HDWatcher, KeyOrigin};
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
 use crate::types::{BlockId, InPoint, ScriptHash, TxStatus};
+
+const MEMPOOL_UPDATE_INTERVAL: time::Duration = time::Duration::from_secs(60 * 5);
 
 pub struct Indexer {
     rpc: Arc<RpcClient>,
@@ -56,6 +59,8 @@ impl Indexer {
             self.watcher.do_imports(&self.rpc, /*rescan=*/ true)?
         } { /* do while */ }
 
+        self.sync_mempool(/*force_refresh=*/ true)?;
+
         let stats = self.store.stats();
         info!(
             "completed initial sync in {:?} up to height {} (total {} transactions and {} addresses)",
@@ -93,11 +98,13 @@ impl Indexer {
         }
 
         let synced_tip = self.sync_transactions(&mut changelog)?;
-        let mut changelog = changelog.into_vec();
-
+        let tip_updated = self.tip != Some(synced_tip);
+        self.sync_mempool(/*force_refresh=*/ tip_updated)?;
         self.watcher.do_imports(&self.rpc, /*rescan=*/ false)?;
 
-        if self.tip != Some(synced_tip) {
+        let mut changelog = changelog.into_vec();
+
+        if tip_updated {
             info!("synced up to {}", synced_tip.0);
             changelog.push(IndexChange::ChainTip(synced_tip));
             self.tip = Some(synced_tip);
@@ -274,7 +281,7 @@ impl Indexer {
                 changelog.push(|| IndexChange::TxoSpent(inpoint, scripthash, prevout, status));
 
                 // we could keep just the previous_output and lookup the scripthash and amount
-                // from the corrospanding FundingInfo, but we keep it here anyway for quick access
+                // from the corresponding FundingInfo, but we keep it here anyway for quick access
                 let spending_info = SpendingInfo(scripthash, prevout, amount);
                 Some((vin as u32, spending_info))
             })
@@ -284,6 +291,30 @@ impl Indexer {
             self.upsert_tx(&txid, status, Some(fee), changelog);
             self.store.index_tx_inputs_spending(&txid, spending);
         }
+
+        Ok(())
+    }
+
+    /// Update missing/outdated mempool entries for unconfirmed mempool transactions (or all mempool
+    /// entries when force_refresh is set, during the initial sync or following a chain tip update)
+    fn sync_mempool(&mut self, force_refresh: bool) -> Result<()> {
+        let mempool = self.store.mempool_mut();
+
+        for (txid, opt_entry) in mempool.iter_mut() {
+            // we need to occasionaly refresh the mempool entry because the ancestor information
+            // might change as ancestor transactions gets confirmed.
+            let needs_update = force_refresh
+                || opt_entry.as_ref().map_or(true, |entry| {
+                    entry.updated.elapsed() > MEMPOOL_UPDATE_INTERVAL
+                });
+
+            if needs_update {
+                let rpc_entry = self.rpc.get_mempool_entry(txid)?;
+                *opt_entry = Some(rpc_entry.into());
+            }
+        }
+
+        // TODO use batch rpc
 
         Ok(())
     }
