@@ -188,15 +188,19 @@ impl Connection {
         let txs: Vec<Value> = self.query.map_history(&script_hash, |txhist| {
             // unlike other electrum server implementations that return the direct fee paid by the tx itself, we
             // return the "effective fee rate", which takes unconfirmed ancestor transactions into account.
-            let effective_fee =
+            let (effective_fee, has_unconfirmed_parents) =
                 with_mempool_entry(&self.query, &txhist.txid, txhist.status, |mempool_entry| {
                     // report the fee as the effective feerate multiplied by the size, to get electrum to display
                     // the effective feerate when it divides this back by the size.
-                    (mempool_entry.effective_feerate() * mempool_entry.vsize as f64) as u64
-                });
+                    let effective_fee =
+                        (mempool_entry.effective_feerate() * mempool_entry.vsize as f64) as u64;
+                    let has_unconfirmed_parents = mempool_entry.has_unconfirmed_parents();
+                    (Some(effective_fee), Some(has_unconfirmed_parents))
+                })
+                .unwrap_or((None, None));
 
             json!({
-                "height": electrum_height(txhist.status),
+                "height": electrum_height(txhist.status, has_unconfirmed_parents),
                 "tx_hash": txhist.txid,
                 "fee": effective_fee,
             })
@@ -212,8 +216,10 @@ impl Connection {
             .list_unspent(Some(&script_hash), 0, None)?
             .into_iter()
             .map(|utxo| {
+                let has_unconfirmed_parents =
+                    check_unconfirmed_parents(&self.query, &utxo.txid, utxo.status);
                 json!({
-                    "height": electrum_height(utxo.status),
+                    "height": electrum_height(utxo.status, has_unconfirmed_parents),
                     "tx_hash": utxo.txid,
                     "tx_pos": utxo.vout,
                     "value": utxo.amount,
@@ -441,7 +447,12 @@ fn pad_params(mut params: Value, n: usize) -> Value {
 
 fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
     let p = query.map_history(scripthash, |hist| {
-        format!("{}:{}:", hist.txid, electrum_height(hist.status))
+        let has_unconfirmed_parents = check_unconfirmed_parents(query, &hist.txid, hist.status);
+        format!(
+            "{}:{}:",
+            hist.txid,
+            electrum_height(hist.status, has_unconfirmed_parents)
+        )
     });
 
     if !p.is_empty() {
@@ -451,11 +462,14 @@ fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash>
     }
 }
 
-// TODO -1 to indicate unconfirmed tx with unconfirmed parents
-fn electrum_height(status: TxStatus) -> u32 {
+fn electrum_height(status: TxStatus, has_unconfirmed_parents: Option<bool>) -> i32 {
     match status {
-        TxStatus::Confirmed(height) => height,
-        TxStatus::Unconfirmed => 0,
+        TxStatus::Confirmed(height) => height as i32,
+        TxStatus::Unconfirmed => match has_unconfirmed_parents {
+            Some(false) => 0, // a height of 0 indicates an unconfirmed tx where all the parents are confirmed
+            Some(true) => -1, // a height of -1 indicates an unconfirmed tx with unconfirmed parents used as its inputs
+            None => -1,       // if has_unconfirmed_parents is unknown, error on the side of caution
+        },
         TxStatus::Conflicted => {
             unreachable!("electrum_height() should not be called on conflicted txs")
         }
@@ -474,6 +488,10 @@ fn with_mempool_entry<T>(
     } else {
         None
     }
+}
+
+fn check_unconfirmed_parents(query: &Query, txid: &Txid, status: TxStatus) -> Option<bool> {
+    with_mempool_entry(query, txid, status, MempoolEntry::has_unconfirmed_parents)
 }
 
 #[derive(Clone, Debug)]
