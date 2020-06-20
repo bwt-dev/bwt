@@ -127,13 +127,17 @@ impl Indexer {
 
     fn sync_transactions(&mut self, changelog: &mut Changelog) -> Result<BlockId> {
         let since_block = self.tip.as_ref().map(|tip| &tip.1);
+        let tip_height = self.rpc.get_block_count()? as u32;
+        let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
         let result = self.rpc.list_since_block(since_block, 1, true, true)?;
 
-        let tip_hash = result.lastblock;
-        let tip_height = self.rpc.get_block_header_info(&tip_hash)?.height as u32;
-
-        let mut buffered_outgoing: HashMap<Txid, i32> = HashMap::new();
+        // Workaround for https://github.com/bitcoin/bitcoin/issues/19338,
+        // listsinceblock is not atomic and could provide inconsistent results.
+        if result.lastblock != tip_hash {
+            warn!("chain tip moved while reading listsinceblock, retrying...");
+            return self.sync_transactions(changelog);
+        }
 
         for ltx in result.removed {
             // transactions that were re-added in the active chain will appear in `removed`
@@ -144,6 +148,8 @@ impl Indexer {
                 }
             }
         }
+
+        let mut buffered_outgoing: HashMap<Txid, i32> = HashMap::new();
 
         for ltx in result.transactions {
             // "listtransactions"/"listsinceblock" in fact lists transaction outputs and not transactions.
