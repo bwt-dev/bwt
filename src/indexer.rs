@@ -126,12 +126,9 @@ impl Indexer {
     }
 
     fn sync_transactions(&mut self, changelog: &mut Changelog) -> Result<BlockId> {
-        let since_block = self.tip.as_ref().map(|tip| tip.1);
+        let since_block = self.tip.as_ref().map(|tip| &tip.1);
 
-        let result: ListSinceBlockResult = self.rpc.call(
-            "listsinceblock",
-            &[json!(since_block), json!(1), json!(true)],
-        )?;
+        let result = self.rpc.list_since_block(since_block, 1, true, true)?;
 
         let tip_hash = result.lastblock;
         let tip_height = self.rpc.get_block_header_info(&tip_hash)?.height as u32;
@@ -433,12 +430,4 @@ impl fmt::Display for IndexChange {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize)]
-struct ListSinceBlockResult {
-    transactions: Vec<ListTransactionResult>,
-    #[serde(default)]
-    removed: Vec<ListTransactionResult>,
-    lastblock: BlockHash,
 }

@@ -1,16 +1,73 @@
-use bitcoin::Amount;
-use bitcoincore_rpc::{Client, Error, RpcApi};
+use bitcoincore_rpc::{json, Client, Error, RpcApi};
 
 // Extensions for rust-bitcoincore-rpc
 
 pub trait RpcApiExt: RpcApi {
-    // pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/114
+    // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/114
     fn get_mempool_entry(&self, txid: &bitcoin::Txid) -> Result<GetMempoolEntryResult, Error> {
         self.call("getmempoolentry", &[json!(txid)])
+    }
+
+    // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/111
+    fn list_since_block(
+        &self,
+        blockhash: Option<&bitcoin::BlockHash>,
+        target_confirmations: usize,
+        include_watchonly: bool,
+        include_removed: bool,
+    ) -> Result<ListSinceBlockResult, Error> {
+        let args = [
+            json!(blockhash),
+            json!(target_confirmations),
+            json!(include_watchonly),
+            json!(include_removed),
+        ];
+        self.call("listsinceblock", &args)
+    }
+
+    // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/110
+    fn get_network_info_(&self) -> Result<GetNetworkInfoResult, Error> {
+        self.call("getnetworkinfo", &[])
     }
 }
 
 impl RpcApiExt for Client {}
+
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize)]
+pub struct ListSinceBlockResult {
+    pub transactions: Vec<json::ListTransactionResult>,
+    #[serde(default)]
+    pub removed: Vec<json::ListTransactionResult>,
+    pub lastblock: bitcoin::BlockHash,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+pub struct GetNetworkInfoResult {
+    pub version: usize,
+    pub subversion: String,
+    #[serde(rename = "protocolversion")]
+    pub protocol_version: usize,
+    #[serde(rename = "localservices")]
+    pub local_services: String,
+    #[serde(rename = "localrelay")]
+    pub local_relay: bool,
+    #[serde(rename = "timeoffset")]
+    pub time_offset: isize,
+    pub connections: usize,
+    #[serde(rename = "networkactive")]
+    pub network_active: bool,
+    pub networks: Vec<json::GetNetworkInfoResultNetwork>,
+    #[serde(rename = "relayfee", with = "bitcoin::util::amount::serde::as_btc")]
+    pub relay_fee: bitcoin::Amount,
+    #[serde(
+        rename = "incrementalfee",
+        with = "bitcoin::util::amount::serde::as_btc"
+    )]
+    pub incremental_fee: bitcoin::Amount,
+    #[serde(rename = "localaddresses")]
+    pub local_addresses: Vec<json::GetNetworkInfoResultAddress>,
+    pub warnings: String,
+}
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub struct GetMempoolEntryResult {
@@ -53,14 +110,14 @@ pub struct GetMempoolEntryResult {
 pub struct GetMempoolEntryResultFees {
     /// Transaction fee in BTC
     #[serde(with = "bitcoin::util::amount::serde::as_btc")]
-    pub base: Amount,
+    pub base: bitcoin::Amount,
     /// Transaction fee with fee deltas used for mining priority in BTC
     #[serde(with = "bitcoin::util::amount::serde::as_btc")]
-    pub modified: Amount,
+    pub modified: bitcoin::Amount,
     /// Modified fees (see above) of in-mempool ancestors (including this one) in BTC
     #[serde(with = "bitcoin::util::amount::serde::as_btc")]
-    pub ancestor: Amount,
+    pub ancestor: bitcoin::Amount,
     /// Modified fees (see above) of in-mempool descendants (including this one) in BTC
     #[serde(with = "bitcoin::util::amount::serde::as_btc")]
-    pub descendant: Amount,
+    pub descendant: bitcoin::Amount,
 }

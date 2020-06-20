@@ -3,7 +3,7 @@ use std::{thread, time};
 
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
-use crate::types::GetNetworkInfoResult;
+use crate::bitcoincore_ext::RpcApiExt;
 use crate::util::debounce_sender;
 use crate::{Config, HDWallet, HDWatcher, Indexer, Query, Result};
 
@@ -137,7 +137,7 @@ impl App {
 
 // wait for bitcoind to sync and finish rescanning
 fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
-    let netinfo = rpc.call::<GetNetworkInfoResult>("getnetworkinfo", &[])?;
+    let netinfo = rpc.get_network_info_()?;
     let mut bcinfo = rpc.get_blockchain_info()?;
     info!(
         "connected to {} on {}, protocolversion={}, pruned={}, bestblock={}",
