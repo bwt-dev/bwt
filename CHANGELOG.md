@@ -21,6 +21,8 @@
 
 - Electrum server: Use height of -1 to indicate that a transaction has unconfirmed parents as its inputs. (#40)
 
+- Electrum plugin: Disable support for hot wallets.
+
 ## 0.1.3 - 2020-06-02
 
 - Electrum: Use dummy SPV proofs to support pruning with the  `--skipmerklecheck` option.

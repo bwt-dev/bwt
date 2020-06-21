@@ -40,7 +40,7 @@ class Plugin(BwtPlugin, QObject):
             return
 
         if not self.wallets:
-            window.show_error(_('No hd wallets found.'))
+            window.show_error(_('No watch-only hd wallets found. Note that bwt cannot currently be used with hot wallets. See the README for more details.'))
             return
 
         d = WindowModalDialog(window, _('Connect to Bitcoin Core with bwt'))

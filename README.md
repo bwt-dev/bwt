@@ -235,6 +235,11 @@ It is recommended to use a separate watch-only wallet for bwt (can be created wi
 
 You can setup bwt as an Electrum plugin that embeds the Electrum server into the Electrum wallet.
 
+> ⚠️ **NOTE:** The plugin supports watch-only wallets only and **cannot be used with hot wallets**.
+> This is done as a security measure, which is expected to eventually be relaxed.
+> You can use the plugin with hardware wallets or with an offline Electrum setup.
+> For hot wallets, you will need to setup a standalone server instead of using the plugin, ideally away from your keys.
+
 Download the `electrum_plugin` package from the [releases page](https://github.com/shesek/bwt/releases), verify the signature and unpack into your `electrum/plugins` directory.
 After restarting Electrum, you should see bwt in the list of installed plugins under `Tools -> Plugins`.
 
