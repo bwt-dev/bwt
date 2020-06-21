@@ -1,10 +1,13 @@
 # Bitcoin Wallet Tracker
 
 [![Build Status](https://travis-ci.org/shesek/bwt.svg?branch=master)](https://travis-ci.org/shesek/bwt)
-[![Crates.io](https://img.shields.io/crates/v/bwt.svg)](https://crates.io/crates/bwt)
+[![Latest release](https://img.shields.io/crates/v/bwt.svg?label=release)](https://github.com/shesek/bwt/releases/tag/v0.1.3)
+[![Downloads](https://img.shields.io/github/downloads/shesek/bwt/total.svg?color=blueviolet)](https://github.com/shesek/bwt/releases)
 [![Docker release](https://img.shields.io/docker/pulls/shesek/bwt.svg)](https://hub.docker.com/r/shesek/bwt)
+[![Crate package](https://img.shields.io/crates/d/bwt.svg?label=crate+installs)](https://crates.io/crates/bwt)
 [![MIT license](https://img.shields.io/github/license/shesek/bwt.svg?color=yellow)](https://github.com/shesek/bwt/blob/master/LICENSE)
-[![Pull Requests Welcome](https://img.shields.io/badge/PRs-welcome-nrightgreen.svg)](#developing)
+[![Pull Requests Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#developing)
+[![Bitcoin donations](http://img.shields.io/badge/dynamic/json?label=donated&query=%24.chain_stats.funded_txo_sum&suffix=+sats&url=https://blockstream.info/api/address/bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d)](https://blockstream.info/address/bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d)
 
 `bwt` is a lightweight wallet xpub tracker and query engine for Bitcoin, implemented in Rust.
 
