@@ -16,8 +16,6 @@ use crate::hd::{HDWatcher, KeyOrigin};
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
 use crate::types::{BlockId, InPoint, ScriptHash, TxStatus};
 
-const MEMPOOL_UPDATE_INTERVAL: time::Duration = time::Duration::from_secs(60 * 5);
-
 pub struct Indexer {
     rpc: Arc<RpcClient>,
     watcher: HDWatcher,
@@ -291,14 +289,7 @@ impl Indexer {
         let mempool = self.store.mempool_mut();
 
         for (txid, opt_entry) in mempool.iter_mut() {
-            // we need to occasionaly refresh the mempool entry because the ancestor information
-            // might change as ancestor transactions gets confirmed.
-            let needs_update = force_refresh
-                || opt_entry.as_ref().map_or(true, |entry| {
-                    entry.updated.elapsed() > MEMPOOL_UPDATE_INTERVAL
-                });
-
-            if needs_update {
+            if force_refresh || opt_entry.is_none() {
                 let rpc_entry = self.rpc.get_mempool_entry(txid)?;
                 *opt_entry = Some(rpc_entry.into());
             }

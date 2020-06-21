@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::time::Instant;
 
 use serde::Serialize;
 
@@ -149,9 +148,6 @@ pub struct MempoolEntry {
     pub ancestor_fee: u64,
     /// Whether this transaction could be replaced due to BIP125 (replace-by-fee)
     pub bip125_replaceable: bool,
-
-    #[serde(skip)] // Instant cannot be serialized
-    pub updated: Instant,
 }
 
 impl MempoolEntry {
@@ -160,7 +156,7 @@ impl MempoolEntry {
         self.vsize != self.ancestor_vsize
     }
 
-    /// The direct feerate paid by this transaction
+    /// The direct feerate paid by this transaction, in sat/vB
     pub fn own_feerate(&self) -> f64 {
         self.fee as f64 / self.vsize as f64
     }
@@ -181,7 +177,6 @@ impl From<GetMempoolEntryResult> for MempoolEntry {
             ancestor_vsize: entry.ancestor_size,
             ancestor_fee: entry.fees.ancestor.as_sat(),
             bip125_replaceable: entry.bip125_replaceable,
-            updated: Instant::now(),
         }
     }
 }
