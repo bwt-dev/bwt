@@ -24,18 +24,18 @@ bitcoin_hashes = { version = "0.7.6", features = [ "serde" ] }
 bitcoincore-rpc = "0.11.0"
 chrono = { version = "0.4.11", default-features = false }
 dotenv = "0.15.0"
-dirs = "2.0.2"
+dirs = "3.0.0"
 hex = "0.4.2"
-serde = { version = "1.0.106", features = [ "derive" ] }
-serde_json = "1.0.52"
+serde = { version = "1.0.113", features = [ "derive" ] }
+serde_json = "1.0.55"
 lazy_static = "1.4.0"
 anyhow = "1.0.31"
 log = "0.4.8"
 pretty_env_logger = "0.4.0"
-structopt = "0.3.13"
-thiserror = "1.0.19"
+structopt = "0.3.15"
+thiserror = "1.0.20"
 
 tokio = { version = "0.2.20", features = ["macros"], optional = true }
-warp = { version = "0.2.2", optional = true }
-async-std = { version = "1.5.0", optional = true }
-reqwest = { version = "0.10.4", optional = true, features = ["json", "blocking"] }
+warp = { version = "0.2.3", optional = true }
+async-std = { version = "1.6.2", optional = true }
+reqwest = { version = "0.10.6", optional = true, features = ["json", "blocking"] }
