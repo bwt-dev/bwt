@@ -398,12 +398,9 @@ impl_string_serializer!(
 impl KeyOrigin {
     pub fn to_label(&self) -> String {
         match self {
-            KeyOrigin::Derived(parent_fingerprint, index) => format!(
-                "{}/{}/{}",
-                LABEL_PREFIX,
-                hex::encode(parent_fingerprint.as_bytes()),
-                index
-            ),
+            KeyOrigin::Derived(parent_fingerprint, index) => {
+                format!("{}/{}/{}", LABEL_PREFIX, parent_fingerprint, index)
+            }
             KeyOrigin::Standalone => LABEL_PREFIX.into(),
             KeyOrigin::DerivedHard(..) => unreachable!(),
         }
@@ -413,7 +410,7 @@ impl KeyOrigin {
         let parts: Vec<&str> = s.splitn(3, '/').collect();
         match (parts.get(0), parts.get(1), parts.get(2)) {
             (Some(&LABEL_PREFIX), Some(parent), Some(index)) => Some(KeyOrigin::Derived(
-                Fingerprint::from(&hex::decode(parent).ok()?[..]),
+                Fingerprint::from_str(parent).ok()?,
                 index.parse().ok()?,
             )),
             (Some(&LABEL_PREFIX), None, None) => Some(KeyOrigin::Standalone),
