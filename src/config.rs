@@ -78,7 +78,7 @@ pub struct Config {
     #[structopt(
         short = "a",
         long,
-        help = "Credentials for accessing the bitcoind RPC server (as <username>:<password>, instead of reading the cookie file)",
+        help = "Credentials for accessing the bitcoind RPC server (as <username>:<password>, used instead of the cookie file)",
         alias = "bitcoind-cred",
         env,
         hide_env_values(true),
@@ -87,7 +87,7 @@ pub struct Config {
     pub bitcoind_auth: Option<String>,
 
     #[structopt(
-        short = "C",
+        short = "c",
         long,
         help = "Cookie file for accessing the bitcoind RPC server [default: <bitcoind-dir>/.cookie]",
         env,
