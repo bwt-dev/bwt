@@ -579,7 +579,7 @@ struct TxDetailMempool {
     own_feerate: f64,
     effective_feerate: f64,
     bip125_replaceable: bool,
-    unconfirmed_parents: bool,
+    has_unconfirmed_parents: bool,
 }
 
 impl From<&MempoolEntry> for TxDetailMempool {
@@ -588,7 +588,7 @@ impl From<&MempoolEntry> for TxDetailMempool {
             own_feerate: entry.own_feerate(),
             effective_feerate: entry.effective_feerate(),
             bip125_replaceable: entry.bip125_replaceable,
-            unconfirmed_parents: entry.has_unconfirmed_parents(),
+            has_unconfirmed_parents: entry.has_unconfirmed_parents(),
         }
     }
 }
