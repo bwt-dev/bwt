@@ -276,7 +276,7 @@ impl HDWallet {
             );
         }
         if wallets.is_empty() {
-            warn!("Please provide at least one xpub to track (via --xpub or --bare-xpub).");
+            error!("Please provide at least one xpub to track (via --xpub or --bare-xpub).");
             bail!("no xpubs provided");
         }
         Ok(wallets)
