@@ -97,8 +97,9 @@ if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
   echo Uploading to github...
   gh_auth="Authorization: token $GH_TOKEN"
   gh_base=https://api.github.com/repos/$gh_repo
-  release_opt=`jq -n --arg version v$version --arg changelog "$changelog" \
-    '{ tag_name: $version, name: $version, body: $changelog, draft:true }'`
+  release_text="## Changelog"$'\n'$'\n'$changelog$'\n'$'\n'`cat scripts/release-footer.md | sed "s/VERSION/$version/g"`
+  release_opt=`jq -n --arg version v$version --arg text "$release_text" \
+    '{ tag_name: $version, name: $version, body: $text, draft:true }'`
   gh_release=`curl -sf -H "$gh_auth" $gh_base/releases/tags/v$version \
            || curl -sf -H "$gh_auth" -d "$release_opt" $gh_base/releases`
   gh_upload=`echo "$gh_release" | jq -r .upload_url | sed -e 's/{?name,label}//'`
