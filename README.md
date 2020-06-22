@@ -18,14 +18,17 @@
 
 > ⚠️ This is early alpha software that is likely to be buggy. Use with care, preferably on testnet/regtest.
 
+Support development: [bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d](https://blockstream.info/address/bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d) or [tippin.me](https://tippin.me/@shesek)
+
 - [Intro](#intro)
-- [Server setup](#server-setup)
+- [Setting up bwt](#setting-up-bwt)
   - [Installation](#installation)
   - [Electrum-only server](#electrum-only-server)
   - [Pruning](#pruning)
   - [Real-time indexing](#real-time-indexing)
   - [Advanced options](#advanced-options)
 - [Electrum plugin](#electrum-plugin) 💥
+- [Manual Electrum setup](#manual-electrum-setup-without-the-plugin)
 - [HTTP API](#http-api)
   - [HD Wallets](#hd-wallets)
   - [Transactions](#transactions)
@@ -38,8 +41,6 @@
 - [Web Hooks](#web-hooks)
 - [Developing](#developing) 👩‍💻
 - [Thanks](#thanks)
-
-<sub>*Support development: bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d or [tippin.me](https://tippin.me/@shesek)*</sub>
 
 ## Intro
 
@@ -57,7 +58,7 @@ The index is currently managed in-memory and does not get persisted (this is exp
 *TL;DR: EPS + Rust + Modern HTTP API + Push updates*
 
 
-## Server setup
+## Setting up bwt
 
 Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficient. `txindex` is not required) and install bwt using one of the methods below.
 
@@ -87,6 +88,8 @@ $ wget -qO - https://github.com/shesek/bwt/releases/download/v0.1.3/SHA256SUMS.a
 $ tar zxvf bwt-0.1.3-x86_64-linux.tar.gz
 $ ./bwt-0.1.3-x86_64-linux/bwt --xpub <xpub> ...
 ```
+
+The signature verification should show `Good signature from "Nadav Ivgi <nadav@shesek.info>" ... Primary key fingerprint: FCF1 9B67 ...` and `bwt-VERSION-x86_64-linux.tar.gz: OK`.
 
 #### From source
 
@@ -129,6 +132,10 @@ your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 
 You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
 
+Rescanning can be controlled with `--xpub <xpub>:<rescan>`. You can specify `<rescan>` with the xpub birthday formatted
+as `yyyy-mm-dd` to scan from that date onwards only, or use `none` to disable rescanning entirely (for newly created wallets).
+*Setting this can significantly speed up scanning and is highly recommended.*
+
 By default, the Electrum server will be bound on port `50001`/`60001`/`60401` (according to the network)
 and the HTTP server will be bound on port `3060`. This can be controlled with `--electrum-rpc-addr`
 and `--http-server-addr`.
@@ -170,7 +177,7 @@ This removes several large dependencies and disables the `track-spends` database
 
 You can use bwt with pruning, but:
 
-1. You will have to provide a rescan date that is within the range of non-pruned blocks, or use `none` to disable rescanning entirely (see [here](#rescan-policy--wallet-birthday)).
+1. You will have to provide a [rescan date](#rescan-policy--wallet-birthday) that is within the range of non-pruned blocks, or use `none` to disable rescanning entirely.
 
 2. Electrum needs to be run with `--skipmerklecheck` to tolerate missing SPV proofs for transactions in pruned blocks.
 
@@ -218,12 +225,6 @@ The gap limit sets the maximum number of consecutive unused addresses to be impo
 You can import larger batches with a higher gap during the initial sync using `--initial-import-size <N>` (defaults to 100).
 Higher value means less rescans. Should be increased for large wallets.
 
-##### Rescan policy / wallet birthday
-
-You may specify a rescan policy with the key's birthday to indicate how far back it should scan,
-using `--xpub <xpub>:<rescan>`, where `<rescan>` is one of  `all` (rescan from the beginning, the default),
-`none` (don't rescan at all), the key birthday formatted as `yyyy-mm-dd`, or the birthday as a unix timestamp.
-
 ##### Bitcoin Core multi-wallet
 
 If you're using [multi-wallet](https://bitcoin.org/en/release/v0.15.0.1#multi-wallet-support),
@@ -254,12 +255,23 @@ You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running
 
 The plugin automatically configures Electrum with `--oneserver` (to avoid connecting to public servers) and `--skipmerklecheck` (necessary for [pruning](#pruning)).
 
-To avoid connecting to public servers while setting up the plugin, you can start Electrum with `--offline`, enable and configure the plugin, then restart Electrum without `--offline`.
-Another option is to disconnect the internet entirely while setting things up.
+To avoid connecting to public servers while setting up the plugin, make sure the "auto connect" feature is disabled or run Electrum with `--offline` until everything is ready.
 
 To build the plugin from source, first build the binary as [described here](#from-source), copy it into the `contrib/electrum-plugin` directory, then place that directory under `electrum/plugins`, *but renamed to `bwt`* (Electrum won't recognize it otherwise).
 
 ![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
+
+## Manual Electrum setup (without the plugin)
+
+[Setup the bwt server](#setting-up-bwt), then start Electrum with:
+
+```bash
+$ electrum --skipmerklecheck --oneserver --server 127.0.0.1:50001:t
+```
+
+Note that setting `--skipmerklecheck` is only necessary if your node is pruned,
+but it can also be used to save some resource when combined with `--electrum-skip-merkle`.
+See [more details here](#pruning).
 
 ## HTTP API
 
