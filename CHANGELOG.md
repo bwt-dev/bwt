@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 - 2020-06-22
 
 - Implement improved mempool tracking, including support for an "effective feerate" metric that takes unconfirmed ancestors into account
   (calculated as `MIN(own_fee/own_vsize, (own_fee+ancestor_fee)/(own_vsize+ancestor_vsize))`).
