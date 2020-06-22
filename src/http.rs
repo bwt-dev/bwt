@@ -429,36 +429,31 @@ async fn run(
         })
         .map(handle_error);
 
-    let handlers = hd_wallets_handler
-        .or(hd_wallet_handler)
-        .or(hd_key_handler) // needs to be before spk_handler to work fpr keys that don't have any indexed history
-        .or(hd_gap_handler)
-        .or(hd_next_handler)
-        .or(spk_handler)
-        .or(spk_utxo_handler)
-        .or(spk_stats_handler)
-        .or(spk_txs_handler)
-        .or(spk_txs_compact_handler)
-        .or(tx_handler)
-        .or(tx_verbose_handler)
-        .or(tx_hex_handler)
-        .or(tx_proof_handler)
-        .or(txs_since_handler)
-        .or(txs_since_compact_handler)
-        .or(tx_broadcast_handler)
-        .or(txo_handler)
-        .or(utxos_handler)
-        .or(sse_handler)
-        .or(spk_sse_handler)
-        .or(block_tip_handler)
-        .or(block_header_handler)
-        .or(block_hex_handler)
-        .or(block_height_handler)
-        .or(mempool_histogram_handler)
-        .or(fee_estimate_handler)
-        .or(dump_handler)
-        .or(debug_handler)
-        .or(sync_handler)
+    // hd_key_handler needs to be oredered before spk_handler, so it'll work with keys that don't have any indexed history
+
+    let hd_handlers = hd_wallets_handler
+        .or(hd_wallet_handler.or(hd_key_handler))
+        .or(hd_gap_handler.or(hd_next_handler));
+    let spk_handlers = spk_handler
+        .or(spk_utxo_handler.or(spk_stats_handler))
+        .or(spk_txs_handler.or(spk_txs_compact_handler));
+    let tx_handlers = tx_handler
+        .or(tx_verbose_handler.or(tx_hex_handler))
+        .or(tx_proof_handler.or(txs_since_handler))
+        .or(txs_since_compact_handler.or(tx_broadcast_handler));
+    let txo_handlers = txo_handler.or(utxos_handler);
+    let sse_handlers = sse_handler.or(spk_sse_handler);
+    let block_handlers = block_tip_handler
+        .or(block_header_handler.or(block_hex_handler))
+        .or(block_height_handler);
+    let mempool_handlers = mempool_histogram_handler.or(fee_estimate_handler);
+    let other_handlers = dump_handler.or(debug_handler.or(sync_handler));
+
+    let handlers = hd_handlers
+        .or(spk_handlers.or(tx_handlers))
+        .or(txo_handlers.or(sse_handlers))
+        .or(block_handlers.or(mempool_handlers))
+        .or(other_handlers)
         .or(warp::any().map(|| StatusCode::NOT_FOUND))
         .with(warp::log("bwt::http"))
         .with(warp::reply::with::headers(headers));
