@@ -458,6 +458,7 @@ fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash>
     if !p.is_empty() {
         Some(StatusHash::hash(&p.join("").into_bytes()))
     } else {
+        // empty history needs to be represented as a `null` in json
         None
     }
 }
@@ -498,7 +499,7 @@ fn check_unconfirmed_parents(query: &Query, txid: &Txid, status: TxStatus) -> Op
 pub enum Message {
     Request(String),
     ChainTip(u32, String), // height, hex header
-    HistoryChange(ScriptHash, StatusHash),
+    HistoryChange(ScriptHash, Option<StatusHash>),
     Done,
 }
 
@@ -713,7 +714,7 @@ impl SubscriptionManager {
                         // calculate the status hash once per script hash and cache it
                         let status_hash =
                             status_hash.get_or_insert_with(|| get_status_hash(&query, scripthash));
-                        Some(Message::HistoryChange(*scripthash, (*status_hash)?))
+                        Some(Message::HistoryChange(*scripthash, *status_hash))
                     }),
             )
             .all(|msg| match subscriber.sender.try_send(msg) {
