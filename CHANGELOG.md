@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Improve block download check on regtest. (#45, #35)
+
 ## 0.1.4 - 2020-06-22
 
 - Implement improved mempool tracking, including support for an "effective feerate" metric that takes unconfirmed ancestors into account
