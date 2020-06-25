@@ -449,7 +449,7 @@ Additional fields for unconfirmed mempool transactions:
 
 - `own_feerate` - the fee rate paid directly by the transaction, in `sat/vB`
 - `effective_feerate` - the effective transaction fee rate, taking unconfirmed ancestor transactions into account
-- `bip125_replacelable` - whether this transaction opted into BIP 125 replace-by-fee
+- `bip125_replacelable` - whether this transaction can be replaced due to BIP 125 replace-by-fee (because either it or one of its unconfirmed ancestors are signaling to opt-into rbf)
 - `has_unconfirmed_parents` - whether this transaction has unconfirmed parents used as its inputs
 
 The effective fee rate is calculated as `MIN(own_fee/own_vsize, (own_fee+ancestor_fee)/(own_vsize+ancestor_vsize))`.
