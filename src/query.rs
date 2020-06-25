@@ -117,7 +117,7 @@ impl Query {
                     .estimate_smart_fee(target, None)?
                     .fee_rate
                     // from sat/kB to sat/b
-                    .map(|rate| (rate.as_sat() as f64 / 1000f64) as f64);
+                    .map(|rate| rate.as_sat() as f64 / 1000f64);
                 Ok(feerate)
             },
             target
@@ -131,7 +131,7 @@ impl Query {
                 .or_err("invalid getmempoolinfo reply")?;
 
             // from BTC/kB to sat/b
-            Ok((feerate * 100_000f64) as f64)
+            Ok(feerate * 100_000f64)
         });
     }
 

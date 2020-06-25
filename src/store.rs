@@ -234,16 +234,16 @@ impl MemoryStore {
             spending_input
         );
 
-        let added = self
+        let was_unspent = self
             .txo_spends
             .insert(spent_prevout, spending_input)
             .is_none();
 
-        if added {
+        if was_unspent {
             trace!("new txo spend: {:?}", spent_prevout);
         }
 
-        added
+        was_unspent
     }
 
     /// Update the scripthash history index to reflect the new tx status
@@ -450,11 +450,7 @@ impl Ord for HistoryEntry {
 
 impl PartialOrd for HistoryEntry {
     fn partial_cmp(&self, other: &HistoryEntry) -> Option<Ordering> {
-        Some(
-            self.status
-                .cmp(&other.status)
-                .then_with(|| self.txid.cmp(&other.txid)),
-        )
+        Some(self.cmp(other))
     }
 }
 
