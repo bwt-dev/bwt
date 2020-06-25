@@ -156,8 +156,11 @@ fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
         || bcinfo.blocks < bcinfo.headers
     {
         info!(
-            "waiting for bitcoind to sync [{}/{} blocks, ibd={}]",
-            bcinfo.blocks, bcinfo.headers, bcinfo.initial_block_download
+            "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%, initialblockdownload={}]",
+            bcinfo.blocks,
+            bcinfo.headers,
+            bcinfo.verification_progress,
+            bcinfo.initial_block_download
         );
         thread::sleep(dur);
         bcinfo = rpc.get_blockchain_info()?;
