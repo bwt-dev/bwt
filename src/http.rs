@@ -345,7 +345,7 @@ async fn run(
         .and(query.clone())
         .map(|query: Arc<Query>| {
             // XXX currently returns the tip reported by bitcoind, return the indexer tip as well?
-            let BlockId(blockhash, height) = query.get_tip()?;
+            let BlockId(height, blockhash) = query.get_tip()?;
             Ok(reply::json(&json!({ "hash": blockhash, "height": height })))
         })
         .map(handle_error);
