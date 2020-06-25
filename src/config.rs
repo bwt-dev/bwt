@@ -56,7 +56,7 @@ pub struct Config {
     pub bitcoind_wallet: Option<String>,
 
     #[structopt(
-        short = "d",
+        short = "D",
         long,
         help = "Path to bitcoind directory (used for cookie file) [default: ~/.bitcoin]",
         env,
@@ -97,9 +97,9 @@ pub struct Config {
     pub bitcoind_cookie: Option<path::PathBuf>,
 
     #[structopt(
-        short = "D",
-        long = "descriptors",
-        help = "descriptors to track and since when (rescans from genesis by default, use <desc>:<yyyy-mm-dd> or <desc>:<unix-epoch> to specify a timestmap, or <desc>:none to disable rescan)",
+        short = "d",
+        long = "descriptor",
+        help = "Output script descriptor to track and since when (rescans from genesis by default, use <desc>:<yyyy-mm-dd> or <desc>:<unix-epoch> to specify a timestmap, or <desc>:none to disable rescan)",
         parse(try_from_str = parse_descriptor),
         env, hide_env_values(true), use_delimiter(true),
         display_order(20)

@@ -36,17 +36,21 @@ impl App {
     pub fn boot(config: Config) -> Result<Self> {
         debug!("{:?}", config);
 
-        let rpc = RpcClient::new(config.bitcoind_url(), config.bitcoind_auth()?)?;
+        let rpc = Arc::new(RpcClient::new(
+            config.bitcoind_url(),
+            config.bitcoind_auth()?,
+        )?);
 
-        let wallets = HDWallet::from_descriptors(
+        let wallets = HDWallet::from_config(
             &config.descriptors[..],
+            &config.xpubs[..],
+            &config.bare_xpubs[..],
             config.network,
             config.gap_limit,
             config.initial_import_size,
-            &rpc,
+            rpc.clone(),
         )?;
 
-        let rpc = Arc::new(rpc);
         let watcher = HDWatcher::new(wallets);
 
         let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)));

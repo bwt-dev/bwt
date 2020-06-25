@@ -16,7 +16,7 @@ use crate::types::{BlockId, MempoolEntry, ScriptHash, TxStatus};
 use crate::util::make_fee_histogram;
 
 #[cfg(feature = "track-spends")]
-use crate::types::{DescriptorChecksum, InPoint};
+use crate::types::{DescrChecksum, InPoint};
 
 const FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(120);
 const FEE_ESTIMATES_TTL: Duration = Duration::from_secs(120);
@@ -414,38 +414,33 @@ impl Query {
     // HD Wallets
     //
 
-    pub fn get_hd_wallets(&self) -> HashMap<DescriptorChecksum, HDWallet> {
+    pub fn get_hd_wallets(&self) -> HashMap<DescrChecksum, HDWallet> {
         self.indexer.read().unwrap().watcher().wallets().clone()
     }
 
-    pub fn get_hd_wallet(&self, desc_check: DescriptorChecksum) -> Option<HDWallet> {
-        self.indexer
-            .read()
-            .unwrap()
-            .watcher()
-            .get(desc_check)
-            .cloned()
+    pub fn get_hd_wallet(&self, descr_cs: DescrChecksum) -> Option<HDWallet> {
+        self.indexer.read().unwrap().watcher().get(descr_cs).cloned()
     }
 
     // get the ScriptInfo entry of a derived hd key, without it necessarily being indexed
     pub fn get_hd_script_info(
         &self,
-        desc_check: DescriptorChecksum,
+        descr_cs: DescrChecksum,
         index: u32,
-    ) -> Option<ScriptInfo> {
+    ) -> Result<Option<ScriptInfo>> {
         let indexer = self.indexer.read().unwrap();
-        let wallet = indexer.watcher().get(desc_check.clone());
-        let address = wallet.unwrap().derive_address(index, &self.rpc).unwrap();
+        let wallet = some_or_ret!(indexer.watcher().get(descr_cs.clone()), Ok(None));
+        let address = wallet.derive_address(index, &self.rpc)?;
         let scripthash = ScriptHash::from(&address);
-        let origin = KeyOrigin::Derived(desc_check.clone(), index);
-        Some(ScriptInfo::new(scripthash, address, origin))
+        let origin = KeyOrigin::Derived(descr_cs.clone(), index);
+        Ok(Some(ScriptInfo::new(scripthash, address, origin)))
     }
 
-    pub fn find_hd_gap(&self, desc_check: DescriptorChecksum) -> Option<usize> {
+    pub fn find_hd_gap(&self, descr_cs: DescrChecksum) -> Result<Option<usize>> {
         let indexer = self.indexer.read().unwrap();
         let store = indexer.store();
-        let wallet = indexer.watcher().get(desc_check)?;
-        let max_funded_index = wallet.max_funded_index?; // return None if this wallet has no history at all
+        let wallet = some_or_ret!(indexer.watcher().get(descr_cs), Ok(None));
+        let max_funded_index = some_or_ret!(wallet.max_funded_index, Ok(None)); // return None if this wallet has no history at all
 
         let gap = (0..=max_funded_index)
             .map(|derivation_index| {
@@ -459,7 +454,7 @@ impl Query {
                 }
             })
             .1;
-        Some(gap)
+        Ok(Some(gap))
     }
 }
 

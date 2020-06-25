@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use serde::Serialize;
 
@@ -186,32 +187,32 @@ impl From<GetMempoolEntryResult> for MempoolEntry {
 }
 
 #[derive(Serialize, Clone, Eq, PartialEq, Debug, Hash)]
-pub struct DescriptorChecksum(pub String);
+pub struct DescrChecksum(pub String);
 
-impl FromStr for DescriptorChecksum {
+impl FromStr for DescrChecksum {
     type Err = BwtError;
-    fn from_str(s: &str) -> Result<DescriptorChecksum, Self::Err> {
-        Ok(DescriptorChecksum(s.to_string()))
+    fn from_str(s: &str) -> Result<DescrChecksum, Self::Err> {
+        Ok(DescrChecksum(s.to_string()))
     }
 }
 
+/// A *ranged* output script descriptor
 #[derive(Serialize, Clone, Eq, PartialEq, Debug, Hash)]
 pub struct Descriptor(pub String);
 
 impl Descriptor {
-    pub fn new(descriptor: &str, rpc: &RpcClient) -> Result<Self, BwtError> {
-        // TODO: what to do about non-ranged descriptors?
-        let info = rpc.get_descriptor_info(descriptor).unwrap();
+    pub fn new(descriptor: &str, rpc: Arc<RpcClient>) -> Result<Self, BwtError> {
+        let info = rpc.get_descriptor_info(descriptor)?;
         Ok(Self(info.descriptor))
     }
 
-    pub fn checksum(&self) -> DescriptorChecksum {
-        // This assumes that the descriptor is legit ...
-        DescriptorChecksum(self.0.split("#").collect::<Vec<_>>()[1].to_string())
+    pub fn checksum(&self) -> DescrChecksum {
+        // This assumes that the descriptor is valid ...
+        DescrChecksum(self.0.split("#").collect::<Vec<_>>()[1].to_string())
     }
 }
 
-impl fmt::Display for DescriptorChecksum {
+impl fmt::Display for DescrChecksum {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.0)
     }
