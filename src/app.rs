@@ -152,8 +152,9 @@ fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
     trace!("{:?}", bcinfo);
 
     let dur = time::Duration::from_secs(15);
-    while bcinfo.initial_block_download {
-        /* || bcinfo.blocks < bcinfo.headers */
+    while (bcinfo.chain != "regtest" && bcinfo.initial_block_download)
+        || bcinfo.blocks < bcinfo.headers
+    {
         info!(
             "waiting for bitcoind to sync [{}/{} blocks, ibd={}]",
             bcinfo.blocks, bcinfo.headers, bcinfo.initial_block_download
