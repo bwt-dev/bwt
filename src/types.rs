@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -186,7 +185,7 @@ impl From<GetMempoolEntryResult> for MempoolEntry {
     }
 }
 
-#[derive(Serialize, Clone, Eq, PartialEq, Debug, Hash)]
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
 pub struct DescrChecksum(pub String);
 
 impl FromStr for DescrChecksum {
@@ -196,24 +195,23 @@ impl FromStr for DescrChecksum {
     }
 }
 
+impl_string_serializer!(DescrChecksum, descr_cs, descr_cs.0);
+
 /// A *ranged* output script descriptor
-#[derive(Serialize, Clone, Eq, PartialEq, Debug, Hash)]
-pub struct Descriptor(pub String);
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
+pub struct Descriptor {
+    pub body: String,
+    pub checksum: DescrChecksum,
+}
 
 impl Descriptor {
     pub fn new(descriptor: &str, rpc: Arc<RpcClient>) -> Result<Self, BwtError> {
         let info = rpc.get_descriptor_info(descriptor)?;
-        Ok(Self(info.descriptor))
-    }
-
-    pub fn checksum(&self) -> DescrChecksum {
-        // This assumes that the descriptor is valid ...
-        DescrChecksum(self.0.split("#").collect::<Vec<_>>()[1].to_string())
+        Ok(Self {
+            body: descriptor.to_string(),
+            checksum: DescrChecksum(info.checksum),
+        })
     }
 }
 
-impl fmt::Display for DescrChecksum {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
+impl_string_serializer!(Descriptor, desc, format!("{}#{}", desc.body, desc.checksum));

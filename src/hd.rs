@@ -30,7 +30,7 @@ impl HDWatcher {
         HDWatcher {
             wallets: wallets
                 .into_iter()
-                .map(|wallet| (wallet.descriptor.checksum(), wallet))
+                .map(|wallet| (wallet.descriptor.checksum.clone(), wallet))
                 .collect(),
         }
     }
@@ -198,15 +198,14 @@ impl HDWallet {
                     *rescan,
                     rpc.clone(),
                 )
-                .with_context(|| format!("invalid descriptor {}", descriptor))?
-                .clone(),
+                .with_context(|| format!("invalid descriptor {}", descriptor))?,
             );
         }
 
         // Xpubs
         for (xyz, rescan) in xpubs {
             // Change and receiving output descriptors
-            for change in 0..2 {
+            for change in 0..=1 {
                 let descriptor = match xyz.script_type {
                     ScriptType::P2pkh => {
                         format!("pkh({}/{}/*)", xyz.extended_pubkey.to_string(), change)
@@ -227,8 +226,7 @@ impl HDWallet {
                         *rescan,
                         rpc.clone(),
                     )
-                    .with_context(|| format!("Invalid xpub-derived descriptor {}", descriptor))?
-                    .clone(),
+                    .with_context(|| format!("Invalid xpub-derived descriptor {}", descriptor))?,
                 );
             }
         }
@@ -236,9 +234,11 @@ impl HDWallet {
         // Bare xpubs
         for (xyz, rescan) in bare_xpubs {
             let descriptor = match xyz.script_type {
-                ScriptType::P2pkh => format!("pkh({})", xyz.extended_pubkey.to_string()),
-                ScriptType::P2wpkh => format!("wpkh({})", xyz.extended_pubkey.to_string()),
-                ScriptType::P2shP2wpkh => format!("sh(wpkh({}))", xyz.extended_pubkey.to_string()),
+                ScriptType::P2pkh => format!("pkh({})/*", xyz.extended_pubkey.to_string()),
+                ScriptType::P2wpkh => format!("wpkh({}/*)", xyz.extended_pubkey.to_string()),
+                ScriptType::P2shP2wpkh => {
+                    format!("sh(wpkh({}/*))", xyz.extended_pubkey.to_string())
+                }
             };
             wallets.push(
                 Self::from_descriptor(
@@ -249,8 +249,7 @@ impl HDWallet {
                     *rescan,
                     rpc.clone(),
                 )
-                .with_context(|| format!("Invalid bare-xpub-derived descriptor {}", descriptor))?
-                .clone(),
+                .with_context(|| format!("Invalid bare-xpub-derived descriptor {}", descriptor))?,
             );
         }
 
@@ -296,7 +295,7 @@ impl HDWallet {
         start_index: u32,
         end_index: u32,
         rescan: bool,
-    ) -> Vec<(Descriptor, u32, String, RescanSince)> {
+    ) -> Vec<(String, u32, String, RescanSince)> {
         let rescan_since = if rescan {
             self.rescan_policy
         } else {
@@ -305,14 +304,14 @@ impl HDWallet {
 
         (start_index..=end_index)
             .map(|index| {
-                let label = KeyOrigin::Derived(self.descriptor.checksum(), index).to_label();
-                (self.descriptor.clone(), index, label, rescan_since)
+                let label = KeyOrigin::Derived(self.descriptor.checksum.clone(), index).to_label();
+                (self.descriptor.to_string(), index, label, rescan_since)
             })
             .collect()
     }
 
     pub fn derive_address(&self, index: u32, rpc: &RpcClient) -> Result<Address> {
-        let res = rpc.derive_addresses(&self.descriptor.0, Some([index, index]))?;
+        let res = rpc.derive_addresses(&self.descriptor.to_string(), Some([index, index]))?;
         Ok(res[0].to_owned())
     }
 
@@ -323,7 +322,7 @@ impl HDWallet {
 }
 fn batch_import(
     rpc: &RpcClient,
-    import_reqs: Vec<(Descriptor, u32, String, RescanSince)>,
+    import_reqs: Vec<(String, u32, String, RescanSince)>,
 ) -> Result<()> {
     let results = rpc.import_multi(
         &import_reqs
@@ -334,7 +333,7 @@ fn batch_import(
                     watchonly: Some(true),
                     timestamp: *rescan_since,
                     range: Some((*index as usize, *index as usize)),
-                    descriptor: Some(&descriptor.0),
+                    descriptor: Some(&descriptor),
                     ..Default::default()
                 },
             )
@@ -489,7 +488,7 @@ impl Serialize for HDWallet {
         S: serde::Serializer,
     {
         let mut rgb = serializer.serialize_struct("HDWallet", 3)?;
-        rgb.serialize_field("descriptor", &self.descriptor.0)?;
+        rgb.serialize_field("descriptor", &self.descriptor.body)?;
         rgb.serialize_field("network", &self.network)?;
         rgb.serialize_field("gap_limit", &self.gap_limit)?;
         rgb.serialize_field("initial_import_size", &self.initial_import_size)?;

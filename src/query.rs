@@ -419,7 +419,12 @@ impl Query {
     }
 
     pub fn get_hd_wallet(&self, descr_cs: DescrChecksum) -> Option<HDWallet> {
-        self.indexer.read().unwrap().watcher().get(descr_cs).cloned()
+        self.indexer
+            .read()
+            .unwrap()
+            .watcher()
+            .get(descr_cs)
+            .cloned()
     }
 
     // get the ScriptInfo entry of a derived hd key, without it necessarily being indexed
