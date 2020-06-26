@@ -151,7 +151,11 @@ impl Query {
         indexer.store().get_mempool_entry(txid).cloned()
     }
 
-    pub fn with_mempool_entry<T>(&self, txid: &Txid, f: impl Fn(&MempoolEntry) -> T) -> Option<T> {
+    pub fn with_mempool_entry<T>(
+        &self,
+        txid: &Txid,
+        f: impl FnOnce(&MempoolEntry) -> T,
+    ) -> Option<T> {
         let indexer = self.indexer.read().unwrap();
         indexer.store().get_mempool_entry(txid).map(f)
     }
@@ -199,7 +203,7 @@ impl Query {
         indexer.store().get_tx_entry(txid).cloned()
     }
 
-    pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl Fn(&TxEntry) -> T) -> Option<T> {
+    pub fn with_tx_entry<T>(&self, txid: &Txid, f: impl FnOnce(&TxEntry) -> T) -> Option<T> {
         let indexer = self.indexer.read().unwrap();
         indexer.store().get_tx_entry(txid).map(f)
     }
