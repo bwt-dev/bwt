@@ -157,26 +157,6 @@ pub struct HDWallet {
 }
 
 impl HDWallet {
-    pub fn new(
-        descriptor: Descriptor,
-        network: Network,
-        gap_limit: u32,
-        initial_import_size: u32,
-        rescan_policy: RescanSince,
-    ) -> Self {
-        Self {
-            descriptor,
-            network,
-            gap_limit,
-            // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
-            initial_import_size: initial_import_size.max(gap_limit),
-            rescan_policy,
-            done_initial_import: false,
-            max_funded_index: None,
-            max_imported_index: None,
-        }
-    }
-
     pub fn from_config(
         descriptors: &[(String, RescanSince)],
         xpubs: &[(XyzPubKey, RescanSince)],
@@ -190,7 +170,7 @@ impl HDWallet {
         let mut wallets = vec![];
         for (descriptor, rescan) in descriptors {
             wallets.push(
-                Self::from_descriptor(
+                Self::new(
                     descriptor.clone(),
                     network,
                     gap_limit,
@@ -218,7 +198,7 @@ impl HDWallet {
                     }
                 };
                 wallets.push(
-                    Self::from_descriptor(
+                    Self::new(
                         descriptor.clone(),
                         network,
                         gap_limit,
@@ -241,7 +221,7 @@ impl HDWallet {
                 }
             };
             wallets.push(
-                Self::from_descriptor(
+                Self::new(
                     descriptor.clone(),
                     network,
                     gap_limit,
@@ -260,7 +240,7 @@ impl HDWallet {
         Ok(wallets)
     }
 
-    pub fn from_descriptor(
+    pub fn new(
         descriptor: String,
         network: Network,
         gap_limit: u32,
@@ -269,13 +249,17 @@ impl HDWallet {
         rpc: Arc<RpcClient>,
     ) -> Result<Self> {
         let descriptor = Descriptor::new(&descriptor, rpc)?;
-        Ok(Self::new(
+        Ok(Self {
             descriptor,
             network,
             gap_limit,
-            initial_import_size,
+            // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
+            initial_import_size: initial_import_size.max(gap_limit),
             rescan_policy,
-        ))
+            done_initial_import: false,
+            max_funded_index: None,
+            max_imported_index: None,
+        })
     }
 
     /// Returns the maximum index that needs to be watched
