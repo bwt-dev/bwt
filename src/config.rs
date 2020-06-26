@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use std::{env, net, path, time};
 
 use chrono::{TimeZone, Utc};
@@ -339,7 +338,7 @@ fn apply_log_env(mut builder: LogBuilder) -> LogBuilder {
 
 fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {
     let mut parts = s.splitn(2, ':');
-    let xpub = XyzPubKey::from_str(parts.next().or_err("missing xpub")?)?;
+    let xpub = parts.next().or_err("missing xpub")?.parse()?;
     let rescan = parts
         .next()
         .map_or(Ok(RescanSince::Timestamp(0)), parse_rescan)?;

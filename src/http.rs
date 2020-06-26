@@ -35,10 +35,7 @@ async fn run(
     if let Some(cors) = cors {
         // allow using "any" as an alias for "*", avoiding expansion when passing "*" can be tricky
         let cors = if cors == "any" { "*".into() } else { cors };
-        headers.insert(
-            "Access-Control-Allow-Origin",
-            header::HeaderValue::from_str(&cors).unwrap(),
-        );
+        headers.insert("Access-Control-Allow-Origin", cors.parse().unwrap());
     }
 
     // GET /hd
@@ -102,7 +99,7 @@ async fn run(
             Ok(reply::with_header(
                 reply::with_status(next_index.to_string(), StatusCode::TEMPORARY_REDIRECT),
                 header::LOCATION,
-                header::HeaderValue::from_str(&uri)?,
+                uri,
             ))
         })
         .map(handle_error);
@@ -376,12 +373,12 @@ async fn run(
         .and(query.clone())
         .map(|height: u32, query: Arc<Query>| {
             let blockhash = query.get_block_hash(height)?;
-            let url = format!("/block/{}", blockhash);
+            let uri = format!("/block/{}", blockhash);
             // issue a 307 redirect to the block hash uri, and also include the hash in the body
             Ok(reply::with_header(
                 reply::with_status(blockhash.to_string(), StatusCode::TEMPORARY_REDIRECT),
                 header::LOCATION,
-                header::HeaderValue::from_str(&url)?,
+                uri,
             ))
         })
         .map(handle_error);

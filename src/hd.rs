@@ -410,7 +410,7 @@ impl KeyOrigin {
         let parts: Vec<&str> = s.splitn(3, '/').collect();
         match (parts.get(0), parts.get(1), parts.get(2)) {
             (Some(&LABEL_PREFIX), Some(parent), Some(index)) => Some(KeyOrigin::Derived(
-                Fingerprint::from_str(parent).ok()?,
+                parent.parse().ok()?,
                 index.parse().ok()?,
             )),
             (Some(&LABEL_PREFIX), None, None) => Some(KeyOrigin::Standalone),
@@ -465,7 +465,7 @@ impl FromStr for XyzPubKey {
         data.splice(0..4, get_xpub_p2pkh_version(network).iter().cloned());
 
         let faux_xpub = base58::check_encode_slice(&data);
-        let extended_pubkey = ExtendedPubKey::from_str(&faux_xpub)?;
+        let extended_pubkey = faux_xpub.parse()?;
 
         Ok(XyzPubKey {
             network,
