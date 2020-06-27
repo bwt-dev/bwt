@@ -30,8 +30,6 @@ pub mod listener;
 
 #[cfg(feature = "electrum")]
 pub mod electrum;
-#[cfg(feature = "electrum")]
-pub mod merkle;
 
 #[cfg(feature = "http")]
 pub mod http;

@@ -7,14 +7,13 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use bitcoin::Txid;
-use bitcoin_hashes::{hex::ToHex, Hash};
 use serde_json::{from_str, from_value, Value};
 
+use crate::electrum::{electrum_height, QueryExt};
 use crate::error::{fmt_error_chain, BwtError, Context, Result};
 use crate::indexer::IndexChange;
-use crate::merkle::{get_header_merkle_proof, get_id_from_pos, get_merkle_proof};
 use crate::query::Query;
-use crate::types::{BlockId, MempoolEntry, ScriptHash, StatusHash, TxStatus};
+use crate::types::{BlockId, MempoolEntry, ScriptHash, StatusHash};
 use crate::util::BoolThen;
 
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
@@ -96,11 +95,11 @@ impl Connection {
 
         Ok(match cp_height {
             Some(cp_height) => {
-                let (branch, root) = get_header_merkle_proof(&self.query, height, cp_height)?;
+                let (branch, root) = self.query.electrum_header_merkle_proof(height, cp_height)?;
 
                 json!({
                     "header": header_hex,
-                    "root": root.to_hex(),
+                    "root": root,
                     "branch": branch,
                 })
             }
@@ -135,10 +134,11 @@ impl Connection {
 
         if count > 0 {
             if let Some(cp_height) = cp_height {
-                let (branch, root) =
-                    get_header_merkle_proof(&self.query, start_height + (count - 1), cp_height)?;
+                let (branch, root) = self
+                    .query
+                    .electrum_header_merkle_proof(start_height + (count - 1), cp_height)?;
 
-                result["root"] = json!(root.to_hex());
+                result["root"] = json!(root);
                 result["branch"] = json!(branch);
             }
         }
@@ -168,7 +168,7 @@ impl Connection {
             .unwrap()
             .subscribe_scripthash(self.subscriber_id, script_hash);
 
-        let status_hash = get_status_hash(&self.query, &script_hash);
+        let status_hash = self.query.get_status_hash(&script_hash);
         Ok(json!(status_hash))
     }
 
@@ -195,8 +195,8 @@ impl Connection {
                 .and_then(|| {
                     self.query
                         .with_mempool_entry(&txhist.txid, |mempool_entry| {
-                            // report the fee as the effective feerate multiplied by the size, to get electrum to display
-                            // the effective feerate when it divides this back by the size.
+                            // report the fee as the effective feerate multiplied by the size, to get electrum to
+                            // display the effective feerate when it divides this back by the size.
                             let effective_fee = (mempool_entry.effective_feerate()
                                 * mempool_entry.vsize as f64)
                                 as u64;
@@ -242,7 +242,7 @@ impl Connection {
         let (tx_hex,): (String,) = from_value(params)?;
 
         let txid = self.query.broadcast(&tx_hex)?;
-        Ok(json!(txid.to_hex()))
+        Ok(json!(txid))
     }
 
     fn blockchain_transaction_get(&self, params: Value) -> Result<Value> {
@@ -261,7 +261,7 @@ impl Connection {
         let (txid, height): (Txid, u32) = from_value(params)?;
 
         let (merkle, pos) = if !self.skip_merkle {
-            match get_merkle_proof(&self.query, &txid, height) {
+            match self.query.electrum_merkle_proof(&txid, height) {
                 Ok(proof) => proof,
                 Err(e) => {
                     if let Some(BwtError::PrunedBlocks) = e.downcast_ref::<BwtError>() {
@@ -290,10 +290,12 @@ impl Connection {
             from_value(pad_params(params, 3))?;
         let want_merkle = want_merkle.unwrap_or(false);
 
-        let (txid, merkle) = get_id_from_pos(&self.query, height, tx_pos, want_merkle)?;
+        let (txid, merkle) = self
+            .query
+            .electrum_id_from_pos(height, tx_pos, want_merkle)?;
 
         Ok(if !want_merkle {
-            json!(txid.to_hex())
+            json!(txid)
         } else {
             json!({
                 "tx_hash": txid,
@@ -452,40 +454,6 @@ fn pad_params(mut params: Value, n: usize) -> Value {
         }
     } // passing a non-array is a noop
     params
-}
-
-fn get_status_hash(query: &Query, scripthash: &ScriptHash) -> Option<StatusHash> {
-    let p = query.map_history(scripthash, |hist| {
-        let has_unconfirmed_parents = hist.status.is_unconfirmed().and_then(|| {
-            query.with_mempool_entry(&hist.txid, MempoolEntry::has_unconfirmed_parents)
-        });
-        format!(
-            "{}:{}:",
-            hist.txid,
-            electrum_height(hist.status, has_unconfirmed_parents)
-        )
-    });
-
-    if !p.is_empty() {
-        Some(StatusHash::hash(&p.join("").into_bytes()))
-    } else {
-        // empty history needs to be represented as a `null` in json
-        None
-    }
-}
-
-fn electrum_height(status: TxStatus, has_unconfirmed_parents: Option<bool>) -> i32 {
-    match status {
-        TxStatus::Confirmed(height) => height as i32,
-        TxStatus::Unconfirmed => match has_unconfirmed_parents {
-            Some(false) => 0, // a height of 0 indicates an unconfirmed tx where all the parents are confirmed
-            Some(true) => -1, // a height of -1 indicates an unconfirmed tx with unconfirmed parents used as its inputs
-            None => -1,       // if has_unconfirmed_parents is unknown, error on the side of caution
-        },
-        TxStatus::Conflicted => {
-            unreachable!("electrum_height() should not be called on conflicted txs")
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -706,7 +674,7 @@ impl SubscriptionManager {
                     .filter_map(|(scripthash, status_hash)| {
                         // calculate the status hash once per script hash and cache it
                         let status_hash =
-                            status_hash.get_or_insert_with(|| get_status_hash(&query, scripthash));
+                            status_hash.get_or_insert_with(|| query.get_status_hash(scripthash));
                         Some(Message::HistoryChange(*scripthash, *status_hash))
                     }),
             )
@@ -753,10 +721,6 @@ impl<T> SyncChannel<T> {
     pub fn receiver(&self) -> &Receiver<T> {
         &self.rx
     }
-
-    pub fn into_receiver(self) -> Receiver<T> {
-        self.rx
-    }
 }
 
 pub struct Channel<T> {
@@ -776,9 +740,5 @@ impl<T> Channel<T> {
 
     pub fn receiver(&self) -> &Receiver<T> {
         &self.rx
-    }
-
-    pub fn into_receiver(self) -> Receiver<T> {
-        self.rx
     }
 }
