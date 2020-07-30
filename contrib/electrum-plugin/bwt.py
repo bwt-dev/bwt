@@ -140,7 +140,7 @@ class BwtPlugin(BasePlugin):
     def load_wallet(self, wallet, main_window):
         if not wallet.get_master_public_keys():
             _logger.warning('skipping unsupported wallet type %s' % wallet.wallet_type)
-        elif not wallet.is_watching_only():
+        elif not wallet.can_export():
             _logger.warning('skipping hot wallet')
         else:
             num_wallets = len(self.wallets)
