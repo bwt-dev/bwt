@@ -18,7 +18,7 @@
 
 > ⚠️ This is early alpha software that is likely to be buggy. Use with care, preferably on testnet/regtest.
 
-Support development: [bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d](https://blockstream.info/address/bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d) or [tippin.me](https://tippin.me/@shesek)
+Support development: [⛓️ on-chain or ⚡ lightning via BTCPay](https://btcpay.shesek.info/)
 
 - [Intro](#intro)
 - [Setting up bwt](#setting-up-bwt)
