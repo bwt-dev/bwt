@@ -7,7 +7,6 @@
 [![Crate package](https://img.shields.io/crates/d/bwt.svg?label=crate+installs)](https://crates.io/crates/bwt)
 [![MIT license](https://img.shields.io/github/license/shesek/bwt.svg?color=yellow)](https://github.com/shesek/bwt/blob/master/LICENSE)
 [![Pull Requests Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#developing)
-[![Bitcoin donations](http://img.shields.io/badge/dynamic/json?label=donated&query=%24.chain_stats.funded_txo_sum&suffix=+sats&url=https://blockstream.info/api/address/bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d)](https://blockstream.info/address/bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d)
 
 `bwt` is a lightweight wallet xpub tracker and query engine for Bitcoin, implemented in Rust.
 
