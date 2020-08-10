@@ -92,3 +92,34 @@ macro_rules! some_or_ret {
         }
     };
 }
+
+// Construct an efficient balanced Or tree
+// From https://github.com/seanmonstar/warp/issues/619,
+// which includes a commented version of this macro
+
+macro_rules! balanced_or_tree {
+    ($x:expr $(,)?) => { debug_boxed!($x) };
+    ($($x:expr),+ $(,)?) => {
+        balanced_or_tree!(@internal; $($x),+; $($x),+)
+    };
+    (@internal $($left:expr),*; $head:expr, $($tail:expr),+; $a:expr $(,$b:expr)?) => {
+        (balanced_or_tree!($($left,)* $head)).or(balanced_or_tree!($($tail),+))
+    };
+    (@internal $($left:expr),*; $head:expr, $($tail:expr),+; $a:expr, $b:expr, $($more:expr),+) => {
+        balanced_or_tree!(@internal $($left,)* $head; $($tail),+; $($more),+)
+    };
+}
+
+// Box filters in debug mode to further improve build times
+#[cfg(debug_assertions)]
+macro_rules! debug_boxed {
+    ($x:expr) => {
+        ::warp::Filter::boxed($x)
+    };
+}
+#[cfg(not(debug_assertions))]
+macro_rules! debug_boxed {
+    ($x:expr) => {
+        $x
+    };
+}
