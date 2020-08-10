@@ -227,13 +227,22 @@ impl Query {
         scripthash: &ScriptHash,
         f: impl Fn(&HistoryEntry) -> T,
     ) -> Vec<T> {
-        self.indexer
-            .read()
-            .unwrap()
+        let indexer = self.indexer.read().unwrap();
+        indexer
             .store()
             .get_history(scripthash)
-            .map(|history| history.iter().map(f).collect())
-            .unwrap_or_else(Vec::new)
+            .map_or_else(Vec::new, |history| history.iter().map(f).collect())
+    }
+
+    /// Call `f` with each history iterm as ref
+    pub fn for_each_history(&self, scripthash: &ScriptHash, f: impl FnMut(&HistoryEntry)) -> bool {
+        let indexer = self.indexer.read().unwrap();
+        if let Some(history) = indexer.store().get_history(scripthash) {
+            history.iter().for_each(f);
+            true
+        } else {
+            false
+        }
     }
 
     /// Get a copy of all history entries for all scripthashes since `min_block_height` (inclusive,

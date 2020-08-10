@@ -1,5 +1,5 @@
 use bitcoin::Txid;
-use bitcoin_hashes::{sha256d, Hash};
+use bitcoin_hashes::{sha256d, Hash, HashEngine};
 
 use crate::error::{OptionExt, Result};
 use crate::query::Query;
@@ -48,19 +48,21 @@ trait QueryExt {
 
 impl QueryExt for Query {
     fn get_status_hash(&self, scripthash: &ScriptHash) -> Option<StatusHash> {
-        let p = self.map_history(scripthash, |hist| {
+        let mut engine = StatusHash::engine();
+        let has_history = self.for_each_history(scripthash, |hist| {
             let has_unconfirmed_parents = hist.status.is_unconfirmed().and_then(|| {
                 self.with_mempool_entry(&hist.txid, MempoolEntry::has_unconfirmed_parents)
             });
-            format!(
+            let p = format!(
                 "{}:{}:",
                 hist.txid,
                 electrum_height(hist.status, has_unconfirmed_parents)
-            )
+            );
+            engine.input(&p.into_bytes());
         });
 
-        if !p.is_empty() {
-            Some(StatusHash::hash(&p.join("").into_bytes()))
+        if has_history {
+            Some(StatusHash::from_engine(engine))
         } else {
             // empty history needs to be represented as a `null` in json
             None
