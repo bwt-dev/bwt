@@ -131,7 +131,7 @@ your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 
 You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
 
-Rescanning can be controlled with `--xpub <xpub>:<rescan>`. You can specify `<rescan>` with the xpub birthday formatted
+Rescanning can be controlled with `--xpub <xpub>:<rescan>`. You can specify `<rescan>` with the wallet birthday formatted
 as `yyyy-mm-dd` to scan from that date onwards only, or use `none` to disable rescanning entirely (for newly created wallets).
 *Setting this can significantly speed up scanning and is highly recommended.*
 
@@ -176,7 +176,7 @@ This removes several large dependencies and disables the `track-spends` database
 
 You can use bwt with pruning, but:
 
-1. You will have to provide a [rescan date](#rescan-policy--wallet-birthday) that is within the range of non-pruned blocks, or use `none` to disable rescanning entirely.
+1. You will have to provide a rescan date (via `--xpub <xpub>:<rescan>`) that is within the range of non-pruned blocks, or use `none` to disable rescanning entirely.
 
 2. Electrum needs to be run with `--skipmerklecheck` to tolerate missing SPV proofs for transactions in pruned blocks.
 
