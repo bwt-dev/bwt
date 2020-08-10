@@ -14,7 +14,7 @@ include = [ "src", "LICENSE" ]
 [features]
 default = [ "electrum", "http", "track-spends" ]
 electrum = []
-http = [ "warp", "tokio", "async-std" ]
+http = [ "warp", "tokio" ]
 webhooks = [ "reqwest" ]
 track-spends = []
 
@@ -37,5 +37,4 @@ thiserror = "1.0.20"
 
 tokio = { version = "0.2.20", features = ["macros"], optional = true }
 warp = { version = "0.2.3", optional = true }
-async-std = { version = "1.6.2", optional = true }
 reqwest = { version = "0.10.6", optional = true, features = ["json", "blocking"] }

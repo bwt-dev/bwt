@@ -1,7 +1,6 @@
-use std::net;
 use std::sync::{mpsc, Arc, Mutex};
+use std::{net, thread};
 
-use async_std::task;
 use serde::{Deserialize, Deserializer};
 use tokio::stream::{self, Stream, StreamExt};
 use tokio::sync::mpsc as tmpsc;
@@ -468,7 +467,7 @@ async fn run(
 }
 
 pub struct HttpServer {
-    _thread: task::JoinHandle<()>,
+    _thread: thread::JoinHandle<()>,
     listeners: Listeners,
 }
 
@@ -485,7 +484,7 @@ impl HttpServer {
         let thr_listeners = Arc::clone(&listeners);
 
         HttpServer {
-            _thread: task::spawn(async move {
+            _thread: thread::spawn(move || {
                 run(addr, cors, query, sync_tx, thr_listeners);
             }),
             listeners,
