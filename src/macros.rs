@@ -93,10 +93,11 @@ macro_rules! some_or_ret {
     };
 }
 
-// Construct an efficient balanced Or tree
+// Construct an efficient balanced Or tree of warp filters
 // From https://github.com/seanmonstar/warp/issues/619,
 // which includes a commented version of this macro
 
+#[cfg(feature = "http")]
 macro_rules! balanced_or_tree {
     ($x:expr $(,)?) => { debug_boxed!($x) };
     ($($x:expr),+ $(,)?) => {
@@ -111,13 +112,13 @@ macro_rules! balanced_or_tree {
 }
 
 // Box filters in debug mode to further improve build times
-#[cfg(debug_assertions)]
+#[cfg(all(debug_assertions, feature = "http"))]
 macro_rules! debug_boxed {
     ($x:expr) => {
         ::warp::Filter::boxed($x)
     };
 }
-#[cfg(not(debug_assertions))]
+#[cfg(all(not(debug_assertions), feature = "http"))]
 macro_rules! debug_boxed {
     ($x:expr) => {
         $x
