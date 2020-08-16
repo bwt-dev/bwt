@@ -23,6 +23,8 @@ const BWT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const PROTOCOL_VERSION: &str = "1.4";
 const MAX_HEADERS: u32 = 2016;
 
+const LT: &str = "bwt::electrum"; // log target name
+
 struct Connection {
     query: Arc<Query>,
     skip_merkle: bool,
@@ -313,7 +315,7 @@ impl Connection {
                 trace!("rpc #{} <- {} {}", id, method, params);
             }
             _ => {
-                debug!("rpc #{} <- {} {}", id, method, params);
+                debug!(target: LT, "rpc #{} <- {} {}", id, method, params);
             }
         }
 
@@ -346,7 +348,7 @@ impl Connection {
                 json!({"jsonrpc": "2.0", "id": id, "result": result})
             }
             Err(e) => {
-                warn!("rpc #{} {} failed: {:?}", id, method, e,);
+                warn!(target: LT, "rpc #{} {} failed: {:?}", id, method, e,);
                 json!({"jsonrpc": "2.0", "id": id, "error": fmt_error_chain(&e)})
             }
         })
@@ -393,7 +395,7 @@ impl Connection {
                 }
                 Message::ChainTip(..) | Message::HistoryChange(..) => {
                     let (method, params) = self.make_notification(msg)?;
-                    debug!("sending notification {} {}", method, params);
+                    debug!(target: LT, "sending notification {} {}", method, params);
                     self.send_values(&[json!({
                         "jsonrpc": "2.0",
                         "method": method,
@@ -436,13 +438,16 @@ impl Connection {
         let tx = self.chan.sender();
         let child = spawn_thread("reader", || Connection::handle_requests(reader, tx));
         if let Err(e) = self.handle_replies() {
-            error!("[{}] connection handling failed: {:#?}", self.addr, e,)
+            error!(
+                target: LT,
+                "[{}] connection handling failed: {:#?}", self.addr, e,
+            )
         }
         trace!("[{}] shutting down connection", self.addr);
         self.subman.lock().unwrap().remove(self.subscriber_id);
         let _ = self.stream.shutdown(Shutdown::Both);
         if let Err(err) = child.join().expect("receiver panicked") {
-            error!("[{}] receiver failed: {:?}", self.addr, err);
+            error!(target: LT, "[{}] receiver failed: {:?}", self.addr, err);
         }
     }
 }
@@ -485,7 +490,7 @@ impl ElectrumServer {
                 match msg {
                     Notification::IndexChangelog(changelog) => {
                         if let Err(e) = subman.lock().unwrap().dispatch(changelog) {
-                            warn!("failed dispatching events: {:?}", e);
+                            warn!(target: LT, "failed dispatching events: {:?}", e);
                         }
                     }
                     Notification::Exit => acceptor.send(None).unwrap(),
@@ -501,8 +506,8 @@ impl ElectrumServer {
             let listener =
                 TcpListener::bind(addr).unwrap_or_else(|e| panic!("bind({}) failed: {}", addr, e));
             info!(
-                "Electrum RPC server running on {} (protocol {})",
-                addr, PROTOCOL_VERSION
+                target: LT,
+                "Electrum RPC server running on {} (protocol {})", addr, PROTOCOL_VERSION
             );
             loop {
                 let (stream, addr) = listener.accept().expect("accept failed");
@@ -532,10 +537,10 @@ impl ElectrumServer {
                     let query = query.clone();
                     let subman = subman.clone();
                     children.push(spawn_thread("peer", move || {
-                        info!("[{}] connected peer", addr);
+                        info!(target: LT, "[{}] connected peer", addr);
                         let conn = Connection::new(query, skip_merkle, stream, addr, subman);
                         conn.run();
-                        info!("[{}] disconnected peer", addr);
+                        info!(target: LT, "[{}] disconnected peer", addr);
                     }));
                 }
                 let subman = subman.lock().unwrap();
@@ -637,6 +642,7 @@ impl SubscriptionManager {
         }
 
         info!(
+            target: LT,
             "sending {} update(s) to {} rpc client(s)",
             changelog.len(),
             self.subscribers.len()
@@ -680,7 +686,10 @@ impl SubscriptionManager {
             )
             .all(|msg| match subscriber.sender.try_send(msg) {
                 Err(TrySendError::Disconnected(_)) => {
-                    debug!("dropping disconnected subscriber #{}", subscriber_id);
+                    debug!(
+                        target: LT,
+                        "dropping disconnected subscriber #{}", subscriber_id
+                    );
                     false
                 }
                 Ok(_) | Err(TrySendError::Full(_)) => true,
