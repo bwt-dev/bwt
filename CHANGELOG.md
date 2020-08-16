@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-- Improve block download check on regtest. (#45, #35)
+- Electrum plugin: Fix hot wallet test (#47)
 
-- HTTP API: Fix `GET /block/tip`. (#46)
+- Electrum: Fix docker image libssl dependency with the `http` feature (#48)
+
+- Improve block download check on regtest (#45, #35)
+
+- HTTP API: Fix `GET /block/tip` (#46)
 
 ## 0.1.4 - 2020-06-22
 
