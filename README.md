@@ -115,7 +115,7 @@ $ bwt --xpub <xpub>
 Assuming your bitcoin datadir is at `~/.bitcoin`,
 
 ```bash
-$ docker run --net host -v ~/.bitcoin:/bitcoin shesek/bwt --xpub <xpub> ...
+$ docker run -it --net host -v ~/.bitcoin:/bitcoin shesek/bwt --xpub <xpub> ...
 ```
 
 (Mounting the bitcoin datadir is not necessary if you're not using the cookie file.)
