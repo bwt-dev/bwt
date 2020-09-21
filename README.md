@@ -860,8 +860,8 @@ Example:
 ```
 $ curl localhost:3060/block/tip
 {
-  "hash": 176,
-  "height": "7a9b99f78066f22a26c56b2035445285a5a992fc19719c9c27f2255f20f1f2f8"
+  "height": 176,
+  "hash": "7a9b99f78066f22a26c56b2035445285a5a992fc19719c9c27f2255f20f1f2f8"
 }
 ```
 
