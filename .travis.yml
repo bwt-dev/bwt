@@ -10,3 +10,11 @@ script:
   - ./scripts/check.sh
   - cargo clippy --all-targets --all-features
   - ./test/tests.sh
+
+  # Report reproducible builds shasums
+  - >
+    docker build -t bwt-builder -f scripts/builder.Dockerfile . &&
+    docker run -v `pwd`:/usr/src/bwt bwt-builder &&
+    echo '-----BEGIN SHA256SUM-----' &&
+    (cd dist && sha256sum *) | sort &&
+    echo ''

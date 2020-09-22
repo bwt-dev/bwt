@@ -22,7 +22,11 @@ You should see `Good signature from "Nadav Ivgi <nadav@shesek.info>" ... Primary
 
 #### Reproducible builds
 
-The builds are fully reproducible. See [more details here](https://github.com/shesek/bwt#reproducible-builds).
+The builds are fully reproducible.
+
+You can verify the checksums against [the builds made on Travis CI](https://travis-ci.org/github/shesek/bwt) -- **doing so is highly recommended!**
+
+See [more details here](https://github.com/shesek/bwt#reproducible-builds).
 
 #### Electrum plugin
 

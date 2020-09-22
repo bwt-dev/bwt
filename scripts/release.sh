@@ -44,7 +44,7 @@ if [ -z "$SKIP_BUILD" ]; then
   fi
 
   echo Making SHA256SUMS...
-  (cd dist && sha256sum *) | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc
+  (cd dist && sha256sum *) | sort | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc
 fi
 
 

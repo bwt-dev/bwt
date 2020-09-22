@@ -1204,6 +1204,17 @@ $ docker run -it --rm -v `pwd`:/usr/src/bwt bwt-builder
 $ sha256sum dist/*
 ```
 
+The builds are [reproduced on Travis CI](https://travis-ci.org/github/shesek/bwt). The SHA256 checksums are available at the end of the build log.
+
+You can get the checksums for the latest stable release via the API as follows:
+
+```bash
+$ jobid=$(curl -s 'https://api.travis-ci.org/v3/repo/shesek%2Fbwt/builds?branch.name=stable&sort_by=started_at:desc&limit=1' | jq -r '.builds[0].jobs[0].id')
+$ curl -s https://api.travis-ci.org/v3/job/$jobid/log.txt | sed -nr '/^-----BEGIN SHA256SUM-----\s*$/{:a;n;/^\s*$/q;p;ba}'
+```
+
+> Verifying the checksums against the CI is highly recommended.
+
 ## Thanks
 
 - [@romanz](https://github.com/romanz)'s [electrs](https://github.com/romanz/electrs) for the fantastic electrum server implementation that bwt is based on.
