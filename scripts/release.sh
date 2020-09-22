@@ -34,47 +34,14 @@ cargo fmt -- --check
 ./scripts/check.sh
 
 if [ -z "$SKIP_BUILD" ]; then
-  echo Building executables...
-  rm -rf dist/*
+  echo Building releases...
 
-  pack() {
-    pname=$1; name=$2; dir=${3:-$2}
-    pushd dist
-    if [ $pname == 'linux' ]; then tar -czhf $name.tar.gz $dir
-    else zip -rq $name.zip $dir; fi
-    popd
-  }
-  build() {
-    pname=$1; name=$2; toolchain=$3; platform=$4; features=$5; ext=$6
-    echo "- Building $name using $toolchain for $platform with features: $features"
-    cargo +$toolchain build --release --target $platform --no-default-features --features "$features"
-    mkdir -p dist/$name
-    mv target/$platform/release/bwt$ext dist/$name
-    strip dist/$name/bwt$ext
-    cp README.md LICENSE dist/$name
-    pack $pname $name
-  }
-  for cfg in linux,stable,x86_64-unknown-linux-gnu, \
-             win,nightly,x86_64-pc-windows-gnu,.exe; do
-    IFS=',' read pname toolchain platform ext <<< $cfg
-    build $pname bwt-$version-x86_64-$pname $toolchain $platform 'http electrum webhooks track-spends' $ext
-    build $pname bwt-$version-electrum_only-x86_64-$pname $toolchain $platform electrum $ext
-  done
-
-  echo - Building electrum plugin
-  for pname in linux win; do
-    name=bwt-$version-electrum_plugin-x86_64-$pname
-    mkdir dist/$name
-    cp contrib/electrum-plugin/*.py dist/$name
-    cp dist/bwt-$version-electrum_only-x86_64-$pname/bwt* README.md LICENSE dist/$name
-    # needs to be inside a directory with a name that matches the plugin module name for electrum to load it,
-    # create a temporary link to get tar/zip to pack it properly. (can also be done for tar.gz with --transform)
-    ln -s $name dist/bwt
-    pack $pname $name bwt
-    rm dist/bwt
-  done
-
-  rm -r dist/*/
+  if [ -z "$NO_DOCKER_BUILD" ]; then
+    docker build -t bwt-builder -f scripts/builder.Dockerfile .
+    docker run -it --rm -e OWNER=`id -u` -v `pwd`:/usr/src/bwt bwt-builder
+  else
+    ./scripts/build.sh
+  fi
 
   echo Making SHA256SUMS...
   (cd dist && sha256sum *) | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc
@@ -97,7 +64,7 @@ if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
   echo Uploading to github...
   gh_auth="Authorization: token $GH_TOKEN"
   gh_base=https://api.github.com/repos/$gh_repo
-  release_text="## Changelog"$'\n'$'\n'$changelog$'\n'$'\n'`cat scripts/release-footer.md | sed "s/VERSION/$version/g"`
+  release_text="### Changelog"$'\n'$'\n'$changelog$'\n'$'\n'`cat scripts/release-footer.md | sed "s/VERSION/$version/g"`
   release_opt=`jq -n --arg version v$version --arg text "$release_text" \
     '{ tag_name: $version, name: $version, body: $text, draft:true }'`
   gh_release=`curl -sf -H "$gh_auth" $gh_base/releases/tags/v$version \

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reproducible builds using Docker
+
 - Electrum plugin: Fix hot wallet test (#47)
 
 - Electrum: Fix docker image libssl dependency with the `http` feature (#48)

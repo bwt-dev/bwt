@@ -39,6 +39,7 @@ Support development: [⛓️ on-chain or ⚡ lightning via BTCPay](https://btcpa
   - [Miscellaneous](#miscellaneous)
 - [Web Hooks](#web-hooks)
 - [Developing](#developing) 👩‍💻
+- [Reproducible builds](#reproducible-builds)
 - [Thanks](#thanks)
 
 ## Intro
@@ -90,6 +91,8 @@ $ ./bwt-0.1.4-x86_64-linux/bwt --xpub <xpub> ...
 
 The signature verification should show `Good signature from "Nadav Ivgi <nadav@shesek.info>" ... Primary key fingerprint: FCF1 9B67 ...` and `bwt-0.1.4-x86_64-linux.tar.gz: OK`.
 
+The builds are reproducible and can be verified against Travis CI. See [more details here](#reproducible-builds).
+
 #### From source
 
 [Install Rust](https://rustup.rs/) and:
@@ -115,7 +118,7 @@ $ bwt --xpub <xpub>
 Assuming your bitcoin datadir is at `~/.bitcoin`,
 
 ```bash
-$ docker run -it --net host -v ~/.bitcoin:/bitcoin shesek/bwt --xpub <xpub> ...
+$ docker run -it --net host -v ~/.bitcoin:/bitcoin:ro shesek/bwt --xpub <xpub> ...
 ```
 
 (Mounting the bitcoin datadir is not necessary if you're not using the cookie file.)
@@ -1190,6 +1193,16 @@ The only guideline is to use `cargo fmt`.
 You can check out [the list of enhancement issues](https://github.com/shesek/bwt/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement)
 for some ideas to work on (output script descriptors <3).
 
+## Reproducible builds
+
+The builds can be reproduced in a Docker container environment as follows:
+
+```
+$ git clone https://github.com/shesek/bwt && cd bwt
+$ docker build -t bwt-builder -f scripts/builder.Dockerfile .
+$ docker run -it --rm -v `pwd`:/usr/src/bwt bwt-builder
+$ sha256sum dist/*
+```
 
 ## Thanks
 
