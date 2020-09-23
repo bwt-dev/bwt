@@ -24,6 +24,9 @@ pub enum BwtError {
     #[error("Blocks unavailable due to pruning")]
     PrunedBlocks,
 
+    #[error("Custom broadcast command failed with {0}")]
+    BroadcastCmdFailed(std::process::ExitStatus),
+
     #[error("Error communicating with the Bitcoin RPC: {0}")]
     RpcProtocol(rpc::Error),
 

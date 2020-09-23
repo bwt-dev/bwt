@@ -236,6 +236,20 @@ It is recommended to use a separate watch-only wallet for bwt (can be created wi
 
 *Note that EPS and bwt should not be run on the same bitcoind wallet with the same xpub, they will conflict.*
 
+##### Scriptable transaction broadcast
+
+You may set a custom command for broadcasting transactions via `--tx-broadcast-cmd <cmd>`. The string `{tx_hex}` will be replaced with the hex-encoded transaction.
+
+The command will be used in place of broadcasting transactions using the full node,
+which may provide better privacy in some circumstances.
+
+For example, to broadcast transactions over Tor using the blockstream.info onion service, you can use:
+
+```
+--tx-broadcast-cmd '[ $(curl -s -x socks5h://localhost:9050 http://explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion/api/tx -d {tx_hex} -o /dev/stderr -w "%{http_code}") -eq 200 ]'
+```
+
+(Replace port `9050` with `9150` if you're using the Tor browser bundle.)
 
 ## Electrum plugin
 

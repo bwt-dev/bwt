@@ -50,7 +50,7 @@ impl App {
             config.bitcoind_auth()?,
         )?);
         let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)));
-        let query = Arc::new(Query::new(config.network, rpc.clone(), indexer.clone()));
+        let query = Arc::new(Query::new((&config).into(), rpc.clone(), indexer.clone()));
 
         wait_bitcoind(&rpc)?;
 

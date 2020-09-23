@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::process::Command;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
@@ -6,7 +7,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use bitcoin::util::bip32::Fingerprint;
-use bitcoin::{BlockHash, BlockHeader, Network, OutPoint, Txid};
+use bitcoin::{BlockHash, BlockHeader, Network, OutPoint, Transaction, Txid};
 use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
 use crate::error::{BwtError, Context, OptionExt, Result};
@@ -23,7 +24,7 @@ const FEE_HISTOGRAM_TTL: Duration = Duration::from_secs(120);
 const FEE_ESTIMATES_TTL: Duration = Duration::from_secs(120);
 
 pub struct Query {
-    network: Network,
+    config: QueryConfig,
     rpc: Arc<RpcClient>,
     indexer: Arc<RwLock<Indexer>>,
 
@@ -32,12 +33,17 @@ pub struct Query {
     cached_estimates: RwLock<HashMap<u16, (Option<f64>, Instant)>>,
 }
 
+pub struct QueryConfig {
+    pub network: Network,
+    pub broadcast_cmd: Option<String>,
+}
+
 type FeeHistogram = Vec<(f32, u32)>;
 
 impl Query {
-    pub fn new(network: Network, rpc: Arc<RpcClient>, indexer: Arc<RwLock<Indexer>>) -> Self {
+    pub fn new(config: QueryConfig, rpc: Arc<RpcClient>, indexer: Arc<RwLock<Indexer>>) -> Self {
         Query {
-            network,
+            config,
             rpc,
             indexer,
             cached_relayfee: RwLock::new(None),
@@ -104,7 +110,7 @@ impl Query {
 
         // regtest typically doesn't have fee estimates, just use the relay fee instead.
         // this stops electrum from complanining about unavailable dynamic fees.
-        if self.network == Network::Regtest {
+        if self.config.network == Network::Regtest {
             return self.relay_fee().map(Some);
         }
 
@@ -183,7 +189,19 @@ impl Query {
     }
 
     pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {
-        Ok(self.rpc.send_raw_transaction(tx_hex)?)
+        if let Some(broadcast_cmd) = &self.config.broadcast_cmd {
+            // need to deserialize to ensure validity (preventing code injection) and to determine the txid
+            let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
+            let cmd = broadcast_cmd.replacen("{tx_hex}", tx_hex, 1);
+            debug!("broadcasting tx with cmd {}", broadcast_cmd);
+            let status = Command::new("sh").arg("-c").arg(cmd).status()?;
+            if !status.success() {
+                bail!(BwtError::BroadcastCmdFailed(status))
+            }
+            Ok(tx.txid())
+        } else {
+            Ok(self.rpc.send_raw_transaction(tx_hex)?)
+        }
     }
 
     pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {

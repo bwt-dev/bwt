@@ -4,6 +4,22 @@
 
 - Reproducible builds using Docker
 
+- Scriptable transaction broadcast command via `--tx-broadcast-cmd <cmd>` (#7)
+
+  The command will be used in place of broadcasting transactions using the full node,
+  which may provide better privacy in some circumstances.
+  The string `{tx_hex}` will be replaced with the hex-encoded transaction.
+
+  For example, to broadcast transactions over Tor using the blockstream.info onion service, you can use:
+
+  ```
+  --tx-broadcast-cmd '[ $(curl -s -x socks5h://localhost:9050 http://explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion/api/tx -d {tx_hex} -o /dev/stderr -w "%{http_code}") -eq 200 ]'
+  ```
+
+  (Replace port `9050` with `9150` if you're using the Tor browser bundle.)
+
+  h/t @chris-belcher's EPS for inspiring this feature! 🎩
+
 - Electrum plugin: Fix hot wallet test (#47)
 
 - Electrum: Fix docker image libssl dependency with the `http` feature (#48)

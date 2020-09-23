@@ -10,6 +10,7 @@ use bitcoincore_rpc::Auth as RpcAuth;
 
 use crate::error::{Context, OptionExt, Result};
 use crate::hd::XyzPubKey;
+use crate::query::QueryConfig;
 use crate::types::RescanSince;
 
 #[derive(StructOpt, Debug)]
@@ -198,6 +199,16 @@ pub struct Config {
     )]
     pub poll_interval: time::Duration,
 
+    #[structopt(
+        short = "B",
+        long = "tx-broadcast-cmd",
+        help = "Custom command for broadcasting transactions. {tx_hex} is replaced with the transaction.",
+        env,
+        hide_env_values(true),
+        display_order(91)
+    )]
+    pub broadcast_cmd: Option<String>,
+
     #[cfg(unix)]
     #[structopt(
         long,
@@ -205,7 +216,7 @@ pub struct Config {
         help = "Path to bind the sync notification unix socket",
         env,
         hide_env_values(true),
-        display_order(91)
+        display_order(101)
     )]
     pub unix_listener_path: Option<path::PathBuf>,
 
@@ -217,7 +228,7 @@ pub struct Config {
         env,
         hide_env_values(true),
         use_delimiter(true),
-        display_order(92)
+        display_order(102)
     )]
     pub webhook_urls: Option<Vec<String>>,
 }
@@ -400,4 +411,13 @@ fn bitcoind_default_dir() -> Option<path::PathBuf> {
 
     #[cfg(windows)]
     return Some(dirs::data_dir()?.join("Bitcoin"));
+}
+
+impl From<&Config> for QueryConfig {
+    fn from(config: &Config) -> QueryConfig {
+        QueryConfig {
+            network: config.network,
+            broadcast_cmd: config.broadcast_cmd.clone(),
+        }
+    }
 }
