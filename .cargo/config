@@ -1,0 +1,8 @@
+[target.x86_64-apple-darwin]
+linker = "x86_64-apple-darwin15-cc"
+ar = "x86_64-apple-darwin15-ar"
+
+[target.x86_64-pc-windows-gnu]
+# use --no-insert-timestamp to drop PE timestamps in Windows builds for reproducibility
+# https://wiki.debian.org/ReproducibleBuilds/TimestampsInPEBinaries#building_with_mingw-w64
+rustflags = [ "-C", "link-arg=-Wl,--no-insert-timestamp" ]

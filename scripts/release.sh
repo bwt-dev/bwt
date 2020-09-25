@@ -36,12 +36,19 @@ cargo fmt -- --check
 if [ -z "$SKIP_BUILD" ]; then
   echo Building releases...
 
-  if [ -z "$NO_DOCKER_BUILD" ]; then
+  if [ -z "$BUILD_HOST" ]; then
     docker build -t bwt-builder -f scripts/builder.Dockerfile .
     docker run -it --rm -e OWNER=`id -u` -v `pwd`:/usr/src/bwt bwt-builder
+    if [ -z "$SKIP_OSX" ]; then
+      docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
+      docker run -it --rm -e OWNER=`id -u` -v `pwd`:/usr/src/bwt bwt-builder-osx
+    fi
   else
+    # macOS builds are disabled by default when building on the host.
+    # to enable, set TARGETS=linux,win,osx
     ./scripts/build.sh
   fi
+
 
   echo Making SHA256SUMS...
   (cd dist && sha256sum *) | sort | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc

@@ -1,20 +1,22 @@
 #!/bin/bash
 set -xeo pipefail
 
+# `osx` is also available, but requires osxcross installed (see builder-os.Dockerfile)
+TARGETS=${TARGETS:-linux,win}
+
 build() {
-  name=$1; platform=$2; features=$3
-  ext=$([[ $platform != *"-windows-"* ]] || echo .exe)
+  name=$1; target=$2; features=$3
+  ext=$([[ $target != *"-windows-"* ]] || echo .exe)
   dest=dist/$name
   mkdir -p $dest
 
-  echo Building $name for $platform with features $features
+  echo Building $name for $target with features $features
 
-  # drop PE timestamps in windows builds for reproducibility (https://wiki.debian.org/ReproducibleBuilds/TimestampsInPEBinaries#building_with_mingw-w64)
-  RUSTFLAGS="$RUSTFLAGS $([[ $platform != *"-windows-"* ]] || echo '-Clink-arg=-Wl,--no-insert-timestamp')" \
-  cargo build --release --target $platform --no-default-features --features "$features"
+  cargo build --release --target $target --no-default-features --features "$features"
 
-  mv target/$platform/release/bwt$ext $dest
-  strip $dest/bwt$ext
+  mv target/$target/release/bwt$ext $dest
+
+  [[ $target == *"-apple-"* ]] || strip $dest/bwt$ext
 
   cp README.md LICENSE $dest/
 
@@ -38,21 +40,25 @@ version=`cat Cargo.toml | egrep '^version =' | cut -d'"' -f2`
 
 rm -rf dist/*
 
-for target in linux,x86_64-unknown-linux-gnu \
-              win,x86_64-pc-windows-gnu; do
-  IFS=',' read pnick platform <<< $target
+for cfg in linux,x86_64-unknown-linux-gnu \
+           win,x86_64-pc-windows-gnu \
+           osx,x86_64-apple-darwin; do
+  IFS=',' read platform target <<< $cfg
+  if [[ $TARGETS != *"$platform"* ]]; then continue; fi
 
-  build bwt-$version-x86_64-$pnick $platform http,electrum,webhooks,track-spends
-  build bwt-$version-electrum_only-x86_64-$pnick $platform electrum
+  build bwt-$version-x86_64-$platform $target http,electrum,webhooks,track-spends
+  build bwt-$version-electrum_only-x86_64-$platform $target electrum
 done
 
 echo Building electrum plugin
-for pnick in linux win; do
-  name=bwt-$version-electrum_plugin-x86_64-$pnick
+for platform in linux win osx; do
+  if [[ $TARGETS != *"$platform"* ]]; then continue; fi
+
+  name=bwt-$version-electrum_plugin-x86_64-$platform
   dest=dist/$name
   mkdir $dest
   cp contrib/electrum-plugin/*.py $dest
-  cp dist/bwt-$version-electrum_only-x86_64-$pnick/* $dest
+  cp dist/bwt-$version-electrum_only-x86_64-$platform/* $dest
   # needs to be inside a directory with a name that matches the plugin module name for electrum to load it,
   # create a temporary link to get tar/zip to pack it properly. (can also be done for tar.gz with --transform)
   ln -s $name dist/bwt
@@ -63,4 +69,4 @@ done
 # remove subdirectories, keep release tarballs
 rm -r dist/*/
 
-[ -n "$OWNER" ] && chown -R $OWNER dist || true
+[ -n "$OWNER" ] && chown -R $OWNER dist target || true

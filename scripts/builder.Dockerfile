@@ -8,4 +8,5 @@ RUN mkdir src .cargo && touch src/lib.rs src/main.rs && \
     cargo vendor > .cargo/config
 
 VOLUME /usr/src/bwt
+ENV TARGETS=linux,win
 ENTRYPOINT [ "/usr/src/bwt/scripts/build.sh" ]

@@ -1213,12 +1213,19 @@ The builds can be reproduced in a Docker container environment as follows:
 
 ```
 $ git clone https://github.com/shesek/bwt && cd bwt
+
+# Linux & Windows
 $ docker build -t bwt-builder -f scripts/builder.Dockerfile .
 $ docker run -it --rm -v `pwd`:/usr/src/bwt bwt-builder
+
+# Mac OSX (cross-compiled via osxcross)
+$ docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
+$ docker run -it --rm -v `pwd`:/usr/src/bwt bwt-builder-osx
+
 $ sha256sum dist/*
 ```
 
-The builds are [reproduced on Travis CI](https://travis-ci.org/github/shesek/bwt). The SHA256 checksums are available at the end of the build log.
+The builds are [reproduced on Travis CI](https://travis-ci.org/github/shesek/bwt/branches). The SHA256 checksums are available at the end of the build log.
 
 You can get the checksums for the latest stable release via the API as follows:
 

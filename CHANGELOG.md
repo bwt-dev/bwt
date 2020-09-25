@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Reproducible builds using Docker
+- Reproducible builds using Docker (#51)
+
+- Pre-built binary releases for macOS (#24)
 
 - Scriptable transaction broadcast command via `--tx-broadcast-cmd <cmd>` (#7)
 
