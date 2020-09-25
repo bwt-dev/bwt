@@ -39,11 +39,12 @@ if [ -z "$SKIP_BUILD" ]; then
   rm -rf dist/*
 
   if [ -z "$BUILD_HOST" ]; then
+    docker_mounts="-v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo"
     docker build -t bwt-builder -f scripts/builder.Dockerfile .
-    docker run -it --rm -e OWNER=`id -u` -v `pwd`:/usr/src/bwt bwt-builder
+    docker run -it --rm -e OWNER=`id -u` $docker_mounts bwt-builder
     if [ -z "$SKIP_OSX" ]; then
       docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
-      docker run -it --rm -e OWNER=`id -u` -v `pwd`:/usr/src/bwt bwt-builder-osx
+      docker run -it --rm -e OWNER=`id -u` $docker_mounts bwt-builder-osx
     fi
   else
     # macOS builds are disabled by default when building on the host.
