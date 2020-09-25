@@ -1,10 +1,24 @@
 language: rust
 rust:
   - stable
-cache: cargo
-before_script:
+cache:
+  cargo: true
+  directories:
+    - $HOME/docker-cache
+
+before_install:
   - ./scripts/ci-deps.sh
   - export PATH=/opt/bin:$PATH
+
+  # Load cached docker images, identified by the hash of the Dockerfiles
+  - export DOCKER_CACHE=$HOME/docker-cache/images-$(
+         sha256sum scripts/builder*.Dockerfile | sha256sum | head -c16
+       ).tar.gz
+  - test -f $DOCKER_CACHE && gzip -d < $DOCKER_CACHE | docker load || true
+
+before_cache:
+  - docker save bwt-builder bwt-builder-osx | gzip -2 > $DOCKER_CACHE
+
 script:
   - cargo fmt -- --check
   - ./scripts/check.sh
@@ -13,9 +27,9 @@ script:
 
   # Report reproducible builds shasums
   - >
-    docker build -t bwt-builder -f scripts/builder.Dockerfile . &&
+    (docker inspect bwt-builder &> /dev/null || docker build -t bwt-builder -f scripts/builder.Dockerfile .) &&
+    (docker inspect bwt-builder-osx &> /dev/null || docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .) &&
     docker run -v `pwd`:/usr/src/bwt bwt-builder &&
-    docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile . &&
     docker run -v `pwd`:/usr/src/bwt bwt-builder-osx &&
     echo '-----BEGIN SHA256SUM-----' &&
     (cd dist && sha256sum *) | sort &&

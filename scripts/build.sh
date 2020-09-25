@@ -38,8 +38,6 @@ pack() {
 
 version=`cat Cargo.toml | egrep '^version =' | cut -d'"' -f2`
 
-rm -rf dist/*
-
 for cfg in linux,x86_64-unknown-linux-gnu \
            win,x86_64-pc-windows-gnu \
            osx,x86_64-apple-darwin; do

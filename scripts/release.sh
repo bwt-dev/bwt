@@ -36,6 +36,8 @@ cargo fmt -- --check
 if [ -z "$SKIP_BUILD" ]; then
   echo Building releases...
 
+  rm -rf dist/*
+
   if [ -z "$BUILD_HOST" ]; then
     docker build -t bwt-builder -f scripts/builder.Dockerfile .
     docker run -it --rm -e OWNER=`id -u` -v `pwd`:/usr/src/bwt bwt-builder
@@ -48,7 +50,6 @@ if [ -z "$SKIP_BUILD" ]; then
     # to enable, set TARGETS=linux,win,osx
     ./scripts/build.sh
   fi
-
 
   echo Making SHA256SUMS...
   (cd dist && sha256sum *) | sort | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc
