@@ -25,13 +25,20 @@ script:
   - cargo clippy --all-targets --all-features
   - ./test/tests.sh
 
-  # Report reproducible builds shasums
+  # Build releases and report reproducibe shasums
   - >
-    docker_mounts="-v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo" &&
     (docker inspect bwt-builder &> /dev/null || docker build -t bwt-builder -f scripts/builder.Dockerfile .) &&
     (docker inspect bwt-builder-osx &> /dev/null || docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .) &&
-    docker run $docker_mounts bwt-builder &&
-    docker run $docker_mounts bwt-builder-osx &&
-    echo '-----BEGIN SHA256SUM-----' &&
-    (cd dist && sha256sum *) | sort &&
-    echo ''
+
+    [ -n "$PREPARE_CACHE_ONLY" ] || (
+      docker_mounts="-v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo" &&
+      docker run $docker_mounts bwt-builder &&
+      docker run $docker_mounts bwt-builder-osx &&
+      echo '-----BEGIN SHA256SUM-----' &&
+      (cd dist && sha256sum *) | sort &&
+      echo ''
+    )
+
+# Running the full build without any cache may exceed Travis's 50 minutes limit.
+# If this happens, its possible to run the CI once with PREPARE_CACHE_ONLY to
+# populate the caches, then restart it to build the releases themselves.
