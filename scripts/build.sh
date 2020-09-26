@@ -76,5 +76,3 @@ done
 
 # remove subdirectories, keep release tarballs
 rm -r dist/*/
-
-[ -n "$OWNER" ] && chown -R $OWNER dist target || true

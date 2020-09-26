@@ -1,44 +1,86 @@
 language: rust
-rust:
-  - stable
+rust: [ stable ]
+
 cache:
   cargo: true
   directories:
     - $HOME/docker-cache
 
-before_install:
-  - ./scripts/ci-deps.sh
-  - export PATH=/opt/bin:$PATH
+jobs:
+  include:
+    - stage: Test & Setup
+      name: cargo fmt
+      env: CACHE_BUCKET=fmt
+      install: rustup component add rustfmt
+      script: cargo fmt -- --check
+    - name: cargo check
+      env: CACHE_BUCKET=check
+      script: ./scripts/check.sh
+    - name: clippy
+      env: CACHE_BUCKET=clippy
+      install: rustup component add clippy
+      script: cargo clippy --all-targets --all-features
+    - name: e2e tests
+      env: CACHE_BUCKET=test
+      install: source scripts/ci-test-deps.sh
+      script: ./test/tests.sh
 
-  # Load cached docker images, identified by the hash of the Dockerfiles
-  - export DOCKER_CACHE=$HOME/docker-cache/images-$(
-         sha256sum scripts/builder*.Dockerfile | sha256sum | head -c16
-       ).tar.gz
-  - test -f $DOCKER_CACHE && gzip -d < $DOCKER_CACHE | docker load || true
+    # Prepare docker build environments
+    - name: prepare build env
 
-before_cache:
-  - docker save bwt-builder bwt-builder-osx | gzip -2 > $DOCKER_CACHE
+      # Identify docker image cache by the hash of the Dockerfiles
+      before_script: &set_docker_cache_id >
+        export DOCKER_CACHE=$HOME/docker-cache/$(sha256sum scripts/builder*.Dockerfile | sha256sum | head -c16)
 
-script:
-  - cargo fmt -- --check
-  - ./scripts/check.sh
-  - cargo clippy --all-targets --all-features
-  - ./test/tests.sh
+      script: |
+        if [ ! -f $DOCKER_CACHE/bwt-builder-osx.tar.gz ]; then
+          docker build -t bwt-builder -f scripts/builder.Dockerfile .
+          docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
 
-  # Build releases and report reproducibe shasums
-  - >
-    (docker inspect bwt-builder &> /dev/null || docker build -t bwt-builder -f scripts/builder.Dockerfile .) &&
-    (docker inspect bwt-builder-osx &> /dev/null || docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .) &&
+          # Cache docker images for next build stage
+          rm -rf $HOME/docker-cache/*
+          mkdir -p $DOCKER_CACHE
+          docker save bwt-builder | gzip -2 > $DOCKER_CACHE/bwt-builder.tar.gz
+          docker save bwt-builder-osx | gzip -2 > $DOCKER_CACHE/bwt-builder-osx.tar.gz
+        fi
 
-    [ -n "$PREPARE_CACHE_ONLY" ] || (
-      docker_mounts="-v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo" &&
-      docker run $docker_mounts bwt-builder &&
-      docker run $docker_mounts bwt-builder-osx &&
-      echo '-----BEGIN SHA256SUM-----' &&
-      (cd dist && sha256sum *) | sort &&
-      echo ''
-    )
+        for target in x86_64-{unknown-linux-gnu,apple-darwin,pc-windows-gnu} armv7-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; do
+          cargo fetch --target $target
+        done
 
-# Running the full build without any cache may exceed Travis's 50 minutes limit.
-# If this happens, its possible to run the CI once with PREPARE_CACHE_ONLY to
-# populate the caches, then restart it to build the releases themselves.
+    # Split up builds to multiple concurrent jobs to avoid hitting Travis's 50 minutes limit
+    - &build
+      stage: Reproducible builds
+      script:
+      - *set_docker_cache_id
+      - >
+        : ${IMAGE:=bwt-builder} &&
+        echo -e tr''avis_fo''ld:start:build\\nBuilding... &&
+        gzip -d < $DOCKER_CACHE/$IMAGE.tar.gz | docker load &&
+        docker run -e TARGETS -u `id -u` -v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo $IMAGE &&
+        echo tr''avis_fol''d:end:build
+      - >
+        echo '-----BEGIN SHA256SUM-----' &&
+        (cd dist && sha256sum *) &&
+        echo
+      # XXX if: branch in (master, dev, stable) OR tag IS present
+
+      name: linux
+      before_script: export TARGETS=x86_64-linux
+      # avoid using `env` so the cache won't get separated
+
+    - <<: *build
+      name: windows
+      before_script: export TARGETS=x86_64-win
+
+    - <<: *build
+      name: osx
+      before_script: export TARGETS=x86_64-osx IMAGE=bwt-builder-osx
+
+    - <<: *build
+      name: arm32v7
+      before_script: export TARGETS=arm32v7
+
+    - <<: *build
+      name: arm64v8
+      before_script: export TARGETS=arm64v8

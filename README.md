@@ -1216,27 +1216,19 @@ The builds can be reproduced in a Docker container environment as follows:
 ```
 $ git clone https://github.com/shesek/bwt && cd bwt
 
-# Linux, Windows & ARM
+# Linux, Windows & ARMv7/v8
 $ docker build -t bwt-builder -f scripts/builder.Dockerfile .
-$ docker run -it --rm -v `pwd`:/usr/src/bwt bwt-builder
+$ docker run -it --rm -u `id -u` -v `pwd`:/usr/src/bwt bwt-builder
 
 # Mac OSX (cross-compiled via osxcross)
 $ docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
-$ docker run -it --rm -v `pwd`:/usr/src/bwt bwt-builder-osx
+$ docker run -it --rm -u `id -u` -v `pwd`:/usr/src/bwt bwt-builder-osx
 
 $ sha256sum dist/*
 ```
 
-The builds are [reproduced on Travis CI](https://travis-ci.org/github/shesek/bwt/branches). The SHA256 checksums are available at the end of the build log.
-
-You can get the checksums for the latest stable release via the API as follows:
-
-```bash
-$ jobid=$(curl -s 'https://api.travis-ci.org/v3/repo/shesek%2Fbwt/builds?branch.name=stable&sort_by=started_at:desc&limit=1' | jq -r '.builds[0].jobs[0].id')
-$ curl -s https://api.travis-ci.org/v3/job/$jobid/log.txt | sed -nr '/^-----BEGIN SHA256SUM-----\s*$/{:a;n;/^\s*$/q;p;ba}'
-```
-
-> Verifying the checksums against the CI is highly recommended.
+The builds are [reproduced on Travis CI](https://travis-ci.org/github/shesek/bwt/branches) using the code from GitHub.
+The SHA256 checksums are available under the "Reproducible builds" stage.
 
 ## Thanks
 
