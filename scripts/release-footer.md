@@ -30,6 +30,6 @@ See [more details here](https://github.com/shesek/bwt#reproducible-builds).
 
 #### Electrum plugin
 
-The [Electrum plugin](https://github.com/shesek/bwt#electrum-plugin) is available for download for Linux and Windows, as the `electrum_plugin` package.
+The [Electrum plugin](https://github.com/shesek/bwt#electrum-plugin) is available for download for Linux, Mac, Windows and ARM as the `electrum_plugin` package.
 
 > ⚠️ **NOTE:** The plugin supports watch-only wallets only and **cannot be used with hot wallets**. This is done as a security measure, which is expected to eventually be lifted. You can use the plugin with hardware wallets or with an offline Electrum setup. For hot wallets, you will need to setup a standalone server instead of using the plugin, ideally far away from your keys.

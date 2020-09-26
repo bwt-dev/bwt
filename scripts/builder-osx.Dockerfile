@@ -14,7 +14,7 @@ RUN git clone https://github.com/tpoechtrager/osxcross /usr/src/osxcross && \
     echo "$OSX_SDK_SHASUM tarballs/MacOSX$OSX_SDK_VERSION.sdk.tar.xz" | sha256sum -c - && \
     UNATTENDED=yes OSX_VERSION_MIN=10.7 ./build.sh
 
-ENV TARGETS=osx
+ENV TARGETS=x86_64-osx
 ENV CC=x86_64-apple-darwin15-cc
 ENV AR=x86_64-apple-darwin15-ar
 ENV PATH=$PATH:/usr/src/osxcross/target/bin

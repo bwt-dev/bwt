@@ -69,7 +69,7 @@ Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficie
 
 #### Signed pre-built binaries
 
-Available for download on [the releases page](https://github.com/shesek/bwt/releases) (Linux and Windows).
+Available for download on [the releases page](https://github.com/shesek/bwt/releases) (Linux, Mac, Windows and ARM).
 
 The releases are signed by Nadav Ivgi (@shesek).
 The public key can be verified on [keybase](https://keybase.io/nadav),
@@ -264,7 +264,7 @@ Download the `electrum_plugin` package from the [releases page](https://github.c
 After restarting Electrum, you should see bwt in the list of installed plugins under `Tools -> Plugins`.
 
 The supported Electrum version is 3.3.8.
-The plugin is currently available for Linux and Windows.
+The plugin is available for Linux, Mac, Windows and ARM.
 
 Note that it is not possible to install external plugins with the Electrum AppImage or standalone Windows executable.
 You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) on Linux, use the Windows installer, or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
@@ -1141,7 +1141,9 @@ Dumps the contents of the index store as a debug string.
 
 ## Web Hooks
 
-> If you're building bwt from source, you'll need to set `--features webhooks` to enable web hooks support. This will also require to `apt install libssl-dev pkg-config`. The main pre-built binary and the `shesek/bwt` docker image come with webhooks support enabled by default.
+> If you're building bwt from source, you'll need to set `--features webhooks` to enable web hooks support. This will also require to `apt install libssl-dev pkg-config`.
+>
+> The pre-built binaries ([except for ARM](https://github.com/shesek/bwt/issues/52)) and the `shesek/bwt` docker image come with webhooks support enabled by default.
 
 You can set `--webhook-url <url>` to have bwt send push notifications as a `POST` request to the provided `<url>`. Requests will be sent with a JSON-serialized *array* of one or more index updates as the body.
 
@@ -1214,7 +1216,7 @@ The builds can be reproduced in a Docker container environment as follows:
 ```
 $ git clone https://github.com/shesek/bwt && cd bwt
 
-# Linux & Windows
+# Linux, Windows & ARM
 $ docker build -t bwt-builder -f scripts/builder.Dockerfile .
 $ docker run -it --rm -v `pwd`:/usr/src/bwt bwt-builder
 

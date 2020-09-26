@@ -4,7 +4,7 @@
 
 - Reproducible builds using Docker (#51)
 
-- Pre-built binary releases for macOS (#24)
+- Pre-built binary releases for macOS (#24) and ARMv7/v8 (#19)
 
 - Scriptable transaction broadcast command via `--tx-broadcast-cmd <cmd>` (#7)
 

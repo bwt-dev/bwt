@@ -38,3 +38,11 @@ thiserror = "1.0.20"
 tokio = { version = "0.2.20", features = ["macros"], optional = true }
 warp = { version = "0.2.3", optional = true }
 reqwest = { version = "0.10.6", optional = true, features = ["json", "blocking"] }
+
+
+# Statically link OpenSSL when cross-compiling to ARM
+# OpenSSL is currently disabled on ARM, see https://github.com/shesek/bwt/issues/52
+
+# [target.'cfg(any(target_arch = "arm", target_arch = "aarch64"))'.dependencies]
+# openssl = { version = "0.10", features = ["vendored"], optional = true }
+# webhooks = [ "reqwest", "openssl" ]
