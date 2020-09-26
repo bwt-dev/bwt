@@ -1,10 +1,21 @@
+
+### Downloads
+
+|           | **Full Server** | **Electrum Plugin** | **Electrum Server**
+|-----------|------|-----------------|-------------
+| **Linux** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-linux.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-linux.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-x86_64-linux.tar.gz) |
+| **macOS** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-osx.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-osx.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-x86_64-osx.zip) |
+| **Windows** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-win.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-win.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-x86_64-win.zip) |
+| **ARMv7** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-arm32v7.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-arm32v7.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-arm32v7.tar.gz) |
+| **ARMv8** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-arm64v8.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-arm64v8.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-arm64v8.tar.gz) |
+
 ------------
 
 ### Installation
 
 Installation instructions are [available on the README](https://github.com/shesek/bwt#installation).
 
-#### Verifying signatures
+### Verifying signatures
 
 The releases are signed by Nadav Ivgi (@shesek). The public key can be verified on [keybase](https://keybase.io/nadav), [github](https://api.github.com/users/shesek/gpg_keys), [twitter](https://twitter.com/shesek) and [HN](https://news.ycombinator.com/user?id=nadaviv). The signature can be verified as follows (replace `x86_64-linux` with your download):
 
@@ -20,7 +31,7 @@ $ wget -qO - https://github.com/shesek/bwt/releases/download/vVERSION/SHA256SUMS
 
 You should see `Good signature from "Nadav Ivgi <nadav@shesek.info>" ... Primary key fingerprint: FCF1 9B67 ...` and `bwt-VERSION-x86_64-linux.tar.gz: OK`.
 
-#### Reproducible builds
+### Reproducible builds
 
 The builds are fully reproducible.
 
@@ -28,7 +39,7 @@ You can verify the checksums against [the builds made on Travis CI](https://trav
 
 See [more details here](https://github.com/shesek/bwt#reproducible-builds).
 
-#### Electrum plugin
+### Electrum plugin
 
 The [Electrum plugin](https://github.com/shesek/bwt#electrum-plugin) is available for download for Linux, Mac, Windows and ARM as the `electrum_plugin` package.
 
