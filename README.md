@@ -289,6 +289,10 @@ Note that setting `--skipmerklecheck` is only necessary if your node is pruned,
 but it can also be used to save some resource when combined with `--electrum-skip-merkle`.
 See [more details here](#pruning).
 
+Alternatively, you can also set `127.0.0.1:50001:t` as your server using the server selection GUI
+(note the `:t`, which disables TLS). Note, however, that it is not possible to configure `oneserver`
+and `skipmerklecheck` using the GUI.
+
 ## HTTP API
 
 All the endpoints return JSON. All bitcoin amounts are in satoshis.
