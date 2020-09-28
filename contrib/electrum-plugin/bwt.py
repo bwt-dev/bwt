@@ -12,6 +12,10 @@ from electrum.util import UserFacingException
 from electrum.logging import get_logger
 from electrum.network import Network
 
+# Introduced in Electrum v4
+try: from electrum.interface import ServerAddr
+except: pass
+
 _logger = get_logger('plugins.bwt')
 
 plugin_dir = os.path.dirname(__file__)
@@ -121,16 +125,25 @@ class BwtPlugin(BasePlugin):
         self.config.cmdline_options['server'] = '127.0.0.1:1:t'
 
     def set_server(self):
+        _logger.info('Configuring server to 127.0.0.1:%s', self.rpc_port)
+
         # first, remove the `server` config to allow `set_parameters()` below to update it and trigger the connection mechanism
         del self.config.cmdline_options['server']
 
         network = Network.get_instance()
-        net_params = network.get_parameters()._replace(
-            host='127.0.0.1',
-            port=self.rpc_port,
-            protocol='t',
-            oneserver=True,
-        )
+        net_params = network.get_parameters()
+        try:
+            # Electrum v4
+            server = ServerAddr('127.0.0.1', self.rpc_port, protocol='t')
+            net_params = net_params._replace(server=server, oneserver=True)
+        except:
+            # Electrum v3
+            net_params = net_params._replace(
+                host='127.0.0.1',
+                port=self.rpc_port,
+                protocol='t',
+                oneserver=True,
+            )
         network.run_from_another_thread(network.set_parameters(net_params))
 
         # now set the server in `cmdline_options` to lock it in
@@ -174,7 +187,7 @@ def proc_logger(proc, log_handler):
         line = line.decode('utf-8').strip()
         _logger.debug(line)
 
-        m = re.match(r"^(ERROR|WARN|INFO|DEBUG|TRACE) ([^ ]+) +> (.*)", line)
+        m = re.match(r"^(ERROR|WARN|INFO|DEBUG|TRACE) +([^ ]+) +> (.*)", line)
 
         if m is not None:
             log_handler(*m.groups())

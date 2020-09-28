@@ -147,7 +147,10 @@ class Plugin(BwtPlugin, QObject):
 
     @hook
     def init_qt(self, gui_object):
-        for path, wallet in gui_object.daemon.wallets.items():
+        daemon = gui_object.daemon
+        # `get_wallets()` in v4, `wallets` attr in v3
+        wallets = daemon.get_wallets() if hasattr(daemon, 'get_wallets') else daemon.wallets
+        for path, wallet in wallets.items():
             self.load_wallet(wallet, None)
 
     def handle_log(self, *log):
