@@ -43,3 +43,5 @@ pub use error::{Error, Result};
 pub use hd::{HDWallet, HDWatcher};
 pub use indexer::{IndexChange, Indexer};
 pub use query::Query;
+
+pub const BWT_VERSION: &str = env!("CARGO_PKG_VERSION");

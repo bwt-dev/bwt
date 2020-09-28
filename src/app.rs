@@ -140,7 +140,8 @@ fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
     let netinfo = rpc.get_network_info_()?;
     let mut bcinfo = rpc.get_blockchain_info()?;
     info!(
-        "connected to {} on {}, protocolversion={}, pruned={}, bestblock={}",
+        "bwt v{} connected to {} on {}, protocolversion={}, pruned={}, bestblock={}",
+        crate::BWT_VERSION,
         netinfo.subversion,
         bcinfo.chain,
         netinfo.protocol_version,
