@@ -677,11 +677,11 @@ impl SubscriptionManager {
                 scripthashes
                     .iter_mut()
                     .filter(|(scripthash, _)| subscriber.scripthashes.contains(*scripthash))
-                    .filter_map(|(scripthash, status_hash)| {
+                    .map(|(scripthash, status_hash)| {
                         // calculate the status hash once per script hash and cache it
                         let status_hash =
                             status_hash.get_or_insert_with(|| query.get_status_hash(scripthash));
-                        Some(Message::HistoryChange(*scripthash, *status_hash))
+                        Message::HistoryChange(*scripthash, *status_hash)
                     }),
             )
             .all(|msg| match subscriber.sender.try_send(msg) {

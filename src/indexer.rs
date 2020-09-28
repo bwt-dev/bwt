@@ -108,15 +108,13 @@ impl Indexer {
             self.tip = Some(synced_tip);
         }
 
-        if !changelog.is_empty() {
-            info!(
+        if !changelog.is_empty() && log_enabled!(log::Level::Debug) {
+            debug!(
                 "sync resulted in {} index changelog events",
                 changelog.len()
             );
-            if log_enabled!(log::Level::Debug) {
-                for update in &changelog {
-                    debug!("  - {:?}", update);
-                }
+            for update in &changelog {
+                debug!("  - {:?}", update);
             }
         }
 
@@ -141,7 +139,8 @@ impl Indexer {
             // transactions that were re-added in the active chain will appear in `removed`
             // but with a positive confirmation count, ignore these.
             if ltx.info.confirmations < 0 {
-                if self.store.purge_tx(&ltx.info.txid) {
+                let tx_deleted = self.store.purge_tx(&ltx.info.txid);
+                if tx_deleted {
                     changelog.push(|| IndexChange::TransactionReplaced(ltx.info.txid));
                 }
             }
