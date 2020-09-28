@@ -69,11 +69,19 @@ if [ -z "$SKIP_GIT" ]; then
   git push gh --tags
 fi
 
+if [ -z "$SKIP_CRATE" ]; then
+  echo Publishing to crates.io...
+  cargo publish
+fi
+
 if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
   echo Uploading to github...
   gh_auth="Authorization: token $GH_TOKEN"
   gh_base=https://api.github.com/repos/$gh_repo
-  release_text="### Changelog"$'\n'$'\n'$changelog$'\n'$'\n'`cat scripts/release-footer.md | sed "s/VERSION/$version/g"`
+
+  travis_job=$(curl -s "https://api.travis-ci.org/v3/repo/${gh_repo/\//%2F}/branch/v$version" | jq -r .last_build.id || echo '')
+
+  release_text="### Changelog"$'\n'$'\n'$changelog$'\n'$'\n'`cat scripts/release-footer.md | sed "s/VERSION/$version/g; s/TRAVIS_JOB/$travis_job/g;"`
   release_opt=`jq -n --arg version v$version --arg text "$release_text" \
     '{ tag_name: $version, name: $version, body: $text, draft:true }'`
   gh_release=`curl -sf -H "$gh_auth" $gh_base/releases/tags/v$version \
@@ -101,9 +109,4 @@ if [ -z "$SKIP_DOCKER" ]; then
   docker tag $docker_tag $docker_name:latest
   docker tag $docker_tag-electrum $docker_name:electrum
   docker push $docker_name
-fi
-
-if [ -z "$SKIP_CRATE" ]; then
-  echo Publishing to crates.io...
-  cargo publish
 fi

@@ -22,9 +22,9 @@ The releases are signed by Nadav Ivgi (@shesek). The public key can be verified 
 ```bash
 # Download package
 $ wget https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-linux.tar.gz
-
-# Verify signatures
+# Fetch signing key
 $ gpg --keyserver keyserver.ubuntu.com --recv-keys FCF19B67866562F08A43AAD681F6104CD0F150FC
+# Verify signature
 $ wget -qO - https://github.com/shesek/bwt/releases/download/vVERSION/SHA256SUMS.asc \
   | gpg --decrypt - | grep ' bwt-VERSION-x86_64-linux.tar.gz$' | sha256sum -c -
 ```
@@ -35,7 +35,7 @@ You should see `Good signature from "Nadav Ivgi <nadav@shesek.info>" ... Primary
 
 The builds are fully reproducible.
 
-You can verify the checksums against [the builds made on Travis CI](https://travis-ci.org/github/shesek/bwt) -- **doing so is highly recommended!**
+You can verify the checksums against the vVERSION builds on Travis CI: https://travis-ci.org/github/shesek/bwt/builds/TRAVIS_JOB
 
 See [more details here](https://github.com/shesek/bwt#reproducible-builds).
 
