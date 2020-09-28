@@ -14,16 +14,21 @@ build() {
 
   cargo build --release --target $target --no-default-features --features "$features"
 
-  mv target/$target/release/bwt$ext $dest
-
-  if [[ $target == "x86_64-"* && $target != *"-apple-"* ]]; then
-    # doesn't work for macOS and ARM binaries
-    strip $dest/bwt$ext
-  fi
+  mv target/$target/release/bwt$ext $dest/
+  strip_symbols $target $dest/bwt$ext
 
   cp README.md LICENSE $dest/
 
   pack $name
+}
+
+strip_symbols() {
+  case $1 in
+    "x86_64-unknown-linux-gnu" | "x86_64-pc-windows-gnu") strip $2 ;;
+    "x86_64-apple-darwin") x86_64-apple-darwin15-strip $2 ;;
+    "armv7-unknown-linux-gnueabihf") arm-linux-gnueabihf-strip $2 ;;
+    "aarch64-unknown-linux-gnu") aarch64-linux-gnu-strip $2 ;;
+  esac
 }
 
 # pack an tar.gz/zip archive file, with fixed/removed metadata attrs and deterministic file order for reproducibility
