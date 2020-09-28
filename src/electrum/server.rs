@@ -121,7 +121,7 @@ impl Connection {
         let max_height = cmp::min(start_height + count, self.query.get_tip_height()?);
 
         // TODO use batch rpc when available in rust-bitcoincore-rpc
-        let headers: Vec<String> = (start_height..max_height)
+        let headers: Vec<String> = (start_height..=max_height)
             .map(|height| {
                 let blockhash = self.query.get_block_hash(height)?;
                 self.query.get_header_hex(&blockhash)
