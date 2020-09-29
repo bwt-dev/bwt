@@ -312,7 +312,7 @@ impl Connection {
             | "blockchain.scripthash.subscribe"
             | "blockchain.estimatefee"
             | "mempool.get_fee_histogram" => {
-                trace!("rpc #{} <- {} {}", id, method, params);
+                trace!(target: LT, "rpc #{} <- {} {}", id, method, params);
             }
             _ => {
                 debug!(target: LT, "rpc #{} <- {} {}", id, method, params);
@@ -344,7 +344,7 @@ impl Connection {
 
         Ok(match result {
             Ok(result) => {
-                trace!("rpc #{} -> {} {}", id, method, result);
+                trace!(target: LT, "rpc #{} -> {} {}", id, method, result);
                 json!({"jsonrpc": "2.0", "id": id, "result": result})
             }
             Err(e) => {
@@ -443,7 +443,7 @@ impl Connection {
                 "[{}] connection handling failed: {:#?}", self.addr, e,
             )
         }
-        trace!("[{}] shutting down connection", self.addr);
+        trace!(target: LT, "[{}] shutting down connection", self.addr);
         self.subman.lock().unwrap().remove(self.subscriber_id);
         let _ = self.stream.shutdown(Shutdown::Both);
         if let Err(err) = child.join().expect("receiver panicked") {
@@ -544,15 +544,19 @@ impl ElectrumServer {
                     }));
                 }
                 let subman = subman.lock().unwrap();
-                trace!("closing {} RPC connections", subman.subscribers.len());
+                trace!(
+                    target: LT,
+                    "closing {} RPC connections",
+                    subman.subscribers.len()
+                );
                 for (_, subscriber) in subman.subscribers.iter() {
                     let _ = subscriber.sender.send(Message::Done);
                 }
-                trace!("waiting for {} RPC handling threads", children.len());
+                trace!(target: LT, "waiting for {} RPC threads", children.len());
                 for child in children {
                     let _ = child.join();
                 }
-                trace!("RPC connections are closed");
+                trace!(target: LT, "RPC connections are closed");
             })),
         }
     }
@@ -585,12 +589,12 @@ impl ElectrumServer {
 
 impl Drop for ElectrumServer {
     fn drop(&mut self) {
-        trace!("stop accepting new RPCs");
+        trace!(target: LT, "stop accepting new RPCs");
         self.notification.send(Notification::Exit).unwrap();
         if let Some(handle) = self.server.take() {
             handle.join().unwrap();
         }
-        trace!("RPC server is stopped");
+        trace!(target: LT, "RPC server is stopped");
     }
 }
 
