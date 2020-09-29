@@ -9,6 +9,7 @@ use std::thread;
 use bitcoin::Txid;
 use serde_json::{from_str, from_value, Value};
 
+use crate::banner::get_welcome_banner;
 use crate::electrum::{electrum_height, QueryExt};
 use crate::error::{fmt_error_chain, BwtError, Context, Result};
 use crate::indexer::IndexChange;
@@ -69,15 +70,15 @@ impl Connection {
 
     fn server_version(&self) -> Result<Value> {
         // TODO check the versions are compatible and disconnect otherwise
-        Ok(json!([format!("bwt {}", BWT_VERSION), PROTOCOL_VERSION]))
+        Ok(json!([format!("bwt v{}", BWT_VERSION), PROTOCOL_VERSION]))
     }
 
     fn server_banner(&self) -> Result<Value> {
-        Ok(json!("Welcome to bwt 🚀🌑"))
+        Ok(json!(get_welcome_banner(&self.query)?))
     }
 
     fn server_donation_address(&self) -> Result<Value> {
-        Ok(Value::Null)
+        Ok(json!("bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d"))
     }
 
     fn server_peers_subscribe(&self) -> Result<Value> {

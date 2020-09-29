@@ -30,27 +30,22 @@ pub trait RpcApiExt: RpcApi {
         self.call("getnetworkinfo", &[])
     }
 
-    /// Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/131
+    // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/131
     fn get_net_totals(&self) -> Result<GetNetTotalsResult> {
         self.call("getnettotals", &[])
     }
 
-    /// Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/129
+    // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/129
     fn uptime(&self) -> Result<u64> {
         self.call("uptime", &[])
     }
 
-    /// Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/130
+    // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/130
     fn get_network_hash_ps(&self, nblocks: u64) -> Result<f64> {
         self.call("getnetworkhashps", &[json!(nblocks)])
     }
 
-    /// Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/132
-    fn get_tx_out_set_info(&self) -> Result<GetTxOutSetInfoResult> {
-        self.call("gettxoutsetinfo", &[])
-    }
-
-    // Only supports the fields we're interested in, not upstremable
+    // Only supports the fields we're interested in (so not currently upstremable)
     fn get_block_stats(&self, blockhash: &bitcoin::BlockHash) -> Result<GetBlockStatsResult> {
         let fields = (
             "height",
@@ -63,6 +58,10 @@ pub trait RpcApiExt: RpcApi {
             "feerate_percentiles",
         );
         self.call("getblockstats", &[json!(blockhash), json!(fields)])
+    }
+
+    fn get_mempool_info(&self) -> Result<GetMempoolInfoResult> {
+        self.call("getmempoolinfo", &[])
     }
 }
 
@@ -191,29 +190,6 @@ pub struct GetNetTotalsResultUploadTarget {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
-pub struct GetTxOutSetInfoResult {
-    /// The current block height (index)
-    pub height: u64,
-    /// The hash of the block at the tip of the chain
-    //#[serde(with = "::serde_hex", rename = "bestblock")]
-    //pub best_block: Vec<u8>,
-    /// The number of transactions with unspent outputs
-    pub transactions: u64,
-    /// The number of unspent transaction outputs
-    #[serde(rename = "txouts")]
-    pub tx_outs: u64,
-    /// A meaningless metric for UTXO set size
-    pub bogosize: u64,
-    /// The serialized hash
-    pub hash_serialized_2: bitcoin::hashes::sha256::Hash,
-    /// The estimated size of the chainstate on disk
-    pub disk_size: u64,
-    /// The total amount
-    #[serde(with = "bitcoin::util::amount::serde::as_btc")]
-    pub total_amount: bitcoin::Amount,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub struct GetBlockStatsResult {
     pub height: u64,
     pub time: u64,
@@ -225,4 +201,15 @@ pub struct GetBlockStatsResult {
     #[serde(rename = "avgfeerate")]
     pub avg_fee_rate: u64,
     pub feerate_percentiles: (u64, u64, u64, u64, u64),
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+pub struct GetMempoolInfoResult {
+    pub size: u64,
+    pub bytes: u64,
+    #[serde(
+        rename = "mempoolminfee",
+        with = "bitcoin::util::amount::serde::as_btc"
+    )]
+    pub mempool_min_fee: bitcoin::Amount,
 }

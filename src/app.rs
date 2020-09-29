@@ -5,7 +5,7 @@ use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::bitcoincore_ext::RpcApiExt;
 use crate::util::debounce_sender;
-use crate::{Config, HDWallet, HDWatcher, Indexer, Query, Result};
+use crate::{banner, Config, HDWallet, HDWatcher, Indexer, Query, Result};
 
 #[cfg(feature = "electrum")]
 use crate::electrum::ElectrumServer;
@@ -57,6 +57,10 @@ impl App {
         }
 
         wait_bitcoind(&rpc)?;
+
+        if config.startup_banner {
+            println!("{}", banner::get_welcome_banner(&query)?);
+        }
 
         // do an initial sync without keeping track of updates
         indexer.write().unwrap().initial_sync()?;
@@ -153,12 +157,11 @@ fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
     let netinfo = rpc.get_network_info_()?;
     let mut bcinfo = rpc.get_blockchain_info()?;
     info!(
-        "bwt v{} connected to {} on {}, protocolversion={}, pruned={}, bestblock={}",
+        "bwt v{} connected to {} on {}, protocolversion={}, bestblock={}",
         crate::BWT_VERSION,
         netinfo.subversion,
         bcinfo.chain,
         netinfo.protocol_version,
-        bcinfo.pruned,
         bcinfo.best_block_hash
     );
 

@@ -114,8 +114,8 @@ if [ -z "$NO_FUNDING" ]; then
 fi
 
 echo Setting up bwt
-runbwt --network regtest --bitcoind-dir $BTC_DIR --bitcoind-url http://localhost:$BTC_RPC_PORT/ \
-  --bitcoind-wallet bwt \
+runbwt --no-startup-banner --network regtest \
+  --bitcoind-dir $BTC_DIR --bitcoind-url http://localhost:$BTC_RPC_PORT/ --bitcoind-wallet bwt \
   --electrum-rpc-addr $BWT_ELECTRUM_ADDR \
   --unix-listener-path $BWT_SOCKET --poll-interval ${INTERVAL:=120} \
   --initial-import-size 30 \
