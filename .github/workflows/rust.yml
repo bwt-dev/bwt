@@ -47,7 +47,7 @@ jobs:
       run: cargo build --release
 
     - name: Setup test dependencies
-      run: ./scripts/ci-deps.sh
+      run: ./scripts/ci-test-deps.sh
 
     - name: Run tests
       run: BWT_BIN=target/release/bwt PATH=/opt/bin:$PATH ./test/tests.sh
