@@ -9,6 +9,8 @@
 - Electrum plugin: Compatibility with Electrum v4 — *except for lightning* which is
   [tricky with personal servers](https://github.com/chris-belcher/electrum-personal-server/issues/174#issuecomment-577619460) (#53)
 
+- Electrum: New welcome banner (#44)
+
 - Scriptable transaction broadcast command via `--tx-broadcast-cmd <cmd>` (#7)
 
   The command will be used in place of broadcasting transactions using the full node,

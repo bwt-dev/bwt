@@ -52,6 +52,10 @@ impl Query {
         }
     }
 
+    pub fn rpc(&self) -> &RpcClient {
+        &self.rpc
+    }
+
     pub fn debug_index(&self) -> String {
         format!("{:#?}", self.indexer.read().unwrap().store())
     }

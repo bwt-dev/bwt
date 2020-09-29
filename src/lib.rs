@@ -15,6 +15,7 @@ extern crate serde;
 mod macros;
 
 pub mod app;
+pub mod banner;
 pub mod bitcoincore_ext;
 pub mod config;
 pub mod error;

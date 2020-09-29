@@ -36,7 +36,7 @@ pub struct Config {
     )]
     pub verbose: usize,
 
-    // XXX this is not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
+    // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
     #[structopt(
         short = "t",
         long,
@@ -157,7 +157,7 @@ pub struct Config {
     )]
     pub electrum_rpc_addr: Option<net::SocketAddr>,
 
-    // XXX this is not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
+    // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
     #[cfg(feature = "electrum")]
     #[structopt(
         long,
@@ -208,6 +208,15 @@ pub struct Config {
         display_order(91)
     )]
     pub broadcast_cmd: Option<String>,
+
+    // XXX this is not settable as an env var due to https://github.com/clap-rs/clap/issues/1476
+    #[structopt(
+        long = "no-startup-banner",
+        help = "Disable the startup banner",
+        parse(from_flag = std::ops::Not::not),
+        display_order(92)
+    )]
+    pub startup_banner: bool,
 
     #[cfg(unix)]
     #[structopt(
