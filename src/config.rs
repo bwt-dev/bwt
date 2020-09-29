@@ -406,11 +406,17 @@ fn get_cookie(config: &Config) -> Option<path::PathBuf> {
 }
 
 fn bitcoind_default_dir() -> Option<path::PathBuf> {
-    #[cfg(not(windows))]
-    return Some(dirs::home_dir()?.join(".bitcoin"));
-
-    #[cfg(windows)]
+    // Windows: C:\Users\Satoshi\Appdata\Roaming\Bitcoin
+    #[cfg(target_os = "windows")]
     return Some(dirs::data_dir()?.join("Bitcoin"));
+
+    // macOS: ~/Library/Application Support/Bitcoin
+    #[cfg(target_os = "macos")]
+    return Some(dirs::config_dir()?.join("Bitcoin"));
+
+    // Linux and others: ~/.bitcoin
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    return Some(dirs::home_dir()?.join(".bitcoin"));
 }
 
 impl From<&Config> for QueryConfig {

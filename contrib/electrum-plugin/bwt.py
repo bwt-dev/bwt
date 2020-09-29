@@ -214,11 +214,13 @@ def default_bitcoind_url():
 def default_bitcoind_dir():
     if platform.system() == 'Windows':
         return os.path.expandvars('%APPDATA%\\Bitcoin')
+    elif platform.system() == 'Darwin':
+        return os.path.expandvars('$HOME/Library/Application Support/Bitcoin')
     else:
         return os.path.expandvars('$HOME/.bitcoin')
 
 def default_socket_path():
-    if platform.system() == 'Linux' and os.access(plugin_dir, os.W_OK | os.X_OK):
+    if platform.system() in ('Linux', 'Darwin') and os.access(plugin_dir, os.W_OK | os.X_OK):
         return os.path.join(plugin_dir, 'bwt-socket')
 
 def free_port():
