@@ -506,7 +506,7 @@ fn get_xpub_p2pkh_version(network: Network) -> [u8; 4] {
 }
 
 // show a specialzied error message for unsupported `listlabels` (added in Bitcoin Core 0.17.0)
-fn labels_error(error: bitcoincore_rpc::Error) -> bitcoincore_rpc::Error {
+fn labels_error(error: rpc::Error) -> bitcoincore_rpc::Error {
     if let rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)) = error {
         // Method not found
         if e.code == -32601 {

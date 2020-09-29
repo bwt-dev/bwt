@@ -206,19 +206,19 @@ impl Indexer {
 
         let txid = ltx.info.txid;
         let vout = ltx.detail.vout;
-        let scripthash = ScriptHash::from(&ltx.detail.address);
+        let address = ltx.detail.address;
+        let scripthash = ScriptHash::from(&address);
         let status = TxStatus::from_confirmations(ltx.info.confirmations, tip_height);
         let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts
 
         trace!(
             "processing incoming txout {}:{} scripthash={} address={} origin={:?} status={:?} amount={}",
-            txid, vout, scripthash, ltx.detail.address, origin, status, amount
+            txid, vout, scripthash, address, origin, status, amount
         );
 
         self.upsert_tx(&txid, status, changelog);
 
-        self.store
-            .index_scripthash(&scripthash, &origin, &ltx.detail.address);
+        self.store.index_scripthash(&scripthash, &origin, &address);
 
         let txo_added =
             self.store
