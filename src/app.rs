@@ -173,7 +173,7 @@ fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
             "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%, initialblockdownload={}]",
             bcinfo.blocks,
             bcinfo.headers,
-            bcinfo.verification_progress,
+            bcinfo.verification_progress * 100.0,
             bcinfo.initial_block_download
         );
         thread::sleep(dur);
