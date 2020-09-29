@@ -131,7 +131,7 @@ pub struct Config {
         short = "G",
         long,
         help = "The batch size for importing addresses during the initial sync (set higher to reduce number of rescans)",
-        default_value = "100",
+        default_value = "500",
         env,
         hide_env_values(true),
         display_order(52)
