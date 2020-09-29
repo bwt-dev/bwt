@@ -1,7 +1,7 @@
 use std::sync::{mpsc, Arc, RwLock};
 use std::{thread, time};
 
-use bitcoincore_rpc::{Client as RpcClient, RpcApi};
+use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::bitcoincore_ext::RpcApiExt;
 use crate::util::debounce_sender;
@@ -51,6 +51,10 @@ impl App {
         )?);
         let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)));
         let query = Arc::new(Query::new((&config).into(), rpc.clone(), indexer.clone()));
+
+        if let Some(bitcoind_wallet) = &config.bitcoind_wallet {
+            load_wallet(&rpc, bitcoind_wallet)?;
+        }
 
         wait_bitcoind(&rpc)?;
 
@@ -132,6 +136,15 @@ impl App {
     /// Get the `Query` instance
     pub fn query(&self) -> Arc<Query> {
         self.query.clone()
+    }
+}
+
+// Load the specified wallet, ignore "wallet is already loaded" errors
+fn load_wallet(rpc: &RpcClient, name: &str) -> Result<()> {
+    match rpc.load_wallet(name) {
+        Ok(_) => Ok(()),
+        Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e))) if e.code == -4 => Ok(()),
+        Err(e) => bail!(e),
     }
 }
 

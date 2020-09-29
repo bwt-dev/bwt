@@ -25,6 +25,8 @@
 
   h/t @chris-belcher's EPS for inspiring this feature! 🎩
 
+- Load bitcoind wallet automatically (#54)
+
 - Electrum plugin: Fix hot wallet test (#47)
 
 - Electrum: Fix docker image libssl dependency with the `http` feature (#48)
