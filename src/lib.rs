@@ -38,6 +38,9 @@ pub mod http;
 #[cfg(feature = "webhooks")]
 pub mod webhooks;
 
+#[cfg(feature = "tor")]
+pub mod tor;
+
 pub use app::App;
 pub use config::Config;
 pub use error::{Error, Result};

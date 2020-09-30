@@ -240,6 +240,23 @@ pub struct Config {
         display_order(102)
     )]
     pub webhook_urls: Option<Vec<String>>,
+
+    #[cfg(feature = "tor")]
+    #[structopt(
+        long,
+        short = "o",
+        help = "Setup tor hidden service (v3)",
+        display_order(110)
+    )]
+    pub onion: bool,
+
+    #[cfg(feature = "tor")]
+    #[structopt(
+        long,
+        help = "Tor data directory [default: ~/.bwt/tor]",
+        display_order(110)
+    )]
+    pub tor_dir: Option<path::PathBuf>,
 }
 
 impl Config {
@@ -296,6 +313,13 @@ impl Config {
                 },
             )
         })
+    }
+
+    #[cfg(feature = "tor")]
+    pub fn tor_dir(&self) -> Option<path::PathBuf> {
+        self.tor_dir
+            .clone()
+            .or_else(|| Some(dirs::home_dir()?.join(".bwt").join("tor")))
     }
 
     pub fn setup_logger(&self) {

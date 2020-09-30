@@ -94,6 +94,11 @@ impl App {
         #[cfg(feature = "webhooks")]
         let webhook = config.webhook_urls.clone().map(WebHookNotifier::start);
 
+        #[cfg(feature = "tor")]
+        if config.onion {
+          crate::tor::start_onion(&config);
+        }
+
         Ok(App {
             config,
             indexer,
