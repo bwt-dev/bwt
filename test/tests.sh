@@ -27,13 +27,12 @@ if [[ $FEATURES == *"electrum"* ]]; then
   test `jq -r .unconfirmed <<< "$balance"` == 5.678
 
   echo - Testing history
-  hist=`ele1 history`
+  hist=`ele1 onchain_history`
   test `jq -r '.transactions | length' <<< "$hist"` == 2
   test `jq -r .transactions[0].confirmations <<< "$hist"` == 1
   test `jq -r .transactions[1].confirmations <<< "$hist"` == 0
-  # end_balance and value used to have an "BTC" suffix in electrum prior to 3.3.8, cut it off
-  test `jq -r .summary.end_balance <<< "$hist" | cut -d' ' -f1` == 6.912
-  test `jq -r .transactions[0].value <<< "$hist" | cut -d' ' -f1` == 1.234
+  test `jq -r .summary.end_balance <<< "$hist"` == 6.912
+  test `jq -r .transactions[0].bc_value <<< "$hist" | cut -d' ' -f1` == 1.234
 
   echo - Testing listunspent
   utxos=`ele1 listunspent`

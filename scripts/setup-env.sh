@@ -24,13 +24,12 @@ BWT_SOCKET=$DIR/bwt-socket
 
 alias btc="bitcoin-cli -datadir=$BTC_DIR -rpcwallet=internal"
 alias ele="electrum --regtest --dir $ELECTRUM_DIR"
-alias ele1="ele --wallet $WALLET1"
-alias ele2="ele --wallet $WALLET2"
+ele1 () { ele $1 --wallet $WALLET1 "${@:2}"; }
+ele2 () { ele $1 --wallet $WALLET2 "${@:2}"; }
 
 export RUST_LOG_STYLE=${RUST_LOG_STYLE:-always}
 export CARGO_TERM_COLOR=${CARGO_TERM_COLOR:-always}
 
-# TODO detect failure to start bwt
 runbwt () {
   echo - Running with "$@"
   if [ -n "$BWT_BIN" ]; then
@@ -88,17 +87,17 @@ btc generatetoaddress 110 `btc getnewaddress` > /dev/null
 
 echo Setting up electrum
 mkdir -p $ELECTRUM_DIR
-ele setconfig log_to_file true > /dev/null
+ele --offline setconfig log_to_file true > /dev/null
 
 echo - Creating 2 wallets...
-electrum create --regtest --segwit --wallet $WALLET1 > /dev/null
-electrum create --regtest --wallet $WALLET2 > /dev/null
+electrum create --offline --regtest --seed_type segwit --wallet $WALLET1 > /dev/null
+electrum create --offline --regtest --wallet $WALLET2 > /dev/null
 
 echo - Starting daemon and loading wallets...
 start_electrum(){
-  ele daemon --server $BWT_ELECTRUM_ADDR:t --oneserver start > /dev/null 2>&1
-  ele daemon load_wallet --wallet $WALLET1 > /dev/null
-  ele daemon load_wallet --wallet $WALLET2 > /dev/null
+  ele daemon -d --server $BWT_ELECTRUM_ADDR:t --oneserver > /dev/null 2>&1
+  ele load_wallet --wallet $WALLET1 > /dev/null
+  ele load_wallet --wallet $WALLET2 > /dev/null
 }
 start_electrum
 
@@ -133,5 +132,5 @@ annoying_msgs='syncing mempool transactions|fetching 25 transactions starting at
 [ -n "$PRINT_LOGS" ] && tail --pid $pid -F -n0 $DIR/bwt.log | egrep --line-buffered -v "$annoying_msgs" 2> /dev/null &
 
 # restart daemon to make it re-try connecting to the server immediately
-ele daemon stop > /dev/null
+ele stop > /dev/null
 start_electrum

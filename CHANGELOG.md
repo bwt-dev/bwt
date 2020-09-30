@@ -35,6 +35,8 @@
 
 - HTTP API: Fix `GET /block/tip` (#46)
 
+- Tests: Upgrade to Electrum v4
+
 ## 0.1.4 - 2020-06-22
 
 - Implement improved mempool tracking, including support for an "effective feerate" metric that takes unconfirmed ancestors into account
