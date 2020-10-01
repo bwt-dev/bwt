@@ -13,7 +13,7 @@ const TARGET_BLOCK_SPACING: u64 = constants::TARGET_BLOCK_SPACING as u64;
 const INITIAL_REWARD: u64 = 50 * constants::COIN_VALUE;
 const HALVING_INTERVAL: u64 = 210_000;
 
-pub fn get_welcome_banner(query: &Query) -> Result<String> {
+pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> {
     let rpc = query.rpc();
 
     let net_info = rpc.get_network_info_()?;
@@ -61,7 +61,6 @@ pub fn get_welcome_banner(query: &Query) -> Result<String> {
         Ok(elapsed) => format!("{} ago", format_dur(&Duration::from_std(elapsed).unwrap())),
         Err(_) => "just now".to_string(), // account for blocks with a timestamp slightly in the future
     };
-
 
     // sat/kb -> sat/vB
     let mempool_min_fee = mempool_info.mempool_min_fee.as_sat() as f64 / 1000f64;
@@ -116,8 +115,8 @@ pub fn get_welcome_banner(query: &Query) -> Result<String> {
      MEMPOOL: 💭  {mempool_size} ／ {mempool_n_tx} ／ ᴍɪɴ {mempool_min_fee} sᴀᴛ/ᴠʙ
     FEES EST: 🏷️  20 ᴍɪɴᴜᴛᴇs: {est_20m} ／ 3 ʜᴏᴜʀs: {est_3h} ／ 1 ᴅᴀʏ: {est_1d} (sᴀᴛ/ᴠʙ)
 
- SUPPORT DEV: 🚀  bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d ／ https://btcpay.shesek.info
-"#,
+{donation_frag}"#,
+        modes = modes.join(" "),
         client_name = to_widetext(&net_info.subversion),
         chain_name = to_smallcaps(&chain_name),
         connected_peers = net_info.connections,
@@ -144,10 +143,14 @@ pub fn get_welcome_banner(query: &Query) -> Result<String> {
         est_20m = est_20m,
         est_3h = est_3h,
         est_1d = est_1d,
-        modes = modes.join(" "),
         ver_line1 = ver_lines.0,
         ver_line2 = ver_lines.1,
         ver_line3 = ver_lines.2,
+        donation_frag = if !omit_donation {
+            " SUPPORT DEV: 🚀  bc1qmuagsjvq0lh3admnafk0qnlql0vvxv08au9l2d ／ https://btcpay.shesek.info\n"
+        } else {
+            ""
+        },
     ))
 }
 

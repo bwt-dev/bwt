@@ -1143,6 +1143,11 @@ Dumps the contents of the index store as JSON.
 
 Dumps the contents of the index store as a debug string.
 
+#### `GET /banner.txt`
+
+Get the welcome banner text.
+([example](https://gist.githubusercontent.com/shesek/4986c4291df1a7c6de62c20bc72e58bf/raw/42539cd10f1836ae511f4c2ec7b4fc82ad52252a/bwt-welcome-banner.txt))
+
 ## Web Hooks
 
 > If you're building bwt from source, you'll need to set `--features webhooks` to enable web hooks support. This will also require to `apt install libssl-dev pkg-config`.

@@ -74,7 +74,7 @@ impl Connection {
     }
 
     fn server_banner(&self) -> Result<Value> {
-        Ok(json!(get_welcome_banner(&self.query)?))
+        Ok(json!(get_welcome_banner(&self.query, false)?))
     }
 
     fn server_donation_address(&self) -> Result<Value> {

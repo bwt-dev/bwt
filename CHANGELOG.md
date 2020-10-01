@@ -37,6 +37,8 @@
 
 - HTTP API: Fix `GET /block/tip` (#46)
 
+- HTTP API: Add `GET /banner.txt` (#44)
+
 - Tests: Upgrade to Electrum v4
 
 ## 0.1.4 - 2020-06-22

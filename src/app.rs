@@ -59,7 +59,7 @@ impl App {
         wait_bitcoind(&rpc)?;
 
         if config.startup_banner {
-            println!("{}", banner::get_welcome_banner(&query)?);
+            println!("{}", banner::get_welcome_banner(&query, false)?);
         }
 
         // do an initial sync without keeping track of updates

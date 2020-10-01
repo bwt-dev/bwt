@@ -14,7 +14,7 @@ use bitcoin_hashes::hex::FromHex;
 
 use crate::error::{fmt_error_chain, BwtError, Error, OptionExt};
 use crate::types::{BlockId, ScriptHash};
-use crate::{store, IndexChange, Query};
+use crate::{banner, store, IndexChange, Query};
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
 
@@ -414,6 +414,13 @@ async fn run(
         .and(query.clone())
         .map(|query: Arc<Query>| query.debug_index());
 
+    // GET /banner.txt
+    let banner_handler = warp::get()
+        .and(warp::path!("banner.txt"))
+        .and(query.clone())
+        .map(|query: Arc<Query>| banner::get_welcome_banner(&query, true))
+        .map(handle_error);
+
     // POST /sync
     let sync_handler = warp::post()
         .and(warp::path!("sync"))
@@ -455,6 +462,7 @@ async fn run(
         fee_estimate_handler,
         dump_handler,
         debug_handler,
+        banner_handler,
         sync_handler,
         warp::any().map(|| StatusCode::NOT_FOUND)
     )
