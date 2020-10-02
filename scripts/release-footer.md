@@ -1,13 +1,13 @@
 
 ### Downloads
 
-|           | **Full Server** | **Electrum Plugin** | **Electrum Server**
-|-----------|------|-----------------|-------------
-| **Linux** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-linux.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-linux.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-x86_64-linux.tar.gz) |
-| **macOS** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-osx.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-osx.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-x86_64-osx.zip) |
-| **Windows** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-win.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-win.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-x86_64-win.zip) |
-| **ARMv7** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-arm32v7.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-arm32v7.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-arm32v7.tar.gz) |
-| **ARMv8** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-arm64v8.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-arm64v8.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_only-arm64v8.tar.gz) |
+|         | Full Server <sup>1</sup> | Electrum Server <sup>2</sup> | Electrum Plugin <sup>3</sup>
+|---------|--|--|--
+| **Linux**   | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-linux.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-linux.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-linux.tar.gz) |
+| **macOS**   | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-osx.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-osx.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-osx.zip) |
+| **Windows** | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-win.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-win.zip) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-x86_64-win.zip) |
+| **ARMv7**   | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-arm32v7.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-arm32v7.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-arm32v7.tar.gz) |
+| **ARMv8**   | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-arm64v8.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-arm64v8.tar.gz) | [📥 Download](https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-electrum_plugin-arm64v8.tar.gz)</tr><tr><td colspan=4><sub><sup>1</sup> Includes Electrum RPC, HTTP API and WebHooks support ([learn more](https://github.com/shesek/bwt#installation))<br><sup>2</sup> Includes Electrum RPC support only ([learn more](https://github.com/shesek/bwt#electrum-only-server))<br><sup>3</sup> Plugin with an embedded RPC server - *hot wallets are unsupported** ([learn more](https://github.com/shesek/bwt#electrum-plugin))</sub></td></tr></table> |
 
 ------------
 
@@ -38,9 +38,3 @@ The builds are fully reproducible.
 You can verify the checksums against the vVERSION builds on Travis CI: https://travis-ci.org/github/shesek/bwt/builds/TRAVIS_JOB
 
 See [more details here](https://github.com/shesek/bwt#reproducible-builds).
-
-### Electrum plugin
-
-The [Electrum plugin](https://github.com/shesek/bwt#electrum-plugin) is available for download for Linux, Mac, Windows and ARM as the `electrum_plugin` package.
-
-> ⚠️ **NOTE:** The plugin supports watch-only wallets only and **cannot be used with hot wallets**. This is done as a security measure, which is expected to eventually be lifted. You can use the plugin with hardware wallets or with an offline Electrum setup. For hot wallets, you will need to setup a standalone server instead of using the plugin, ideally far away from your keys.
