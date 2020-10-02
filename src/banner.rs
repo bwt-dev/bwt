@@ -30,10 +30,10 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
             .estimate_fee(target)
             .ok()
             .flatten()
-            .map_or("ₙ.ₐ.".into(), |rate| format!("{:.1}", rate))
+            .map_or("ɴ/ᴀ".into(), |rate| format!("{:.1}", rate))
     };
     let est_20m = est_fee(2u16);
-    let est_3h = est_fee(18u16);
+    let est_4h = est_fee(24u16);
     let est_1d = est_fee(144u16);
 
     let mut chain_name = chain_info.chain;
@@ -110,10 +110,10 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
   DIFFICULTY: 🏋️  {difficulty} (ʀᴇ-🎯  ɪɴ {retarget_dur} ⏳)
   REWARD ERA: 🎁  {block_reward:.2} ʙᴛᴄ (½ ɪɴ {halving_dur} ⏳)
 
-  LAST BLOCK: ⛓️  {tip_height} ／ {tip_ago} ／ {tip_size} ／ {tip_n_tx}
+  LAST BLOCK: ⛓️  {tip_height} ／ {tip_ago} ／ {tip_size} ／ {tip_weight} ／ {tip_n_tx}
                  Fᴇᴇ ʀᴀᴛᴇ {tip_fee_per10}-{tip_fee_per90} sᴀᴛ/ᴠʙ ／ ᴀᴠɢ {tip_fee_avg} sᴀᴛ/ᴠʙ ／ ᴛᴏᴛᴀʟ {tip_fee_total:.3} ʙᴛᴄ
-     MEMPOOL: 💭  {mempool_size} ／ {mempool_n_tx} ／ ᴍɪɴ {mempool_min_fee} sᴀᴛ/ᴠʙ
-    FEES EST: 🏷️  20 ᴍɪɴᴜᴛᴇs: {est_20m} ／ 3 ʜᴏᴜʀs: {est_3h} ／ 1 ᴅᴀʏ: {est_1d} (sᴀᴛ/ᴠʙ)
+     MEMPOOL: 💭  {mempool_size} ／ {mempool_n_tx} ／ ᴍɪɴ {mempool_min_fee:.1} sᴀᴛ/ᴠʙ
+    FEES EST: 🏷️  20 ᴍɪɴᴜᴛᴇs: {est_20m} ／ 4 ʜᴏᴜʀs: {est_4h} ／ 1 ᴅᴀʏ: {est_1d} (sᴀᴛ/ᴠʙ)
 
 {donation_frag}"#,
         modes = modes.join(" "),
@@ -131,17 +131,18 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
         block_reward = block_reward.as_btc(),
         tip_height = tip.height,
         tip_ago = to_smallcaps(&tip_ago),
-        tip_size = to_smallcaps(&format_bytes(tip.total_size as u64)),
+        tip_size = to_smallcaps(&format_bytes(tip.total_size)),
+        tip_weight = to_smallcaps(&format_metric(tip.total_weight as f64, " ", "WU")),
         tip_n_tx = to_smallcaps(&format_metric(tip.txs as f64, "", " txs")),
         tip_fee_per10 = tip.feerate_percentiles.0,
         tip_fee_per90 = tip.feerate_percentiles.4,
         tip_fee_avg = tip.avg_fee_rate,
         tip_fee_total = tip.total_fee.as_btc(),
-        mempool_size = to_smallcaps(&format_bytes(mempool_info.bytes)),
+        mempool_size = to_smallcaps(&format_metric(mempool_info.bytes as f64, " V", "B")),
         mempool_n_tx = to_smallcaps(&format_metric(mempool_info.size as f64, "", " txs")),
         mempool_min_fee = mempool_min_fee,
         est_20m = est_20m,
-        est_3h = est_3h,
+        est_4h = est_4h,
         est_1d = est_1d,
         ver_line1 = ver_lines.0,
         ver_line2 = ver_lines.1,
@@ -203,33 +204,20 @@ fn format_bytes(bytes: u64) -> String {
 
 fn format_metric(num: f64, space: &str, suf: &str) -> String {
     if num >= 1000000000000000000f64 {
-        format!(
-            "{}{}E{}",
-            format_dec(num / 1000000000000000000f64),
-            space,
-            suf
-        )
+        format!("{:.1}{}E{}", num / 1000000000000000000f64, space, suf)
     } else if num >= 1000000000000000f64 {
-        format!("{}{}P{}", format_dec(num / 1000000000000000f64), space, suf)
+        format!("{:.1}{}P{}", num / 1000000000000000f64, space, suf)
     } else if num >= 1000000000000f64 {
-        format!("{}{}T{}", format_dec(num / 1000000000000f64), space, suf)
+        format!("{:.1}{}T{}", num / 1000000000000f64, space, suf)
     } else if num >= 1000000000f64 {
-        format!("{}{}G{}", format_dec(num / 1000000000f64), space, suf)
+        format!("{:.1}{}G{}", num / 1000000000f64, space, suf)
     } else if num >= 1000000f64 {
-        format!("{}{}M{}", format_dec(num / 1000000f64), space, suf)
+        format!("{:.1}{}M{}", num / 1000000f64, space, suf)
     } else if num >= 1000f64 {
-        format!("{}{}K{}", format_dec(num / 1000f64), space, suf)
+        format!("{:.1}{}K{}", num / 1000f64, space, suf)
     } else {
-        format!("{}{}{}", format_dec(num), space, suf)
+        format!("{}{}{}", num, space, suf)
     }
-}
-
-// format with 1 decimal digit and no unnecessary trailing 0s or dots
-fn format_dec(num: f64) -> String {
-    format!("{:.1}", num)
-        .trim_end_matches('0')
-        .trim_end_matches('.')
-        .into()
 }
 
 lazy_static! {
