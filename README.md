@@ -263,8 +263,7 @@ You can setup bwt as an Electrum plugin that embeds the Electrum server into the
 Download the `electrum_plugin` package from the [releases page](https://github.com/shesek/bwt/releases), verify the signature and unpack into your `electrum/plugins` directory.
 After restarting Electrum, you should see bwt in the list of installed plugins under `Tools -> Plugins`.
 
-The supported Electrum version is 3.3.8.
-The plugin is available for Linux, Mac, Windows and ARM.
+The plugin supports Electrum v3 and v4. It is available for Linux, Mac, Windows and ARM.
 
 Note that it is not possible to install external plugins with the Electrum AppImage or standalone Windows executable.
 You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) on Linux, use the Windows installer, or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
