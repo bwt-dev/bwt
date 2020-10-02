@@ -246,7 +246,7 @@ which may provide better privacy in some circumstances.
 For example, to broadcast transactions over Tor using the blockstream.info onion service, you can use:
 
 ```
---tx-broadcast-cmd '[ $(curl -s -x socks5h://localhost:9050 http://explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion/api/tx -d {tx_hex} -o /dev/stderr -w "%{http_code}") -eq 200 ]'
+--tx-broadcast-cmd '[ $(curl -s -x socks5h://localhost:9050 http://explorerzydxu5ecjrkwceayqybizmpjjznk5izmitf2modhcusuqlid.onion/api/tx -d {tx_hex} -o /dev/stderr -w "%{http_code}" -H "User-Agent: curl/7.$(shuf -n1 -e 47 58 64 68).0") -eq 200 ]'
 ```
 
 (Replace port `9050` with `9150` if you're using the Tor browser bundle.)
