@@ -15,7 +15,7 @@
 🔸 Developer-friendly, modern HTTP REST API<br>
 🔸 Real-time updates with Server-Sent-Events or Web Hooks
 
-> ⚠️ This is early alpha software that is likely to be buggy. Use with care, preferably on testnet/regtest.
+> ⚠️ This is early beta quality software, use with care.
 
 Support development: [⛓️ on-chain or ⚡ lightning via BTCPay](https://btcpay.shesek.info/)
 
