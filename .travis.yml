@@ -1,10 +1,6 @@
 language: rust
 rust: [ stable ]
-
-cache:
-  cargo: true
-  directories:
-    - $HOME/docker-cache
+cache: { cargo: true }
 
 jobs:
   include:
@@ -28,35 +24,30 @@ jobs:
     # Prepare docker build environments
     - name: prepare build env
 
-      # Identify docker image cache by the hash of the Dockerfiles
-      before_script: &set_docker_cache_id >
-        export DOCKER_CACHE=$HOME/docker-cache/$(sha256sum scripts/builder*.Dockerfile | sha256sum | head -c16)
+      cache: &build_cache
+        cargo: false
+        directories: [ $HOME/docker-cache ]
+        # Docker builder images are cached for the next jobs below, but nothing is cached across different builds.
+        # This is done as a security measure, so that the cache couldn't be poisoned to inject malicious code into future builds.
 
       script: |
-        if [ ! -f $DOCKER_CACHE/bwt-builder-osx.tar.gz ]; then
-          docker build -t bwt-builder -f scripts/builder.Dockerfile .
-          docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
+        rm -rf ~/docker-cache
+        mkdir -p ~/docker-cache
 
-          # Cache docker images for next build stage
-          rm -rf $HOME/docker-cache/*
-          mkdir -p $DOCKER_CACHE
-          docker save bwt-builder | gzip -2 > $DOCKER_CACHE/bwt-builder.tar.gz
-          docker save bwt-builder-osx | gzip -2 > $DOCKER_CACHE/bwt-builder-osx.tar.gz
-        fi
+        docker build -t bwt-builder -f scripts/builder.Dockerfile .
+        docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
 
-        for target in x86_64-{unknown-linux-gnu,apple-darwin,pc-windows-gnu} armv7-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; do
-          cargo fetch --target $target
-        done
+        docker save bwt-builder | gzip -2 > ~/docker-cache/bwt-builder.tar.gz
+        docker save bwt-builder-osx | gzip -2 > ~/docker-cache/bwt-builder-osx.tar.gz
 
-    # Split up builds to multiple concurrent jobs to avoid hitting Travis's 50 minutes limit
     - &build
       stage: Reproducible builds
+      cache: *build_cache
       script:
-      - *set_docker_cache_id
       - >
         : ${IMAGE:=bwt-builder} &&
         echo -e tr''avis_fo''ld:start:build\\nBuilding... &&
-        gzip -d < $DOCKER_CACHE/$IMAGE.tar.gz | docker load &&
+        gzip -d < ~/docker-cache/$IMAGE.tar.gz | docker load &&
         docker run -e TARGETS -u `id -u` -v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo $IMAGE &&
         echo tr''avis_fol''d:end:build
       - >
