@@ -60,6 +60,7 @@ class BwtPlugin(BasePlugin):
             '--bitcoind-dir', self.bitcoind_dir,
             '--electrum-rpc-addr', '127.0.0.1:%d' % self.rpc_port,
             '--electrum-skip-merkle',
+            '--no-startup-banner',
         ]
 
         if self.bitcoind_auth:
