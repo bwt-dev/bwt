@@ -1,7 +1,7 @@
 # Bitcoin Wallet Tracker
 
 [![Build Status](https://travis-ci.org/shesek/bwt.svg?branch=master)](https://travis-ci.org/shesek/bwt)
-[![Latest release](https://img.shields.io/crates/v/bwt.svg?label=release)](https://github.com/shesek/bwt/releases/tag/v0.1.4)
+[![Latest release](https://img.shields.io/crates/v/bwt.svg?label=release)](https://github.com/shesek/bwt/releases/tag/v0.1.5)
 [![Downloads](https://img.shields.io/github/downloads/shesek/bwt/total.svg?color=blueviolet)](https://github.com/shesek/bwt/releases)
 [![Docker release](https://img.shields.io/docker/pulls/shesek/bwt.svg)](https://hub.docker.com/r/shesek/bwt)
 [![Crate package](https://img.shields.io/crates/d/bwt.svg?label=crate+installs)](https://crates.io/crates/bwt)
@@ -78,18 +78,18 @@ The public key can be verified on [keybase](https://keybase.io/nadav),
 [HN](https://news.ycombinator.com/user?id=nadaviv).
 
 ```bash
-$ wget https://github.com/shesek/bwt/releases/download/v0.1.4/bwt-0.1.4-x86_64-linux.tar.gz
+$ wget https://github.com/shesek/bwt/releases/download/v0.1.5/bwt-0.1.5-x86_64-linux.tar.gz
 
 # Verify signature
 $ gpg --keyserver keyserver.ubuntu.com --recv-keys FCF19B67866562F08A43AAD681F6104CD0F150FC
-$ wget -qO - https://github.com/shesek/bwt/releases/download/v0.1.4/SHA256SUMS.asc \
-  | gpg --decrypt - | grep ' bwt-0.1.4-x86_64-linux.tar.gz$' | sha256sum -c -
+$ wget -qO - https://github.com/shesek/bwt/releases/download/v0.1.5/SHA256SUMS.asc \
+  | gpg --decrypt - | grep ' bwt-0.1.5-x86_64-linux.tar.gz$' | sha256sum -c -
 
-$ tar zxvf bwt-0.1.4-x86_64-linux.tar.gz
-$ ./bwt-0.1.4-x86_64-linux/bwt --xpub <xpub> ...
+$ tar zxvf bwt-0.1.5-x86_64-linux.tar.gz
+$ ./bwt-0.1.5-x86_64-linux/bwt --xpub <xpub> ...
 ```
 
-The signature verification should show `Good signature from "Nadav Ivgi <nadav@shesek.info>" ... Primary key fingerprint: FCF1 9B67 ...` and `bwt-0.1.4-x86_64-linux.tar.gz: OK`.
+The signature verification should show `Good signature from "Nadav Ivgi <nadav@shesek.info>" ... Primary key fingerprint: FCF1 9B67 ...` and `bwt-0.1.5-x86_64-linux.tar.gz: OK`.
 
 The builds are reproducible and can be verified against Travis CI. See [more details here](#reproducible-builds).
 
