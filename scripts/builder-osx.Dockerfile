@@ -4,7 +4,7 @@ ARG CROSSOSX_COMMIT=364703ca0962c4a12688daf8758802a5df9e3221
 ARG OSX_SDK_VERSION=10.11
 ARG OSX_SDK_SHASUM=694a66095a3514328e970b14978dc78c0f4d170e590fa7b2c3d3674b75f0b713
 
-RUN apt-get install -y git wget clang cmake libxml2-dev zlib1g-dev && \
+RUN apt-get update && apt-get install -y git wget clang cmake libxml2-dev zlib1g-dev && \
     rustup target add x86_64-apple-darwin
 
 RUN git clone https://github.com/tpoechtrager/osxcross /usr/src/osxcross && \

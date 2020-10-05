@@ -36,6 +36,7 @@ cargo fmt -- --check
 if [ -z "$SKIP_BUILD" ]; then
   echo Building releases...
 
+  mkdir -p dist
   rm -rf dist/*
 
   if [ -z "$BUILD_HOST" ]; then
@@ -48,7 +49,7 @@ if [ -z "$SKIP_BUILD" ]; then
     fi
   else
     # macOS builds are disabled by default when building on the host.
-    # to enable, set TARGETS=linux,win,osx
+    # to enable, set TARGETS=x86_64-osx,...
     ./scripts/build.sh
   fi
 
