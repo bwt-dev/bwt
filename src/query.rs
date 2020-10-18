@@ -317,18 +317,10 @@ impl Query {
         min_conf: usize,
         include_unsafe: Option<bool>,
     ) -> Result<Vec<Txo>> {
-        let (BlockId(tip_height, _), unspents) =
-            self.list_unspent_raw(scripthash, min_conf, include_unsafe)?;
-
-        let req_script_info =
-            scripthash.map_or(Ok(None), |scripthash| -> Result<Option<ScriptInfo>> {
-                let indexer = self.indexer.read().unwrap();
-                let info = indexer
-                    .store()
-                    .get_script_info(scripthash)
-                    .with_context(|| BwtError::ScriptHashNotFound(*scripthash))?;
-                Ok(Some(info))
-            })?;
+        let (BlockId(tip_height, _), req_script_info, unspents) = some_or_ret!(
+            self.list_unspent_raw(scripthash, min_conf, include_unsafe)?,
+            Ok(vec![])
+        );
 
         Ok(unspents
             .into_iter()
@@ -350,19 +342,21 @@ impl Query {
         scripthash: Option<&ScriptHash>,
         min_conf: usize,
         include_unsafe: Option<bool>,
-    ) -> Result<(BlockId, Vec<rpcjson::ListUnspentResultEntry>)> {
-        let address =
-            scripthash.map_or(Ok(None), |scripthash| -> Result<Option<bitcoin::Address>> {
-                let indexer = self.indexer.read().unwrap();
-                let address = indexer
-                    .store()
-                    .get_script_address(scripthash)
-                    .with_context(|| BwtError::ScriptHashNotFound(*scripthash))?;
-                Ok(Some(address))
-            })?;
+    ) -> Result<
+        Option<(
+            BlockId,
+            Option<ScriptInfo>,
+            Vec<rpcjson::ListUnspentResultEntry>,
+        )>,
+    > {
+        let script_info = match scripthash {
+            None => None,
+            // if the scripthash can't be found, it means it has no history.
+            Some(scripthash) => Some(some_or_ret!(self.get_script_info(scripthash), Ok(None))),
+        };
 
         // an empty array indicates not to filter by the address
-        let addresses = address.as_ref().map_or(vec![], |address| vec![address]);
+        let addresses = script_info.as_ref().map_or(vec![], |i| vec![&i.address]);
 
         loop {
             let tip_height = self.rpc.get_block_count()? as u32;
@@ -381,7 +375,7 @@ impl Query {
                 continue;
             }
 
-            return Ok((BlockId(tip_height, tip_hash), unspents));
+            return Ok(Some((BlockId(tip_height, tip_hash), script_info, unspents)));
         }
     }
 
@@ -418,7 +412,10 @@ impl Query {
 
     // returns a tuple of (confirmed_balance, unconfirmed_balance)
     pub fn get_script_balance(&self, scripthash: &ScriptHash) -> Result<(u64, u64)> {
-        let (_, unspents) = self.list_unspent_raw(Some(scripthash), 0, None)?;
+        let (_, _, unspents) = some_or_ret!(
+            self.list_unspent_raw(Some(scripthash), 0, None)?,
+            Ok((0, 0))
+        );
 
         let (confirmed, unconfirmed): (Vec<_>, Vec<_>) = unspents
             .into_iter()

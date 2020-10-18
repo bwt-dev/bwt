@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fix `blockchain.scripthash.listunspent` / `Query::list_unspent` to return an empty set
+  instead of erroring when there's no history.
+
 ## 0.1.5 - 2020-10-05
 
 - Reproducible builds using Docker (#51)
