@@ -5,6 +5,9 @@
 - Fix `blockchain.scripthash.listunspent` / `Query::list_unspent` to return an empty set
   instead of erroring when there's no history.
 
+- Support non-wallet transactions in `blockchain.transaction.get` / `GET /tx/:txid/hex`
+  (requires txindex and no pruning).
+
 ## 0.1.5 - 2020-10-05
 
 - Reproducible builds using Docker (#51)

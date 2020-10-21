@@ -175,7 +175,17 @@ impl Query {
     //
 
     pub fn get_tx_raw(&self, txid: &Txid) -> Result<Vec<u8>> {
-        Ok(self.rpc.get_transaction(txid, Some(true))?.hex)
+        // Try fetching the transaction from bitcoind's wallet db first. This doesn't require txindex
+        // and will remain available even if the containing block was since pruned.
+        if let Ok(tx_info) = self.rpc.get_transaction(txid, Some(true)) {
+            Ok(tx_info.hex)
+        }
+        // If that fails, try with getrawtransaction. This requires txindex (except for mempool transactions)
+        // and is incompatible with pruning, but works for non-wallet transactions too.
+        else {
+            let tx_hex = self.rpc.get_raw_transaction_hex(txid, None)?;
+            Ok(hex::decode(tx_hex)?)
+        }
     }
 
     pub fn get_tx_json(&self, txid: &Txid) -> Result<Value> {
