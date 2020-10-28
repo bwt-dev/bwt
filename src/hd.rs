@@ -325,8 +325,9 @@ impl HDWallet {
     pub fn to_address(&self, key: &ExtendedPubKey) -> Address {
         match self.script_type {
             ScriptType::P2pkh => Address::p2pkh(&key.public_key, self.network),
-            ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, self.network),
-            ScriptType::P2shP2wpkh => Address::p2shwpkh(&key.public_key, self.network),
+            ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, self.network).unwrap(),
+            ScriptType::P2shP2wpkh => Address::p2shwpkh(&key.public_key, self.network).unwrap(),
+            // the two unwraps above can only fail if the public key is non-compressed, which it cannot be.
         }
     }
 

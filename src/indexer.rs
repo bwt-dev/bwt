@@ -10,7 +10,6 @@ use bitcoincore_rpc::json::{
 };
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
-use crate::bitcoincore_ext::RpcApiExt;
 use crate::error::Result;
 use crate::hd::{HDWatcher, KeyOrigin};
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
@@ -126,7 +125,9 @@ impl Indexer {
         let tip_height = self.rpc.get_block_count()? as u32;
         let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
-        let result = self.rpc.list_since_block(since_block, 1, true, true)?;
+        let result = self
+            .rpc
+            .list_since_block(since_block, Some(1), Some(true), Some(true))?;
 
         // Workaround for https://github.com/bitcoin/bitcoin/issues/19338,
         // listsinceblock is not atomic and could provide inconsistent results.
@@ -201,12 +202,12 @@ impl Indexer {
     ) {
         let label = ltx.detail.label.as_ref();
         let origin = some_or_ret!(label.and_then(|l| KeyOrigin::from_label(l)));
+        let address = some_or_ret!(ltx.detail.address);
 
         // XXX we assume that any address with a "bwt/..." label is ours, this may not necessarily be true.
 
         let txid = ltx.info.txid;
         let vout = ltx.detail.vout;
-        let address = ltx.detail.address;
         let scripthash = ScriptHash::from(&address);
         let status = TxStatus::from_confirmations(ltx.info.confirmations, tip_height);
         let amount = ltx.detail.amount.to_unsigned().unwrap().as_sat(); // safe to unwrap, incoming payments cannot have negative amounts

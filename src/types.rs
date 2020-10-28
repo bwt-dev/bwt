@@ -4,9 +4,8 @@ use serde::Serialize;
 
 use bitcoin::{Address, BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
+use bitcoincore_rpc::json::GetMempoolEntryResult;
 pub use bitcoincore_rpc::json::ImportMultiRescanSince as RescanSince;
-
-use crate::bitcoincore_ext::GetMempoolEntryResult;
 
 hash_newtype!(
     ScriptHash,

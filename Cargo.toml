@@ -19,9 +19,9 @@ webhooks = [ "reqwest" ]
 track-spends = []
 
 [dependencies]
-bitcoin = "0.23.0"
-bitcoin_hashes = { version = "0.7.6", features = [ "serde" ] }
-bitcoincore-rpc = "0.11.0"
+bitcoin = { version = "0.25.2", features = [ "use-serde" ] }
+bitcoin_hashes = { version = "0.9.0", features = [ "serde" ] }
+bitcoincore-rpc = "0.12.0"
 chrono = { version = "0.4.11", default-features = false }
 dotenv = "0.15.0"
 dirs = "3.0.0"

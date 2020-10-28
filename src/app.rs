@@ -3,7 +3,6 @@ use std::{thread, time};
 
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
-use crate::bitcoincore_ext::RpcApiExt;
 use crate::util::debounce_sender;
 use crate::{banner, Config, HDWallet, HDWatcher, Indexer, Query, Result};
 
@@ -154,7 +153,7 @@ fn load_wallet(rpc: &RpcClient, name: &str) -> Result<()> {
 
 // wait for bitcoind to sync and finish rescanning
 fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
-    let netinfo = rpc.get_network_info_()?;
+    let netinfo = rpc.get_network_info()?;
     let mut bcinfo = rpc.get_blockchain_info()?;
     info!(
         "bwt v{} connected to {} on {}, protocolversion={}, bestblock={}",

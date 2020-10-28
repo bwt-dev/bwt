@@ -8,6 +8,8 @@
 - Support non-wallet transactions in `blockchain.transaction.get` / `GET /tx/:txid/hex`
   (requires txindex and no pruning).
 
+- Upgrade to rust-bitcoin v0.25 and rust-bitcoincore-rpc v0.12
+
 ## 0.1.5 - 2020-10-05
 
 - Reproducible builds using Docker (#51)
