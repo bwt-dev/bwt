@@ -131,7 +131,7 @@ pub struct Config {
     #[structopt(
         short = "g",
         long,
-        help = "Gap limit for importing hd addresses",
+        help = "Gap limit for importing child addresses",
         default_value = "20",
         env,
         hide_env_values(true),

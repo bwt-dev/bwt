@@ -454,14 +454,14 @@ impl Query {
     }
 
     //
-    // HD Wallets
+    // Descriptor Wallets
     //
 
-    pub fn get_hd_wallets(&self) -> HashMap<Checksum, Wallet> {
+    pub fn get_wallets(&self) -> HashMap<Checksum, Wallet> {
         self.indexer.read().unwrap().watcher().wallets().clone()
     }
 
-    pub fn get_hd_wallet(&self, checksum: &Checksum) -> Option<Wallet> {
+    pub fn get_wallet(&self, checksum: &Checksum) -> Option<Wallet> {
         self.indexer
             .read()
             .unwrap()
@@ -470,8 +470,8 @@ impl Query {
             .cloned()
     }
 
-    // get the ScriptInfo entry of a derived hd key, without it necessarily being indexed
-    pub fn get_hd_script_info(&self, checksum: &Checksum, index: u32) -> Option<ScriptInfo> {
+    // get the ScriptInfo entry of a child key, without it necessarily having indexed history
+    pub fn get_wallet_script_info(&self, checksum: &Checksum, index: u32) -> Option<ScriptInfo> {
         if index & (1 << 31) != 0 {
             // hardended derivation is unsupported
             return None;
@@ -484,7 +484,7 @@ impl Query {
         Some(ScriptInfo::new(scripthash, address, origin))
     }
 
-    pub fn find_hd_gap(&self, checksum: &Checksum) -> Option<usize> {
+    pub fn find_wallet_gap(&self, checksum: &Checksum) -> Option<usize> {
         let indexer = self.indexer.read().unwrap();
         let store = indexer.store();
         let wallet = indexer.watcher().get(checksum)?;

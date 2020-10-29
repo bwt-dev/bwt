@@ -37,61 +37,58 @@ async fn run(
         headers.insert("Access-Control-Allow-Origin", cors.parse().unwrap());
     }
 
-    // GET /hd
-    let hd_wallets_handler =
-        warp::get()
-            .and(warp::path!("hd"))
-            .and(query.clone())
-            .map(|query: Arc<Query>| {
-                let wallets = query.get_hd_wallets();
-                reply::json(&wallets)
-            });
+    // GET /wallets
+    let wallets_handler = warp::get()
+        .and(warp::path!("wallets"))
+        .and(query.clone())
+        .map(|query: Arc<Query>| {
+            let wallets = query.get_wallets();
+            reply::json(&wallets)
+        });
 
-    // GET /hd/:checksum
-    let hd_wallet_handler = warp::get()
-        .and(warp::path!("hd" / Checksum))
+    // GET /wallet/:checksum
+    let wallet_handler = warp::get()
+        .and(warp::path!("wallet" / Checksum))
         .and(query.clone())
         .map(|checksum: Checksum, query: Arc<Query>| {
-            let wallet = query
-                .get_hd_wallet(&checksum)
-                .or_err(StatusCode::NOT_FOUND)?;
+            let wallet = query.get_wallet(&checksum).or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&wallet))
         })
         .map(handle_error);
 
-    // GET /hd/:checksum/:index
-    let hd_key_handler = warp::get()
-        .and(warp::path!("hd" / Checksum / u32))
+    // GET /wallet/:checksum/:index
+    let wallet_key_handler = warp::get()
+        .and(warp::path!("wallet" / Checksum / u32))
         .and(query.clone())
         .map(|checksum: Checksum, index: u32, query: Arc<Query>| {
             let script_info = query
-                .get_hd_script_info(&checksum, index)
+                .get_wallet_script_info(&checksum, index)
                 .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&script_info))
         })
         .map(handle_error);
 
-    // GET /hd/:checksum/gap
-    let hd_gap_handler = warp::get()
-        .and(warp::path!("hd" / Checksum / "gap"))
+    // GET /wallet/:checksum/gap
+    let wallet_gap_handler = warp::get()
+        .and(warp::path!("wallet" / Checksum / "gap"))
         .and(query.clone())
         .map(|checksum: Checksum, query: Arc<Query>| {
-            let gap = query.find_hd_gap(&checksum).or_err(StatusCode::NOT_FOUND)?;
+            let gap = query
+                .find_wallet_gap(&checksum)
+                .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&gap))
         })
         .map(handle_error);
 
-    // GET /hd/:checksum/next
-    let hd_next_handler = warp::get()
-        .and(warp::path!("hd" / Checksum / "next"))
+    // GET /wallet/:checksum/next
+    let wallet_next_handler = warp::get()
+        .and(warp::path!("wallet" / Checksum / "next"))
         .and(query.clone())
         .map(|checksum: Checksum, query: Arc<Query>| {
-            let wallet = query
-                .get_hd_wallet(&checksum)
-                .or_err(StatusCode::NOT_FOUND)?;
+            let wallet = query.get_wallet(&checksum).or_err(StatusCode::NOT_FOUND)?;
             let next_index = wallet.get_next_index();
-            let uri = format!("/hd/{}/{}", checksum, next_index);
-            // issue a 307 redirect to the hdkey resource uri, and also include the derivation
+            let uri = format!("/wallet/{}/{}", checksum, next_index);
+            // issue a 307 redirect to the wallet key resource uri, and also include the derivation
             // index in the response
             Ok(reply::with_header(
                 reply::with_status(next_index.to_string(), StatusCode::TEMPORARY_REDIRECT),
@@ -108,12 +105,12 @@ async fn run(
     let address_route = warp::path!("address" / Address / ..).map(ScriptHash::from);
     // TODO check address version bytes matches the configured network
 
-    // GET /hd/:checksum/:index/*
-    let hd_key_route = warp::path!("hd" / Checksum / u32 / ..)
+    // GET /wallet/:checksum/:index/*
+    let wallet_key_route = warp::path!("wallet" / Checksum / u32 / ..)
         .and(query.clone())
         .map(|checksum: Checksum, index: u32, query: Arc<Query>| {
             let script_info = query
-                .get_hd_script_info(&checksum, index)
+                .get_wallet_script_info(&checksum, index)
                 .or_err(StatusCode::NOT_FOUND)?;
             Ok(script_info.scripthash)
         })
@@ -122,10 +119,10 @@ async fn run(
     let spk_route = address_route
         .or(scripthash_route)
         .unify()
-        .or(hd_key_route)
+        .or(wallet_key_route)
         .unify();
 
-    // GET /hd/:checksum/:index
+    // GET /wallet/:checksum/:index
     // GET /address/:address
     // GET /scripthash/:scripthash
     let spk_handler = warp::get()
@@ -140,7 +137,7 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /hd/:checksum/:index/stats
+    // GET /wallet/:checksum/:index/stats
     // GET /address/:address/stats
     // GET /scripthash/:scripthash/stats
     let spk_stats_handler = warp::get()
@@ -155,7 +152,7 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /hd/:checksum/:index/utxos
+    // GET /wallet/:checksum/:index/utxos
     // GET /address/:address/utxos
     // GET /scripthash/:scripthash/utxos
     let spk_utxo_handler = warp::get()
@@ -170,7 +167,7 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /hd/:checksum/:index/txs
+    // GET /wallet/:checksum/:index/txs
     // GET /address/:address/txs
     // GET /scripthash/:scripthash/txs
     let spk_txs_handler = warp::get()
@@ -185,7 +182,7 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /hd/:checksum/:index/txs/compact
+    // GET /wallet/:checksum/:index/txs/compact
     // GET /address/:address/txs/compact
     // GET /scripthash/:scripthash/txs/compact
     let spk_txs_compact_handler = warp::get()
@@ -312,7 +309,7 @@ async fn run(
         )
         .map(handle_error);
 
-    // GET /hd/:checksum/:index/stream
+    // GET /wallet/:checksum/:index/stream
     // GET /scripthash/:scripthash/stream
     // GET /address/:address/stream
     let spk_sse_handler = warp::get()
@@ -431,11 +428,11 @@ async fn run(
         .map(handle_error);
 
     let handlers = balanced_or_tree!(
-        hd_wallets_handler,
-        hd_wallet_handler,
-        hd_key_handler, // needs to be before spk_handler to work with keys that don't have any indexed history
-        hd_gap_handler,
-        hd_next_handler,
+        wallets_handler,
+        wallet_handler,
+        wallet_key_handler, // needs to be before spk_handler to work with keys that don't have any indexed history
+        wallet_gap_handler,
+        wallet_next_handler,
         spk_handler,
         spk_utxo_handler,
         spk_stats_handler,
