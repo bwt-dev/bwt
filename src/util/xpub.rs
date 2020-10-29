@@ -1,7 +1,8 @@
+use std::fmt;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use bitcoin::util::bip32::{DerivationPath, ExtendedPubKey, Fingerprint};
+use bitcoin::util::bip32::{ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint};
 use bitcoin::{util::base58, Network};
 use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorXPub};
 
@@ -25,8 +26,7 @@ impl_string_serializer!(XyzPubKey, xpub, xpub.extended_pubkey.to_string());
 impl_debug_display!(XyzPubKey);
 
 #[derive(Clone, Debug)]
-pub struct Bip32Origin(pub Fingerprint, pub u32);
-impl_string_serializer!(Bip32Origin, o, format!("{}/{}", o.0, o.1));
+pub struct Bip32Origin(pub Fingerprint, pub DerivationPath);
 
 impl XyzPubKey {
     pub fn as_descriptor(&self, derivation_path: DerivationPath) -> ExtendedDescriptor {
@@ -79,6 +79,50 @@ impl FromStr for XyzPubKey {
             script_type,
             extended_pubkey,
         })
+    }
+}
+
+impl Bip32Origin {
+    pub fn child(&self, cn: ChildNumber) -> Self {
+        Self(self.0, self.1.child(cn))
+    }
+
+    pub fn extend<T: AsRef<[ChildNumber]>>(&self, path: T) -> Self {
+        Self(self.0, self.1.extend(path))
+    }
+}
+impl From<&(Fingerprint, DerivationPath)> for Bip32Origin {
+    fn from(o: &(Fingerprint, DerivationPath)) -> Self {
+        Self(o.0, o.1.clone())
+    }
+}
+impl From<&ExtendedPubKey> for Bip32Origin {
+    fn from(ext_key: &ExtendedPubKey) -> Self {
+        if ext_key.depth > 0 {
+            Self(
+                ext_key.parent_fingerprint,
+                [ext_key.child_number][..].into(),
+            )
+        } else {
+            Self(ext_key.fingerprint(), [][..].into())
+        }
+    }
+}
+impl fmt::Display for Bip32Origin {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)?;
+        for child in &self.1 {
+            write!(f, "/{}", child)?;
+        }
+        Ok(())
+    }
+}
+impl serde::Serialize for Bip32Origin {
+    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.collect_str(&self)
     }
 }
 

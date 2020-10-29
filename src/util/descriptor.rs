@@ -2,12 +2,11 @@ use std::iter::FromIterator;
 use std::str::FromStr;
 
 use bitcoin::secp256k1::{self, Secp256k1};
-use bitcoin::util::bip32::Fingerprint;
 use bitcoin::Network;
 use miniscript::descriptor::{Descriptor, DescriptorPublicKey};
 
 use crate::error::{Error, OptionExt, Result};
-use crate::util::xpub::xpub_matches_network;
+use crate::util::xpub::{xpub_matches_network, Bip32Origin};
 
 pub type ExtendedDescriptor = Descriptor<DescriptorPublicKey>;
 
@@ -17,8 +16,8 @@ pub struct Checksum(String);
 impl_string_serializer!(Checksum, c, c.0);
 
 #[derive(Debug, Clone)]
-pub struct DescXPubInfo {
-    pub fingerprint: Fingerprint,
+pub struct DescKeyInfo {
+    pub bip32_origin: Bip32Origin,
     pub is_ranged: bool,
 }
 
@@ -42,39 +41,52 @@ impl FromStr for Checksum {
     }
 }
 
-impl DescXPubInfo {
-    pub fn extract(desc: &ExtendedDescriptor, network: Network) -> Result<Vec<DescXPubInfo>> {
+impl DescKeyInfo {
+    pub fn extract(desc: &ExtendedDescriptor, network: Network) -> Result<Vec<DescKeyInfo>> {
         lazy_static! {
             static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
         }
         let mut valid_networks = true;
-        let mut xpubs_info = vec![];
+        let mut keys_info = vec![];
 
-        tap_desc_pks(desc, |pk| {
-            if let DescriptorPublicKey::XPub(desc_xpub) = pk {
-                valid_networks = valid_networks && xpub_matches_network(&desc_xpub.xpub, network);
+        tap_desc_pks(desc, |pk| match pk {
+            DescriptorPublicKey::XPub(desc_xpub) => {
+                // Get key origin information from the descriptor, fallback to extracting from the
+                // xpub itself.
+                let bip32_origin = desc_xpub
+                    .origin
+                    .as_ref()
+                    .map_or_else(|| (&desc_xpub.xpub).into(), Into::<Bip32Origin>::into)
+                    .extend(&desc_xpub.derivation_path);
 
-                let final_xpub = desc_xpub
-                    .xpub
-                    .derive_pub(&EC, &desc_xpub.derivation_path)
-                    .unwrap();
-
-                xpubs_info.push(DescXPubInfo {
-                    fingerprint: final_xpub.fingerprint(),
+                keys_info.push(DescKeyInfo {
+                    bip32_origin,
                     is_ranged: desc_xpub.is_wildcard,
                 });
+
+                valid_networks = valid_networks && xpub_matches_network(&desc_xpub.xpub, network);
+            }
+            DescriptorPublicKey::SinglePub(desc_single) => {
+                if let Some(bip32_origin) = &desc_single.origin {
+                    keys_info.push(DescKeyInfo {
+                        bip32_origin: bip32_origin.into(),
+                        is_ranged: false,
+                    });
+                }
             }
         });
 
         ensure!(
             valid_networks,
-            "Descriptor xpub does not match the configured network"
+            "Descriptor xpubs do not match the configured network {}",
+            network
         );
 
-        Ok(xpubs_info)
+        Ok(keys_info)
     }
 }
 
+/// Parse a descriptor with an optional checksum suffix
 pub fn parse_desc_checksum(s: &str) -> Result<ExtendedDescriptor> {
     let parts: Vec<&str> = s.splitn(2, '#').collect();
     if parts.len() == 2 {
@@ -83,8 +95,8 @@ pub fn parse_desc_checksum(s: &str) -> Result<ExtendedDescriptor> {
         let provided_checksum = parts[1].parse::<Checksum>()?;
 
         // FIXME using canonical encoding should not be required, but the current implementation
-        // won't retain it if the descriptor is encoded differently by rust-miniscript, which would
-        // result in an unexpected behaviour.
+        // won't retain the checsum if the descriptor is encoded differently by rust-miniscript,
+        // which would result in an unexpected behaviour.
         ensure!(
             desc.to_string() == desc_str,
             "Descriptors with explicit checksums must use canonical encoding. {} is expected to be encoded as `{}`",
@@ -109,8 +121,8 @@ fn tap_desc_pks<F>(desc: &ExtendedDescriptor, mut tap_fn: F)
 where
     F: FnMut(&DescriptorPublicKey),
 {
-    // TODO don't call translate_pk() twice. this is tricky because both the closure arguments
-    // require a mutable borrow on `tap_fn`
+    // TODO this shouldn't call translate_pk() twice. this is tricky because both closure
+    // arguments (Fpk/Fpkh) require a mutable borrow on `tap_fn`.
 
     desc.translate_pk(
         |pk| {

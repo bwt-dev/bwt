@@ -10,7 +10,7 @@ use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 use crate::error::{Context, Result};
 use crate::store::MemoryStore;
 use crate::types::RescanSince;
-use crate::util::descriptor::{Checksum, DescXPubInfo, ExtendedDescriptor};
+use crate::util::descriptor::{Checksum, DescKeyInfo, ExtendedDescriptor};
 use crate::util::xpub::{xpub_matches_network, Bip32Origin, XyzPubKey};
 
 const LABEL_PREFIX: &str = "bwt";
@@ -202,7 +202,7 @@ pub struct Wallet {
     desc: ExtendedDescriptor,
     is_ranged: bool,
     checksum: Checksum,
-    xpubs_info: Vec<DescXPubInfo>,
+    keys_info: Vec<DescKeyInfo>,
     network: Network,
     rescan_policy: RescanSince,
 
@@ -221,7 +221,7 @@ impl Wallet {
         initial_import_size: u32,
         rescan_policy: RescanSince,
     ) -> Result<Self> {
-        let xpubs_info = DescXPubInfo::extract(&desc, network)?;
+        let keys_info = DescKeyInfo::extract(&desc, network)?;
 
         ensure!(
             desc.address(network).is_some(),
@@ -231,9 +231,9 @@ impl Wallet {
 
         Ok(Self {
             checksum: Checksum::from(&desc),
-            is_ranged: xpubs_info.iter().any(|x| x.is_ranged),
+            is_ranged: keys_info.iter().any(|x| x.is_ranged),
             desc,
-            xpubs_info,
+            keys_info,
             network,
             gap_limit,
             // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
@@ -392,12 +392,17 @@ impl Wallet {
         })
     }
 
-    /// Get the bip32 origins of the ranged xpubs at the provided index
+    /// Get the bip32 origins of the public keys used at the provided index
     pub fn bip32_origins(&self, index: u32) -> Vec<Bip32Origin> {
-        self.xpubs_info
+        self.keys_info
             .iter()
-            .filter(|x| x.is_ranged)
-            .map(|x| Bip32Origin(x.fingerprint, index))
+            .map(|i| {
+                if i.is_ranged {
+                    i.bip32_origin.child(index.into())
+                } else {
+                    i.bip32_origin.clone()
+                }
+            })
             .collect()
     }
 }
@@ -497,21 +502,19 @@ fn labels_error(error: rpc::Error) -> bitcoincore_rpc::Error {
 
 use serde::ser::SerializeStruct;
 
-// Serialize the Wallet struct with an additional virtual "origin" field
-// XXX
 impl Serialize for Wallet {
     fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         let desc_str = format!("{}#{}", self.desc, self.checksum);
-        let bip32_fingerprints: Vec<_> = self.xpubs_info.iter().map(|i| i.fingerprint).collect();
+        let bip32_origins: Vec<_> = self.keys_info.iter().map(|i| &i.bip32_origin).collect();
 
         let mut rgb = serializer.serialize_struct("Wallet", 3)?;
-        rgb.serialize_field("descriptor", &desc_str)?;
-        rgb.serialize_field("is_ranged", &self.is_ranged)?;
+        rgb.serialize_field("desc", &desc_str)?;
         rgb.serialize_field("network", &self.network)?;
-        rgb.serialize_field("bip32_fingerprints", &bip32_fingerprints)?;
+        rgb.serialize_field("is_ranged", &self.is_ranged)?;
+        rgb.serialize_field("bip32_origins", &bip32_origins)?;
         rgb.serialize_field("rescan_policy", &self.rescan_policy)?;
         rgb.serialize_field("done_initial_import", &self.done_initial_import)?;
         rgb.serialize_field("max_funded_index", &self.max_funded_index)?;
