@@ -14,7 +14,7 @@ use bitcoin_hashes::hex::FromHex;
 use crate::error::{fmt_error_chain, BwtError, Error, OptionExt};
 use crate::types::{BlockId, ScriptHash};
 use crate::util::descriptor::Checksum;
-use crate::{banner, store, IndexChange, Query};
+use crate::{store, util::banner, IndexChange, Query};
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
 

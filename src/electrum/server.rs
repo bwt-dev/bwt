@@ -9,13 +9,12 @@ use std::thread;
 use bitcoin::Txid;
 use serde_json::{from_str, from_value, Value};
 
-use crate::banner::get_welcome_banner;
 use crate::electrum::{electrum_height, QueryExt};
 use crate::error::{fmt_error_chain, BwtError, Context, Result};
 use crate::indexer::IndexChange;
 use crate::query::Query;
 use crate::types::{BlockId, MempoolEntry, ScriptHash, StatusHash};
-use crate::util::BoolThen;
+use crate::util::{banner, BoolThen};
 
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
 // released under the MIT license. https://github.com/romanz/electrs
@@ -74,7 +73,7 @@ impl Connection {
     }
 
     fn server_banner(&self) -> Result<Value> {
-        Ok(json!(get_welcome_banner(&self.query, false)?))
+        Ok(json!(banner::get_welcome_banner(&self.query, false)?))
     }
 
     fn server_donation_address(&self) -> Result<Value> {

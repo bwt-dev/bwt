@@ -4,16 +4,17 @@ use std::{sync::mpsc, thread};
 
 use serde_json::Value;
 
-use bitcoin::{util::bip32::ExtendedPubKey, Network, Txid};
+use bitcoin::Txid;
 
+#[macro_use]
+mod macros;
+
+pub mod banner;
+pub mod bitcoincore_ext;
 pub mod descriptor;
+pub mod xpub;
 
 const VSIZE_BIN_WIDTH: u32 = 50_000; // vbytes
-
-pub fn xpub_matches_network(xpub: &ExtendedPubKey, network: Network) -> bool {
-    // testnet and regtest share the same bip32 version bytes
-    xpub.network == network || (xpub.network == Network::Testnet && network == Network::Regtest)
-}
 
 // Make the fee histogram our of a list of `getrawmempool true` entries
 pub fn make_fee_histogram(mempool_entries: HashMap<Txid, Value>) -> Vec<(f32, u32)> {

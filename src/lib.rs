@@ -12,18 +12,15 @@ extern crate bitcoin_hashes;
 extern crate serde;
 
 #[macro_use]
-mod macros;
+pub mod util;
 
 pub mod app;
-pub mod banner;
-pub mod bitcoincore_ext;
 pub mod config;
 pub mod error;
 pub mod indexer;
 pub mod query;
 pub mod store;
 pub mod types;
-pub mod util;
 pub mod wallet;
 
 #[cfg(unix)]

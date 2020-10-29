@@ -5,7 +5,7 @@ use chrono::Duration;
 use bitcoin::{blockdata::constants, Amount};
 use bitcoincore_rpc::RpcApi;
 
-use crate::bitcoincore_ext::RpcApiExt;
+use crate::util::bitcoincore_ext::RpcApiExt;
 use crate::{Query, Result};
 
 const DIFFCHANGE_INTERVAL: u64 = constants::DIFFCHANGE_INTERVAL as u64;

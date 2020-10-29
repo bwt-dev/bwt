@@ -3,8 +3,8 @@ use std::{thread, time};
 
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
-use crate::util::debounce_sender;
-use crate::{banner, Config, Indexer, Query, Result, WalletWatcher};
+use crate::util::{banner, debounce_sender};
+use crate::{Config, Indexer, Query, Result, WalletWatcher};
 
 #[cfg(feature = "electrum")]
 use crate::electrum::ElectrumServer;

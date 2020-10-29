@@ -12,7 +12,7 @@ use crate::error::{Context, OptionExt, Result};
 use crate::query::QueryConfig;
 use crate::types::RescanSince;
 use crate::util::descriptor::ExtendedDescriptor;
-use crate::wallet::XyzPubKey;
+use crate::util::xpub::XyzPubKey;
 
 #[derive(StructOpt, Debug)]
 pub struct Config {
