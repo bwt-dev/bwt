@@ -74,7 +74,7 @@ class BwtPlugin(BasePlugin):
 
         for wallet in self.wallets:
             for xpub in wallet.get_master_public_keys():
-                args.extend([ '--xpub', '%s:%s' % (xpub, self.rescan_since) ])
+                args.extend([ '--xpub', '%s@%s' % (xpub, self.rescan_since) ])
 
         for i in range(self.verbose):
             args.append('-v')

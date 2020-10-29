@@ -57,7 +57,7 @@ pub struct Config {
     pub bitcoind_wallet: Option<String>,
 
     #[structopt(
-        short = "d",
+        short = "r",
         long,
         help = "Path to bitcoind directory (used for cookie file) [default: ~/.bitcoin]",
         env,
@@ -98,9 +98,9 @@ pub struct Config {
     pub bitcoind_cookie: Option<path::PathBuf>,
 
     #[structopt(
-        short = "D",
+        short = "d",
         long = "descriptor",
-        help = "descriptors to track and since when (rescans from genesis by default,  use ?? to specify a timestmap, or <xpub>:none to disable rescan)",
+        help = "Descriptors to track (scans for history from the genesis by default, use <desc>@<yyyy-mm-dd> or <desc>@<unix-epoch> to specify a rescan timestmap, or <desc>@none to disable rescan)",
         parse(try_from_str = parse_desc),
         env, hide_env_values(true),
         use_delimiter(true), value_delimiter(";"),
@@ -111,9 +111,10 @@ pub struct Config {
     #[structopt(
         short = "x",
         long = "xpub",
-        help = "xpubs to track and since when (rescans from genesis by default, use <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch> to specify a timestmap, or <xpub>:none to disable rescan)",
+        help = "xpubs to track (represented as two separate descriptors for the internal/external chains, supports <xpub>@<rescan-time>)",
         parse(try_from_str = parse_xpub),
-        env, hide_env_values(true), use_delimiter(true),
+        env, hide_env_values(true),
+        use_delimiter(true), value_delimiter(";"),
         display_order(21)
     )]
     pub xpubs: Vec<(XyzPubKey, RescanSince)>,
@@ -249,6 +250,7 @@ pub struct Config {
         env,
         hide_env_values(true),
         use_delimiter(true),
+        value_delimiter(";"),
         display_order(102)
     )]
     pub webhook_urls: Option<Vec<String>>,
@@ -369,24 +371,24 @@ fn apply_log_env(mut builder: LogBuilder) -> LogBuilder {
 }
 
 fn parse_desc(s: &str) -> Result<(ExtendedDescriptor, RescanSince)> {
-    // TODO rescan
-    Ok((parse_desc_checksum(s)?, RescanSince::Timestamp(0)))
+    let mut parts = s.trim().splitn(2, '@');
+    let desc = parse_desc_checksum(parts.next().req()?)?;
+    let rescan = parse_rescan(parts.next())?;
+    Ok((desc, rescan))
 }
 
 fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {
-    let mut parts = s.splitn(2, ':');
-    let xpub = parts.next().or_err("missing xpub")?.parse()?;
-    let rescan = parts
-        .next()
-        .map_or(Ok(RescanSince::Timestamp(0)), parse_rescan)?;
+    let mut parts = s.trim().splitn(2, '@');
+    let xpub = parts.next().req()?.parse()?;
+    let rescan = parse_rescan(parts.next())?;
     Ok((xpub, rescan))
 }
 
-fn parse_rescan(s: &str) -> Result<RescanSince> {
+fn parse_rescan(s: Option<&str>) -> Result<RescanSince> {
     Ok(match s {
-        "none" => RescanSince::Now,
-        "all" => RescanSince::Timestamp(0),
-        s => {
+        None | Some("all") => RescanSince::Timestamp(0),
+        Some("none") => RescanSince::Now,
+        Some(s) => {
             // try as a unix timestamp first, then as a datetime string
             RescanSince::Timestamp(
                 s.parse::<u64>()
