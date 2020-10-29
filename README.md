@@ -8,9 +8,10 @@
 [![MIT license](https://img.shields.io/github/license/shesek/bwt.svg?color=yellow)](https://github.com/shesek/bwt/blob/master/LICENSE)
 [![Pull Requests Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#developing)
 
-`bwt` is a lightweight wallet xpub tracker and query engine for Bitcoin, implemented in Rust.
+`bwt` is a lightweight wallet descriptor/xpub tracker and query engine for Bitcoin, implemented in Rust.
 
-🔸 Personal HD wallet indexer (EPS-like)<br>
+🔸 Personal wallet indexer (EPS-like)<br>
+🔸 Output script descriptor based<br>
 🔸 Electrum RPC server (also available as a plugin!)<br>
 🔸 Developer-friendly, modern HTTP REST API<br>
 🔸 Real-time updates with Server-Sent-Events or Web Hooks
@@ -29,9 +30,9 @@ Support development: [⛓️ on-chain or ⚡ lightning via BTCPay](https://btcpa
 - [Electrum plugin](#electrum-plugin) 💥
 - [Manual Electrum setup](#manual-electrum-setup-without-the-plugin)
 - [HTTP API](#http-api)
-  - [HD Wallets](#hd-wallets)
+  - [Wallets](#wallets)
   - [Transactions](#transactions)
-  - [Addresses](#addresses-scripthashes--hd-keys)
+  - [Addresses](#addresses-scripthashes--keys)
   - [Outputs](#outputs)
   - [Blocks](#blocks)
   - [Mempool & Fees](#mempool--fees)
@@ -44,7 +45,7 @@ Support development: [⛓️ on-chain or ⚡ lightning via BTCPay](https://btcpa
 
 ## Intro
 
-`bwt` is a lightweight and performant HD wallet indexer backed by a bitcoin full node, using a model similar to that of Electrum Personal Server.
+`bwt` is a lightweight and performant descriptor-based wallet indexer backed by a bitcoin full node, using a model similar to that of Electrum Personal Server.
 It can serve as a personal alternative to public Electrum servers or power bitcoin apps such as wallet backends, payment processors and more.
 
 It uses bitcoind to keep track of your wallet addresses (derived from your xpub(s)) and builds an index of their
@@ -55,8 +56,7 @@ or using [Web Hooks](#web-hooks) push updates (an HTTP request sent to your URL 
 
 The index is currently managed in-memory and does not get persisted (this is expected to change), but building it is pretty fast: bwt can index thousands of transactions in a matter of seconds.
 
-*TL;DR: EPS + Rust + Modern HTTP API + Push updates*
-
+*TL;DR: EPS + Rust + Modern HTTP API*
 
 ## Setting up bwt
 
@@ -133,6 +133,8 @@ your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 `--bitcoind-auth <user:pass>` (defaults to using the cookie file from `bitcoind-dir`).
 
 You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
+
+Alternatively, you can also track output script descriptord via `--descriptor`. For example, `--descriptor 'wpkh(<xpub>/0/*)'`.
 
 Rescanning can be controlled with `--xpub <xpub>@<rescan>`. You can specify `<rescan>` with the wallet birthday formatted
 as `yyyy-mm-dd` to scan from that date onwards only, or use `none` to disable rescanning entirely (for newly created wallets).
@@ -302,53 +304,20 @@ and `skipmerklecheck` using the GUI.
 
 All the endpoints return JSON. All bitcoin amounts are in satoshis.
 
-### HD Wallets
+### Wallets
 
-> Note: Every `--xpub` specified will be represented as two wallet entries, one for the external chain (used for receive addresses)
-and one for the internal chain (used for change addresses). You can associate the wallets to their parent xpub using the `origin` field.
+Each wallet represents an output script descriptor.
 
+Note that xpubs specified via `--xpub` will be represented as two descriptor wallet entries, one for the
+external chain (used for receive addresses) and one for the internal chain (used for change addresses).
+You can associate the wallets to their parent xpub using the `bip32_origins` field.
 
-#### `GET /hd`
+#### Wallet format
 
-Get a map of all tracked HD wallets, as a json object indexed by the fingerprint.
-
-<details><summary>Expand...</summary><p></p>
-
-See [`GET /hd/:fingerprint`](#get-hdfingerprint) below for the full wallet json format.
-
-Example:
-```
-$ curl localhost:3060/hd
-
-{
-  "9f0d3265": {
-    "xpub": "tpubDAfKzTwp5MBqcSM3PUqkGjftNDSgKYtKQNoT6CosG7oGDAKpQWgGmB7t2VBt5a9z2k1u7F7FZnMzDtDmdnUwRcdiVakHXt4n7uXCd8LFJzz",
-    "origin": "3f37f4f0/0",
-    "network": "regtest",
-    ...
-  },
-  "53cc57c8": {
-    "xpub": "tpubDAfKzTwp5MBqYacHmEvfVGZVAUSCFpSd3SrAhZkZSvL7XBNcAfSLH4rEGmFH5dePuRcuaJMxGyqRRRHqhdYAJq2TyvQqrVbrov7suU1aLkg",
-    "origin": "3f37f4f0/1",
-    "network": "regtest",
-    ...
-  },
-  ...
-}
-```
-</details>
-
-#### `GET /hd/:fingerprint`
-
-Get information about the HD wallet identified by the hex-encoded `fingerprint`.
-
-<details><summary>Expand...</summary><p></p>
-
-Returned fields:
-- `xpub` - the xpubkey in base58 encoding
-- `origin` - parent extended key this xpub is derived from (if any), in `<fingerprint>/<index>` format
+- `desc` - the output script descriptor tracked by this wallet
 - `network` - the network this wallet belongs to (`bitcoin`, `testnet` or `regtest`)
-- `script_type` - the scriptpubkey type used by this wallet (`p2pkh`, `p2wpkh` or `p2shp2wpkh`)
+- `is_ranged` - a boolean indicating whether the descriptor is ranged
+- `bip32_origins` - bip32 origin information for the keys contained in the descriptor
 - `gap_limit` - the gap limited configured for this wallet
 - `initial_import_size` - the gap limit used during the initial import
 - `rescan_policy` - how far back rescanning should take place
@@ -356,89 +325,159 @@ Returned fields:
 - `max_imported_index` - the maximum derivation index imported into bitcoind
 - `done_initial_import` - a boolean indicating whether we're done importing addresses for this wallet
 
-> Note: the `xpub` field is always encoded as an xpub, even for yzpubs and zpubs. This is a [known issue](https://github.com/shesek/bwt/issues/12).
+See [`GET /wallet/:checksum`](#get-walletchecksum) for an example.
+
+#### `GET /wallets`
+
+Get a map of all tracked descriptor wallets, as a json object indexed by the descriptor checksum.
+
+<details><summary>Expand...</summary><p></p>
 
 Example:
 ```
-$ curl localhost:3060/hd/15cb9edc
+$ curl localhost:3060/wallets
+
 {
-  "xpub": "tpubDAFgf5upzxiDvMNWdTobtLv7roPaSbKRc4oK98pJ6D6egLTKm94QwkMu9k8Sf4oHcvWPaan5aTqYqjdDVkeSUwpmQpaY1zPADHDHLdhLJYx",
-  "origin": "a9c5dde1/1",
-  "network": "regtest",
-  "script_type": "p2wpkh",
-  "gap_limit": 20,
-  "initial_import_size": 50,
-  "rescan_policy": {
-    "since": 0
+  "xjm8w0el": {
+    "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/*)#xjm8w0el",
+    "network": "bitcoin",
+    "is_ranged": true,
+    "bip32_origins": [ "80e042a9/0" ],
+    ...
   },
-  "max_funded_index": 102,
-  "max_imported_index": 122,
-  "done_initial_import": true
+  "k38panl4": {
+    "desc": "wsh(multi(2,xpub661MyMwAqRbcEuy9nKLTbGCi2NhqTWeQPT3gd2QdfmeaieDHLHiwTnSnw1GrP2xdaJwEDQJLasfw6LNK7hVADcCN9d1M1RtxitrR3CwvtjV/0/*,[16eabcf7/2]xpub684GUXwH4bY8Pf3fgSunTGz3hwJZhJzaNwgT55aWGWQM7KsiUFEXWLYPy1Q19gAEvc9LG5TN5PdmGPoyocmkkpKCCMV27ugL7XqHeHRwJzH/1/*))#k38panl4",
+    "network": "bitcoin",
+    "is_ranged": true,
+    "bip32_origins": [ "367e5b47/0", "16eabcf7/2/1" ],
+    ...
+  },
+  "cletf5fc": {
+    "desc": "pkh(xpub661MyMwAqRbcEoHAdGB6AaGRhLmHVemxe6acQikhJgfV3sr1SmapjQv8ZfBwWa1YKmFbyR6ta96TKiCNTctvZix58hAR7mDtjdWK2E18PjR/0/*)#cletf5fc",
+    "network": "bitcoin",
+    "is_ranged": true,
+    "bip32_origins": [ "7a32efaa/0" ],
+    ...
+  },
+  "ftu25peq": {
+    "desc": "pkh(xpub661MyMwAqRbcEoHAdGB6AaGRhLmHVemxe6acQikhJgfV3sr1SmapjQv8ZfBwWa1YKmFbyR6ta96TKiCNTctvZix58hAR7mDtjdWK2E18PjR/1/*)#ftu25peq",
+    "network": "bitcoin",
+    "is_ranged": true,
+    "bip32_origins": [ "7a32efaa/1" ],
+    ...
+  }
 }
+
+```
+
+These wallets are the result of starting bwt with:
+
+- `--descriptor 'wpkh(xpub...xToJdcy/0/*)'` (the `xjm8w0el` wallet)
+- `--descriptor 'wsh(multi(2,xpub...3CwvtjV/0/*,[16eabcf7/2]xpub...eHRwJzH/1/*))'` (the `k38panl4` wallet)
+- `--xpub 'xpub...2E18PjR'` (the `cletf5fc` and `ftu25peq` wallets)
+
+</details>
+
+#### `GET /wallet/:checksum`
+
+Get information about the descriptor wallet identified by its `checksum`.
+
+<details><summary>Expand...</summary><p></p>
+
+Example:
+```
+$ curl localhost:3060/wallet/xjm8w0el
+{
+  "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/*)#xjm8w0el",
+  "network": "bitcoin",
+  "is_ranged": true,
+  "bip32_origins": [ "80e042a9/0" ],
+  "rescan_policy": "now",
+  "done_initial_import": true,
+  "max_funded_index": null,
+  "max_imported_index": 19,
+  "gap_limit": 20,
+  "initial_import_size": 20
+}
+
 ```
 </details>
 
-#### `GET /hd/:fingerprint/:index`
+#### `GET /wallet/:checksum/:index`
 
-Get basic information for the hd key at the derivation index `index`.
+Get basic information for the wallet child address at derivation index `index`.
 
 <details><summary>Expand...</summary><p></p>
 
 Returned fields:
-- `scripthash`
 - `address`
-- `origin`
+- `scripthash`
+- `desc` - the descriptor for this address
+- `origin` - descriptor origin information in `<checksum>/<index>` format
+- `bip32_origins` - an array of bip32 origins for the derived keys at this index
 
-Example:
+Examples:
 ```
-$ curl localhost:3060/hd/15cb9edc/8
-
+$ curl localhost:3060/wallet/xjm8w0el/8
 {
-  "scripthash": "528f5ed05cddd6fa43881a1e02557ce5c5db2400a5e6887d74d2ce867c7eabae",
-  "address": "bcrt1qcgzcp5dg52z2f3cyh8a0805a2hms9adg0zj3fu",
-  "origin": "15cb9edc/8"
+  "address": "bc1qlwdpe3a0ulss57tqxxkpepylazpy9f07f2jufa",
+  "scripthash": "5e643e168a629406504ee2651f76efc3510a79d0aaa1fda9893b2a98c73440dc",
+  "origin": "xjm8w0el/8",
+  "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/8)#dtxjzdej",
+  "bip32_origins": [ "80e042a9/0/8" ]
+}
+
+$ curl localhost:3060/wallet/k38panl4/5
+{
+  "address": "bc1q9r669mzwaal8cj0hplp7qsqd6kl4xu76w6nuprqd75zrll8s5lsqgeka5t",
+  "scripthash": "2eb2e9b8b0ee5b6e2aea7a8ee5897d448ab089c7d360a287b27e767320d5902a",
+  "origin": "k38panl4/5",
+  "desc": "wsh(multi(2,xpub661MyMwAqRbcEuy9nKLTbGCi2NhqTWeQPT3gd2QdfmeaieDHLHiwTnSnw1GrP2xdaJwEDQJLasfw6LNK7hVADcCN9d1M1RtxitrR3CwvtjV/0/5,[16eabcf7/2]xpub684GUXwH4bY8Pf3fgSunTGz3hwJZhJzaNwgT55aWGWQM7KsiUFEXWLYPy1Q19gAEvc9LG5TN5PdmGPoyocmkkpKCCMV27ugL7XqHeHRwJzH/1/5))#5sd0njd0",
+  "bip32_origins": [ "367e5b47/0/5", "16eabcf7/2/1/5" ]
 }
 ```
 </details>
 
-#### `GET /hd/:fingerprint/next`
+#### `GET /wallet/:checksum/next`
 
-Get the next unused address in the specified HD wallet.
+Get the next unused address in the specified wallet.
 
 <details><summary>Expand...</summary><p></p>
 
-Issues a 307 redirection to the url of the next derivation index (`/hd/:fingerprint/:index`) *and* responds with the derivation index in the responses body.
+Issues a 307 redirection to the url of the next derivation index (`/wallet/:checksum/:index`) *and* responds with the derivation index in the responses body.
 
 Note that the returned address is not marked as used until receiving funds; If you wish to skip it and generate a different
 address without receiving funds to it, you can specify an explicit derivation index instead.
 
+Non-ranged descriptors always return `0` as the next index.
+
 Examples:
 ```
-$ curl localhost:3060/hd/7caf9d54/next
+$ curl localhost:3060/wallet/xjm8w0el/next
 < HTTP/1.1 307 Temporary Redirect
-< Location: /hd/7caf9d54/104
+< Location: /wallet/xjm8w0el/104
 104
 
-# Follow the redirect to get the json with the address/scripthash
+# Follow the redirect to get the full address json
 
-$ curl --location localhost:3060/hd/7caf9d54/next
+$ curl --location localhost:3060/wallet/xjm8w0el/next
 {
-  "scripthash": "3baba97cee91b29a96c1de055600c8a25bc0f877797824ef8d2e8750fc5e1afe",
-  "address": "mizsjvWUjiiqxajrBZhcdrmmkbfa12ABSq",
-  "origin": "7caf9d54/104"
+  "address": "bc1qu8k2dv6s8kjaywvdrrk3mvju6utyx537puaeal",
+  "origin": "xjm8w0el/104",
+  ...
 }
 ```
 </details>
 
-#### `GET /hd/:fingerprint/gap`
+#### `GET /wallet/:checksum/gap`
 
-Get the current maximum number of consecutive unused addresses in the specified HD wallet.
+Get the current maximum number of consecutive unused addresses in the specified wallet.
 
 <details><summary>Expand...</summary><p></p>
 
 Example:
 ```
-$ curl localhost:3060/hd/15cb9edc/gap
+$ curl localhost:3060/wallet/xjm8w0el/gap
 
 7
 ```
@@ -459,14 +498,14 @@ Transaction fields:
   - `amount` - the output amount
   - `scripthash` - the scripthash funded by this output
   - `address` - the address funded by this output
-  - `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
+  - `origin` - descriptor wallet origin information in `<checksum>/<index>` format
   - `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
 - `spending` - contains an entry for every input spending a wallet output
   - `vin` - the input index
   - `amount` - the amount of the previous output spent by this input
   - `scripthash` - the scripthash of the previous output spent by this input
   - `address` - the address of the previous output spent by this input
-  - `origin` - hd wallet origin information
+  - `origin` - descriptor wallet origin information in `<checksum>/<index>` format
   - `prevout` - the `<txid>:<vout>` being spent
 - `balance_change` - the net change to the wallet balance inflicted by this transaction
 
@@ -502,7 +541,7 @@ $ curl localhost:3060/tx/e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f6
       "vout": 1,
       "scripthash": "6bf2d435bc4e020d839900d708f02c721728ca6793024919c2c5bc029c00f033",
       "address": "bcrt1qu04qqzwkjvya65g2agwx5gnqvgzwpjkr6q5jvf",
-      "origin": "364476e3/6",
+      "origin": "c0yk9vwe/6",
       "amount": 949373,
       "spent_by": "950cc16e572062fa16956c4244738b35ea7b05e16c8efbd6b9812d561d68be3a:0"
     }
@@ -512,7 +551,7 @@ $ curl localhost:3060/tx/e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f6
       "vin": 0,
       "scripthash": "a55c30f4f7d79600d568bdfa0b4f48cdce4e59b6ffbf286e99856c3e8699740d",
       "address": "bcrt1qxsvdm3jmwr79u67d82s08uykw6a82agzy42c6y",
-      "origin": "364476e3/5",
+      "origin": "c0yk9vwe/9",
       "amount": 1049514,
       "prevout": "70650243572b90705f7fe95c9f30a85a0cc55e4ea3159a8ada5f4d62d9841d7b:1"
     }
@@ -653,29 +692,33 @@ $ curl -X POST localhost:3060/tx -H 'Content-Type: application/json' \
 
 </details>
 
-### Addresses, Scripthashes & HD Keys
+### Addresses, Scripthashes & Keys
 
 #### `GET /address/:address`
 #### `GET /scripthash/:scripthash`
-#### `GET /hd/:fingerprint/:index`
+#### `GET /wallet/:checksum/:index`
 
 
-Get basic information for the provided address, scripthash or hd key.
+Get basic information for the provided address, scripthash or descriptor index.
 
 <details><summary>Expand...</summary><p></p>
 
 Returned fields:
-- `scripthash`
 - `address`
-- `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
+- `scripthash`
+- `desc` - the descriptor for this address
+- `origin` - descriptor origin information in `<checksum>/<index>` format
+- `bip32_origins` - an array of bip32 origins for the derived keys at this index
 
 Example:
 ```
-$ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s
+$ curl localhost:3060/address/bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg
 {
-  "scripthash": "c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a862433e37c5bc84cb2",
-  "address": "bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s",
-  "origin": "e583e3c5/6"
+  "address": "bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg",
+  "scripthash": "4c1af417b86da82af887678c36c93d3d8de15a5930f326600e533bf3ab9d0339",
+  "origin": "xjm8w0el/10",
+  "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/10)#v9use49n",
+  "bip32_origins": [ "80e042a9/0/10" ]
 }
 ```
 
@@ -683,29 +726,31 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s
 
 #### `GET /address/:address/stats`
 #### `GET /scripthash/:scripthash/stats`
-#### `GET /hd/:fingerprint/:index/stats`
+#### `GET /wallet/:checksum/:index/stats`
 
-Get basic information and stats for the provided address, scripthash or hd key.
+Get basic information and stats for the provided address, scripthash or descriptor index.
 
 <details><summary>Expand...</summary><p></p>
 
 Returned fields:
 - `scripthash`
 - `address`
-- `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
+- `desc`
+- `origin`
+- `bip32_origins`
 - `tx_count`
 - `confirmed_balanace`
 - `unconfirmed_balanace`
 
 Example:
 ```
-$ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/stats
+$ curl localhost:3060/address/bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg/stats
 {
-  "scripthash": "c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a862433e37c5bc84cb2",
-  "address": "bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s",
-  "origin": "e583e3c5/6",
-  "tx_count": 7,
-  "confirmed_balance": 3240000,
+  "address": "bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg",
+  "origin": "xjm8w0el/10",
+  ...,
+  "tx_count": 2,
+  "confirmed_balance": 120050000,
   "unconfirmed_balance": 0
 }
 ```
@@ -713,9 +758,9 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/stats
 
 #### `GET /address/:address/utxos`
 #### `GET /scripthash/:scripthash/utxos`
-#### `GET /hd/:fingerprint/:index/utxos`
+#### `GET /wallet/:checksum/:index/utxos`
 
-Get the list of unspent transaction outputs owned by the provided address, scripthash or hd key.
+Get the list of unspent transaction outputs owned by the provided address, scripthash or descriptor index.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -725,15 +770,15 @@ Query string parameters:
 
 Examples:
 ```
-$ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/utxos
+$ curl localhost:3060/address/bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg/utxos
 [
   {
     "txid": "664fba0bcc745b05fda0fbf1f6fb6fc003afd82e64caad2c9fea0e3d566f6a58",
     "vout": 1,
     "amount": 1500000,
-    "scripthash": "b24cc85b7ce33324869a9c56d5744c24d7039fafcdb66d27f6d743a75d3711c5",
-    "address": "bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s",
-    "origin": "e583e3c5/6",
+    "scripthash": "4c1af417b86da82af887678c36c93d3d8de15a5930f326600e533bf3ab9d0339",
+    "address": "bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg",
+    "origin": "xjm8w0el/10",
     "block_height": 114,
     "spent_by": null
   },
@@ -741,23 +786,22 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/utxos
     "txid": "3a1c4dea8d376a2762dd9be1d39f7f13376b4c9ccb961725574689183c20cb90",
     "vout": 1,
     "amount": 1440000,
-    "scripthash": "b24cc85b7ce33324869a9c56d5744c24d7039fafcdb66d27f6d743a75d3711c5",
-    "address": "bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s",
-    "origin": "e583e3c5/6",
+    "scripthash": "4c1af417b86da82af887678c36c93d3d8de15a5930f326600e533bf3ab9d0339",
+    "address": "bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg",
+    "origin": "xjm8w0el/10",
     "block_height": 115,
     "spent_by": null
   },
   ...
 ]
-$ curl localhost:3060/scripthash/c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a862433e37c5bc84cb2/utxos?min_conf=1
 ```
 </details>
 
 #### `GET /address/:address/txs`
 #### `GET /scripthash/:scripthash/txs`
-#### `GET /hd/:fingerprint/:index/txs`
+#### `GET /wallet/:checksum/:index/txs`
 
-Get the list of all transactions in the history of the provided address, scripthash or hd key.
+Get the list of all transactions in the history of the provided address, scripthash or descriptor index.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -765,12 +809,11 @@ Returned in the [wallet transaction format](#wallet-transaction-format).
 
 Example:
 ```
-$ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/txs
+$ curl localhost:3060/address/bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg/txs
 [
   {
     "txid": "859d5c41661426ab13a7816b9e845a3353b66f00a3c14bc412d20f87dcf19caa",
-    "block_height": 105,
-    "fee": 144,
+    "block_height": 654835,
     "funding": [ ... ],
     "spending": [ ...],
     "balance_change": 11000000
@@ -783,9 +826,9 @@ $ curl localhost:3060/address/bcrt1qh0wa4uezedve99vd62dlungplq23e59cnw0j2s/txs
 
 #### `GET /address/:address/txs/compact`
 #### `GET /scripthash/:scripthash/txs/compact`
-#### `GET /hd/:fingerprint/:index/txs/compact`
+#### `GET /wallet/:checksum/:index/txs/compact`
 
-Get a compact minimal representation of the history of the provided address, scripthash or hd key.
+Get a compact minimal representation of the history of the provided address, scripthash or descriptor index.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -814,7 +857,7 @@ $ curl localhost:3060/scripthash/c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a8
 - `amount` - the output amount
 - `scripthash` - the scripthash funded by this output
 - `address` - the address funded by this output
-- `origin` - hd wallet origin information, in `<fingerprint>/<index>` format
+- `origin` - wallet origin information in `<checksum>/<index>` format
 - `block_height` - the confirming block height or `null` for unconfirmed transactions
 - `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
 
@@ -833,10 +876,10 @@ $ curl localhost:3060/txo/1b1170ac5996df9255299ae47b26ec3ad57c9801bc7bae68203b12
   "txid": "1b1170ac5996df9255299ae47b26ec3ad57c9801bc7bae68203b1222350d52fe",
   "vout": 0,
   "amount": 99791,
-  "scripthash": "42c8d22a39047d79070acc984c7d3e6ee9cca69289c84c75900e05c52adb5e8e",
-  "address": "bcrt1qknn7fg0w33j9gcsdtdd6k02llpjmqyg8a36728",
-  "origin": "364476e3/15",
-  "block_height": 161,
+  "scripthash": "d7a6ac0b7af9fe218f24019dc2fe7919bd14fb56694056528464326a44917d20",
+  "address": "bc1qrkud59a02lacfsa8hlp6yhg7qed30f2w7g2eh3",
+  "origin": "xjm8w0el/32,
+  "block_height": 654712,
   "spent_by": null
 }
 ```
@@ -1073,9 +1116,9 @@ data:{"category":"TxoSpent","params":["0ac67648be03f7fd547a828b78b920cb73f8c8833
 
 #### `GET /address/:address/stream`
 #### `GET /scripthash/:scripthash/stream`
-#### `GET /hd/:fingerprint/:index/stream`
+#### `GET /wallet/:checksum/:index/stream`
 
-Subscribe to a real-time notification stream of `TxoFunded`/`TxoSpent` events for the provided address, scripthash or hd key.
+Subscribe to a real-time notification stream of `TxoFunded`/`TxoSpent` events for the provided address, scripthash or descriptor index.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -1155,10 +1198,6 @@ Get the welcome banner text.
 
 ## Web Hooks
 
-> If you're building bwt from source, you'll need to set `--features webhooks` to enable web hooks support. This will also require to `apt install libssl-dev pkg-config`.
->
-> The pre-built binaries ([except for ARM](https://github.com/shesek/bwt/issues/52)) and the `shesek/bwt` docker image come with webhooks support enabled by default.
-
 You can set `--webhook-url <url>` to have bwt send push notifications as a `POST` request to the provided `<url>`. Requests will be sent with a JSON-serialized *array* of one or more index updates as the body.
 
 It is recommended to include a secret key within the URL to verify the authenticity of the request.
@@ -1171,6 +1210,9 @@ It is recommended to occasionally catch up using the [`GET /txs/since/:block-hei
 
 Tip: services like [webhook.site](https://webhook.site/) or [requestbin](http://requestbin.net/) can come in handy for debugging webhooks. (needless to say, for non-privacy-sensitive regtest/testnet use only)
 
+> If you're building bwt from source, you'll need to set `--features webhooks` to enable web hooks support. This will also require to `apt install libssl-dev pkg-config`.
+>
+> The pre-built binaries ([except for ARM](https://github.com/shesek/bwt/issues/52)) and the `shesek/bwt` docker image come with webhooks support enabled by default.
 
 ## Developing
 
@@ -1178,7 +1220,7 @@ Tip: services like [webhook.site](https://webhook.site/) or [requestbin](http://
 
 Documentation for the public Rust API is [available on docs.rs](https://docs.rs/bwt).
 
-A yuml diagram showing how the big pieces interact together is [available here](https://yuml.me/edit/eb254113).
+A yuml diagram showing how the big pieces interact together is [available here](https://yuml.me/edit/39229813).
 
 An example of initializing bwt and issuing queries against its db from Rust is available at [`examples/use-from-rust.rs`](https://github.com/shesek/bwt/blob/master/examples/use-from-rust.rs).
 (Note that the Rust API provides weaker backwards compatibility guarantees compared to the HTTP API.)
@@ -1203,7 +1245,7 @@ bwt has 4 optional features: `http`, `electrum`, `webhooks` and `track-spends`.
 
 All are enabled by default except for `webhooks`.
 
-If you're working on code that is unrelated to the HTTP API, it is much faster to build with just the `electrum track-spends` features.
+If you're working on code that is unrelated to the HTTP API, it is faster to build with just the `electrum track-spends` features.
 
 You can use `scripts/check.sh` to run `cargo check` for all (sensible) feature combos. This is important to ensure no errors were introduced for feature combos that you didn't use.
 
