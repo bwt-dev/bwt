@@ -11,7 +11,7 @@ use crate::error::{Context, Result};
 use crate::store::MemoryStore;
 use crate::types::RescanSince;
 use crate::util::descriptor::{Checksum, DescXPubInfo, ExtendedDescriptor};
-use crate::util::xpub::{xpub_matches_network, XyzPubKey};
+use crate::util::xpub::{xpub_matches_network, Bip32Origin, XyzPubKey};
 
 const LABEL_PREFIX: &str = "bwt";
 
@@ -386,6 +386,15 @@ impl Wallet {
         } else {
             0
         })
+    }
+
+    /// Get the bip32 origins of the ranged xpubs at the provided index
+    pub fn bip32_origins(&self, index: u32) -> Vec<Bip32Origin> {
+        self.xpubs_info
+            .iter()
+            .filter(|x| x.is_ranged)
+            .map(|x| Bip32Origin(x.fingerprint, index))
+            .collect()
     }
 }
 

@@ -1,7 +1,7 @@
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-use bitcoin::util::bip32::{DerivationPath, ExtendedPubKey};
+use bitcoin::util::bip32::{DerivationPath, ExtendedPubKey, Fingerprint};
 use bitcoin::{util::base58, Network};
 use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorXPub};
 
@@ -23,6 +23,10 @@ pub struct XyzPubKey {
 
 impl_string_serializer!(XyzPubKey, xpub, xpub.extended_pubkey.to_string());
 impl_debug_display!(XyzPubKey);
+
+#[derive(Clone, Debug)]
+pub struct Bip32Origin(pub Fingerprint, pub u32);
+impl_string_serializer!(Bip32Origin, o, format!("{}/{}", o.0, o.1));
 
 impl XyzPubKey {
     pub fn as_descriptor(&self, derivation_path: DerivationPath) -> ExtendedDescriptor {

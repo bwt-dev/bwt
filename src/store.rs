@@ -6,7 +6,7 @@ use serde::Serialize;
 use bitcoin::{Address, OutPoint, Txid};
 
 use crate::types::{MempoolEntry, ScriptHash, TxStatus};
-use crate::util::{descriptor::ExtendedDescriptor, remove_if};
+use crate::util::{descriptor::ExtendedDescriptor, remove_if, xpub::Bip32Origin};
 use crate::wallet::KeyOrigin;
 
 #[cfg(feature = "track-spends")]
@@ -415,9 +415,11 @@ pub struct ScriptInfo {
     #[serde(skip_serializing_if = "KeyOrigin::is_standalone")]
     pub origin: KeyOrigin,
 
-    // Provided in some contexts, but not always (even if available)
+    // The descriptor and bip32 origins are only provided in some contexts, not always (even if available)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub desc: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bip32_origins: Option<Vec<Bip32Origin>>,
 }
 
 impl ScriptInfo {
@@ -426,12 +428,14 @@ impl ScriptInfo {
         address: Address,
         origin: KeyOrigin,
         desc: &ExtendedDescriptor,
+        bip32_origins: Vec<Bip32Origin>,
     ) -> Self {
         ScriptInfo {
             scripthash,
             address,
             origin,
             desc: Some(desc.to_string()),
+            bip32_origins: Some(bip32_origins),
         }
     }
     pub fn from_address(address: &Address, origin: KeyOrigin) -> Self {
@@ -440,6 +444,7 @@ impl ScriptInfo {
             address: address.clone(),
             origin,
             desc: None,
+            bip32_origins: None,
         }
     }
     fn from_entry(scripthash: ScriptHash, script_entry: &ScriptEntry) -> Self {
@@ -448,6 +453,7 @@ impl ScriptInfo {
             address: script_entry.address.clone(),
             origin: script_entry.origin.clone(),
             desc: None,
+            bip32_origins: None,
         }
     }
 }

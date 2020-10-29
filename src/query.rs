@@ -422,11 +422,12 @@ impl Query {
         let indexer = self.indexer.read().unwrap();
         let mut script_info = indexer.store().get_script_info(scripthash)?;
 
-        // attach descriptor information
+        // attach descriptor and bip32 origins information
         if let KeyOrigin::Descriptor(ref checksum, index) = script_info.origin {
             let wallet = indexer.watcher().get(checksum)?;
             let desc = wallet.derive(index);
             script_info.desc = Some(desc.to_string());
+            script_info.bip32_origins = Some(wallet.bip32_origins(index));
         }
         Some(script_info)
     }
@@ -487,11 +488,18 @@ impl Query {
         let wallet = indexer.watcher().get(checksum)?;
 
         if wallet.is_valid_index(index) {
+            let origin = KeyOrigin::Descriptor(checksum.clone(), index);
             let desc = wallet.derive(index);
             let address = desc.address(self.config.network).unwrap();
             let scripthash = ScriptHash::from(&address);
-            let origin = KeyOrigin::Descriptor(checksum.clone(), index);
-            Some(ScriptInfo::from_desc(scripthash, address, origin, &desc))
+            let bip32_origins = wallet.bip32_origins(index);
+            Some(ScriptInfo::from_desc(
+                scripthash,
+                address,
+                origin,
+                &desc,
+                bip32_origins,
+            ))
         } else {
             None
         }
