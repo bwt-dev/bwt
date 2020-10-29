@@ -362,7 +362,13 @@ impl Query {
         let script_info = match scripthash {
             None => None,
             // if the scripthash can't be found, it means it has no history.
-            Some(scripthash) => Some(some_or_ret!(self.get_script_info(scripthash), Ok(None))),
+            Some(scripthash) => {
+                let indexer = self.indexer.read().unwrap();
+                Some(some_or_ret!(
+                    indexer.store().get_script_info(scripthash),
+                    Ok(None)
+                ))
+            }
         };
 
         // an empty array indicates not to filter by the address
@@ -413,11 +419,16 @@ impl Query {
     //
 
     pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
-        self.indexer
-            .read()
-            .unwrap()
-            .store()
-            .get_script_info(scripthash)
+        let indexer = self.indexer.read().unwrap();
+        let mut script_info = indexer.store().get_script_info(scripthash)?;
+
+        // attach descriptor information
+        if let KeyOrigin::Descriptor(ref checksum, index) = script_info.origin {
+            let wallet = indexer.watcher().get(checksum)?;
+            let desc = wallet.derive(index);
+            script_info.desc = Some(desc.to_string());
+        }
+        Some(script_info)
     }
 
     // returns a tuple of (confirmed_balance, unconfirmed_balance)
@@ -476,10 +487,11 @@ impl Query {
         let wallet = indexer.watcher().get(checksum)?;
 
         if wallet.is_valid_index(index) {
-            let address = wallet.derive_address(index);
+            let desc = wallet.derive(index);
+            let address = desc.address(self.config.network).unwrap();
             let scripthash = ScriptHash::from(&address);
             let origin = KeyOrigin::Descriptor(checksum.clone(), index);
-            Some(ScriptInfo::new(scripthash, address, origin))
+            Some(ScriptInfo::from_desc(scripthash, address, origin, &desc))
         } else {
             None
         }

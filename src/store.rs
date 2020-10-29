@@ -6,7 +6,7 @@ use serde::Serialize;
 use bitcoin::{Address, OutPoint, Txid};
 
 use crate::types::{MempoolEntry, ScriptHash, TxStatus};
-use crate::util::remove_if;
+use crate::util::{descriptor::ExtendedDescriptor, remove_if};
 use crate::wallet::KeyOrigin;
 
 #[cfg(feature = "track-spends")]
@@ -414,14 +414,24 @@ pub struct ScriptInfo {
     pub address: Address,
     #[serde(skip_serializing_if = "KeyOrigin::is_standalone")]
     pub origin: KeyOrigin,
+
+    // Provided in some contexts, but not always (even if available)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub desc: Option<String>,
 }
 
 impl ScriptInfo {
-    pub fn new(scripthash: ScriptHash, address: Address, origin: KeyOrigin) -> Self {
+    pub fn from_desc(
+        scripthash: ScriptHash,
+        address: Address,
+        origin: KeyOrigin,
+        desc: &ExtendedDescriptor,
+    ) -> Self {
         ScriptInfo {
             scripthash,
             address,
             origin,
+            desc: Some(desc.to_string()),
         }
     }
     pub fn from_address(address: &Address, origin: KeyOrigin) -> Self {
@@ -429,6 +439,7 @@ impl ScriptInfo {
             scripthash: ScriptHash::from(address),
             address: address.clone(),
             origin,
+            desc: None,
         }
     }
     fn from_entry(scripthash: ScriptHash, script_entry: &ScriptEntry) -> Self {
@@ -436,6 +447,7 @@ impl ScriptInfo {
             scripthash: scripthash,
             address: script_entry.address.clone(),
             origin: script_entry.origin.clone(),
+            desc: None,
         }
     }
 }
