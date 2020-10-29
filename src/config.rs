@@ -11,7 +11,7 @@ use bitcoincore_rpc::Auth as RpcAuth;
 use crate::error::{Context, OptionExt, Result};
 use crate::query::QueryConfig;
 use crate::types::RescanSince;
-use crate::util::descriptor::ExtendedDescriptor;
+use crate::util::descriptor::{parse_desc_checksum, ExtendedDescriptor};
 use crate::util::xpub::XyzPubKey;
 
 #[derive(StructOpt, Debug)]
@@ -101,7 +101,7 @@ pub struct Config {
         short = "D",
         long = "descriptor",
         help = "descriptors to track and since when (rescans from genesis by default,  use ?? to specify a timestmap, or <xpub>:none to disable rescan)",
-        parse(try_from_str = parse_descr),
+        parse(try_from_str = parse_desc),
         env, hide_env_values(true),
         use_delimiter(true), value_delimiter(";"),
         display_order(20)
@@ -368,9 +368,9 @@ fn apply_log_env(mut builder: LogBuilder) -> LogBuilder {
     builder
 }
 
-fn parse_descr(s: &str) -> Result<(ExtendedDescriptor, RescanSince)> {
+fn parse_desc(s: &str) -> Result<(ExtendedDescriptor, RescanSince)> {
     // TODO rescan
-    Ok((s.parse()?, RescanSince::Timestamp(0)))
+    Ok((parse_desc_checksum(s)?, RescanSince::Timestamp(0)))
 }
 
 fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {

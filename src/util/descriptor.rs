@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::iter::FromIterator;
 use std::str::FromStr;
 
@@ -10,10 +9,6 @@ use miniscript::descriptor::{Descriptor, DescriptorPublicKey};
 use crate::error::{Error, OptionExt, Result};
 use crate::util::xpub::xpub_matches_network;
 
-lazy_static! {
-    static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
-}
-
 pub type ExtendedDescriptor = Descriptor<DescriptorPublicKey>;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -24,46 +19,89 @@ impl_string_serializer!(Checksum, c, c.0);
 #[derive(Debug, Clone)]
 pub struct DescXPubInfo {
     pub fingerprint: Fingerprint,
-    pub ranged: bool,
+    pub is_ranged: bool,
 }
 
-impl TryFrom<&ExtendedDescriptor> for Checksum {
-    type Error = Error;
-    fn try_from(desc: &ExtendedDescriptor) -> Result<Self> {
+impl From<&ExtendedDescriptor> for Checksum {
+    fn from(desc: &ExtendedDescriptor) -> Self {
         get_checksum(desc)
     }
 }
 
 impl FromStr for Checksum {
-    type Err = ();
+    type Err = Error;
 
-    fn from_str(inp: &str) -> Result<Self, ()> {
+    fn from_str(inp: &str) -> Result<Self> {
+        ensure!(inp.len() == 8, "Invalid descriptor checksum length");
+        for ch in inp.chars() {
+            CHECKSUM_CHARSET
+                .find(ch)
+                .or_err("Invalid descriptor checksum character")?;
+        }
         Ok(Checksum(inp.into()))
     }
 }
 
 impl DescXPubInfo {
     pub fn extract(desc: &ExtendedDescriptor, network: Network) -> Result<Vec<DescXPubInfo>> {
+        lazy_static! {
+            static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
+        }
         let mut valid_networks = true;
         let mut xpubs_info = vec![];
+
         tap_desc_pks(desc, |pk| {
             if let DescriptorPublicKey::XPub(desc_xpub) = pk {
                 valid_networks = valid_networks && xpub_matches_network(&desc_xpub.xpub, network);
+
                 let final_xpub = desc_xpub
                     .xpub
                     .derive_pub(&EC, &desc_xpub.derivation_path)
                     .unwrap();
+
                 xpubs_info.push(DescXPubInfo {
                     fingerprint: final_xpub.fingerprint(),
-                    ranged: desc_xpub.is_wildcard,
+                    is_ranged: desc_xpub.is_wildcard,
                 });
             }
         });
+
         ensure!(
             valid_networks,
-            "descriptor xpub does not match the configured network"
+            "Descriptor xpub does not match the configured network"
         );
+
         Ok(xpubs_info)
+    }
+}
+
+pub fn parse_desc_checksum(s: &str) -> Result<ExtendedDescriptor> {
+    let parts: Vec<&str> = s.splitn(2, '#').collect();
+    if parts.len() == 2 {
+        let desc_str = parts[0];
+        let desc = desc_str.parse::<ExtendedDescriptor>()?;
+        let provided_checksum = parts[1].parse::<Checksum>()?;
+
+        // FIXME using canonical encoding should not be required, but the current implementation
+        // won't retain it if the descriptor is encoded differently by rust-miniscript, which would
+        // result in an unexpected behaviour.
+        ensure!(
+            desc.to_string() == desc_str,
+            "Descriptors with explicit checksums must use canonical encoding. {} is expected to be encoded as `{}`",
+            provided_checksum,
+            desc.to_string()
+        );
+
+        let actual_checksum = get_checksum(&desc);
+        ensure!(
+            provided_checksum == actual_checksum,
+            "Invalid descriptor checksum {}, expected {}",
+            provided_checksum,
+            actual_checksum,
+        );
+        Ok(desc)
+    } else {
+        Ok(s.parse()?)
     }
 }
 
@@ -99,7 +137,7 @@ const INPUT_CHARSET: &str =  "0123456789()[],'/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ
 const CHECKSUM_CHARSET: &str = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
 /// Compute the checksum of a descriptor
-pub fn get_checksum(desc: &ExtendedDescriptor) -> Result<Checksum> {
+fn get_checksum(desc: &ExtendedDescriptor) -> Checksum {
     let desc_str = desc.to_string();
     let mut c = 1;
     let mut cls = 0;
@@ -107,7 +145,7 @@ pub fn get_checksum(desc: &ExtendedDescriptor) -> Result<Checksum> {
     for ch in desc_str.chars() {
         let pos = INPUT_CHARSET
             .find(ch)
-            .or_err("Invalid descriptor character")? as u64;
+            .expect("ExtendedDescriptor's encoding cannot be invalid") as u64;
         c = poly_mod(c, pos & 31);
         cls = cls * 3 + (pos >> 5);
         clscount += 1;
@@ -133,7 +171,7 @@ pub fn get_checksum(desc: &ExtendedDescriptor) -> Result<Checksum> {
         );
     }
 
-    Ok(Checksum(String::from_iter(chars)))
+    Checksum(String::from_iter(chars))
 }
 
 fn poly_mod(mut c: u64, val: u64) -> u64 {

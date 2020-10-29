@@ -1,6 +1,5 @@
 use serde::Serialize;
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::result::Result as StdResult;
 
 use bitcoin::util::bip32::ChildNumber;
@@ -219,8 +218,8 @@ impl Wallet {
         let xpubs_info = DescXPubInfo::extract(&desc, network)?;
 
         ensure!(
-            xpubs_info.iter().any(|x| x.ranged),
-            "non-ranged descriptors are currently unsupported"
+            xpubs_info.iter().any(|x| x.is_ranged),
+            "Must have at least one non-ranged descriptors"
         );
 
         ensure!(
@@ -228,7 +227,7 @@ impl Wallet {
             "descriptor does not have address representation"
         );
 
-        let checksum = Checksum::try_from(&desc)?;
+        let checksum = Checksum::from(&desc);
 
         Ok(Self {
             desc,
