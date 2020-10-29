@@ -472,35 +472,23 @@ impl Query {
 
     // get the ScriptInfo entry of a child key, without it necessarily having indexed history
     pub fn get_wallet_script_info(&self, checksum: &Checksum, index: u32) -> Option<ScriptInfo> {
-        if index & (1 << 31) != 0 {
-            // hardended derivation is unsupported
-            return None;
-        }
         let indexer = self.indexer.read().unwrap();
         let wallet = indexer.watcher().get(checksum)?;
-        let address = wallet.derive_address(index);
-        let scripthash = ScriptHash::from(&address);
-        let origin = KeyOrigin::RangedDesc(checksum.clone(), index);
-        Some(ScriptInfo::new(scripthash, address, origin))
+
+        if wallet.is_valid_index(index) {
+            let address = wallet.derive_address(index);
+            let scripthash = ScriptHash::from(&address);
+            let origin = KeyOrigin::Descriptor(checksum.clone(), index);
+            Some(ScriptInfo::new(scripthash, address, origin))
+        } else {
+            None
+        }
     }
 
     pub fn find_wallet_gap(&self, checksum: &Checksum) -> Option<usize> {
         let indexer = self.indexer.read().unwrap();
-        let store = indexer.store();
         let wallet = indexer.watcher().get(checksum)?;
-        let max_funded_index = wallet.max_funded_index?; // return None if this wallet has no history at all
-
-        let gap = (0..=max_funded_index)
-            .map(|derivation_index| wallet.derive_address(derivation_index))
-            .fold((0, 0), |(curr_gap, max_gap), address| {
-                if store.has_history(&address.into()) {
-                    (0, curr_gap.max(max_gap))
-                } else {
-                    (curr_gap + 1, max_gap)
-                }
-            })
-            .1;
-        Some(gap)
+        wallet.find_gap(indexer.store())
     }
 }
 

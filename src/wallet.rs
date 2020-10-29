@@ -8,6 +8,7 @@ use bitcoincore_rpc::json::{ImportMultiRequest, ImportMultiRequestScriptPubkey};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::error::{Context, Result};
+use crate::store::MemoryStore;
 use crate::types::RescanSince;
 use crate::util::descriptor::{Checksum, DescXPubInfo, ExtendedDescriptor};
 use crate::util::xpub::{xpub_matches_network, XyzPubKey};
@@ -91,7 +92,7 @@ impl WalletWatcher {
 
     // Mark an address as funded
     pub fn mark_funded(&mut self, origin: &KeyOrigin) {
-        if let KeyOrigin::RangedDesc(checksum, index) = origin {
+        if let KeyOrigin::Descriptor(checksum, index) = origin {
             if let Some(wallet) = self.wallets.get_mut(checksum) {
                 if wallet.max_imported_index.map_or(true, |max| *index > max) {
                     wallet.max_imported_index = Some(*index);
@@ -110,7 +111,7 @@ impl WalletWatcher {
         let labels: Vec<String> = rpc.call("listlabels", &[]).map_err(labels_error)?;
         let mut imported_indexes: HashMap<Checksum, u32> = HashMap::new();
         for label in labels {
-            if let Some(KeyOrigin::RangedDesc(checksum, index)) = KeyOrigin::from_label(&label) {
+            if let Some(KeyOrigin::Descriptor(checksum, index)) = KeyOrigin::from_label(&label) {
                 if self.wallets.contains_key(&checksum) {
                     imported_indexes
                         .entry(checksum)
@@ -195,16 +196,17 @@ impl WalletWatcher {
 #[derive(Debug, Clone)]
 pub struct Wallet {
     desc: ExtendedDescriptor,
+    is_ranged: bool,
     checksum: Checksum,
     xpubs_info: Vec<DescXPubInfo>,
     network: Network,
-    gap_limit: u32,
-    initial_import_size: u32,
     rescan_policy: RescanSince,
 
-    pub max_funded_index: Option<u32>,
-    pub max_imported_index: Option<u32>,
-    pub done_initial_import: bool,
+    gap_limit: u32,
+    initial_import_size: u32,
+    max_funded_index: Option<u32>,
+    max_imported_index: Option<u32>,
+    done_initial_import: bool,
 }
 
 impl Wallet {
@@ -218,20 +220,15 @@ impl Wallet {
         let xpubs_info = DescXPubInfo::extract(&desc, network)?;
 
         ensure!(
-            xpubs_info.iter().any(|x| x.is_ranged),
-            "Must have at least one non-ranged descriptors"
-        );
-
-        ensure!(
             desc.address(network).is_some(),
-            "descriptor does not have address representation"
+            "Descriptor does not have address representation: `{}`",
+            desc
         );
-
-        let checksum = Checksum::from(&desc);
 
         Ok(Self {
+            checksum: Checksum::from(&desc),
+            is_ranged: xpubs_info.iter().any(|x| x.is_ranged),
             desc,
-            checksum,
             xpubs_info,
             network,
             gap_limit,
@@ -312,6 +309,10 @@ impl Wallet {
 
     /// Returns the maximum index that needs to be watched
     fn watch_index(&self) -> u32 {
+        if !self.is_ranged {
+            return 0;
+        }
+
         let chunk_size = if self.done_initial_import {
             self.gap_limit
         } else {
@@ -337,7 +338,7 @@ impl Wallet {
         (start_index..=end_index)
             .map(|index| {
                 let address = self.derive_address(index);
-                let origin = KeyOrigin::RangedDesc(self.checksum.clone(), index);
+                let origin = KeyOrigin::Descriptor(self.checksum.clone(), index);
                 (address, rescan_since, origin.to_label())
             })
             .collect()
@@ -350,8 +351,41 @@ impl Wallet {
     }
 
     pub fn get_next_index(&self) -> u32 {
-        self.max_funded_index
-            .map_or(0, |max_funded_index| max_funded_index + 1)
+        if self.is_ranged {
+            self.max_funded_index
+                .map_or(0, |max_funded_index| max_funded_index + 1)
+        } else {
+            0
+        }
+    }
+
+    pub fn is_valid_index(&self, index: u32) -> bool {
+        if self.is_ranged {
+            // non-hardended derivation only
+            index & (1 << 31) == 0
+        } else {
+            index == 0
+        }
+    }
+
+    pub fn find_gap(&self, store: &MemoryStore) -> Option<usize> {
+        // return None if this wallet has no history at all
+        let max_funded_index = self.max_funded_index?;
+
+        Some(if self.is_ranged {
+            (0..=max_funded_index)
+                .map(|derivation_index| self.derive_address(derivation_index))
+                .fold((0, 0), |(curr_gap, max_gap), address| {
+                    if store.has_history(&address.into()) {
+                        (0, curr_gap.max(max_gap))
+                    } else {
+                        (curr_gap + 1, max_gap)
+                    }
+                })
+                .1
+        } else {
+            0
+        })
     }
 }
 
@@ -391,7 +425,7 @@ fn batch_import(rpc: &RpcClient, import_reqs: Vec<(Address, RescanSince, String)
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum KeyOrigin {
-    RangedDesc(Checksum, u32),
+    Descriptor(Checksum, u32),
     Standalone,
 }
 
@@ -400,7 +434,7 @@ impl_string_serializer!(
     origin,
     match origin {
         KeyOrigin::Standalone => "standalone".into(),
-        KeyOrigin::RangedDesc(checksum, index) => {
+        KeyOrigin::Descriptor(checksum, index) => {
             format!("{}/{}", checksum, index)
         }
     }
@@ -409,7 +443,7 @@ impl_string_serializer!(
 impl KeyOrigin {
     pub fn to_label(&self) -> String {
         match self {
-            KeyOrigin::RangedDesc(checksum, index) => {
+            KeyOrigin::Descriptor(checksum, index) => {
                 format!("{}/{}/{}", LABEL_PREFIX, checksum, index)
             }
             KeyOrigin::Standalone => LABEL_PREFIX.into(),
@@ -419,7 +453,7 @@ impl KeyOrigin {
     pub fn from_label(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.splitn(3, '/').collect();
         match (parts.get(0), parts.get(1), parts.get(2)) {
-            (Some(&LABEL_PREFIX), Some(parent), Some(index)) => Some(KeyOrigin::RangedDesc(
+            (Some(&LABEL_PREFIX), Some(parent), Some(index)) => Some(KeyOrigin::Descriptor(
                 parent.parse().ok()?,
                 index.parse().ok()?,
             )),
@@ -431,7 +465,7 @@ impl KeyOrigin {
     pub fn is_standalone(origin: &KeyOrigin) -> bool {
         match origin {
             KeyOrigin::Standalone => true,
-            KeyOrigin::RangedDesc(..) => false,
+            KeyOrigin::Descriptor(..) => false,
         }
     }
 }
@@ -457,19 +491,23 @@ impl Serialize for Wallet {
     where
         S: serde::Serializer,
     {
-        let mut rgb = serializer.serialize_struct("Wallet", 3)?;
         let desc_str = format!("{}#{}", self.desc, self.checksum);
         let bip32_fingerprints: Vec<_> = self.xpubs_info.iter().map(|i| i.fingerprint).collect();
 
+        let mut rgb = serializer.serialize_struct("Wallet", 3)?;
         rgb.serialize_field("descriptor", &desc_str)?;
-        rgb.serialize_field("bip32_fingerprints", &bip32_fingerprints)?;
+        rgb.serialize_field("is_ranged", &self.is_ranged)?;
         rgb.serialize_field("network", &self.network)?;
-        rgb.serialize_field("gap_limit", &self.gap_limit)?;
-        rgb.serialize_field("initial_import_size", &self.initial_import_size)?;
+        rgb.serialize_field("bip32_fingerprints", &bip32_fingerprints)?;
         rgb.serialize_field("rescan_policy", &self.rescan_policy)?;
+        rgb.serialize_field("done_initial_import", &self.done_initial_import)?;
         rgb.serialize_field("max_funded_index", &self.max_funded_index)?;
         rgb.serialize_field("max_imported_index", &self.max_imported_index)?;
-        rgb.serialize_field("done_initial_import", &self.done_initial_import)?;
+
+        if self.is_ranged {
+            rgb.serialize_field("gap_limit", &self.gap_limit)?;
+            rgb.serialize_field("initial_import_size", &self.initial_import_size)?;
+        }
 
         rgb.end()
     }
