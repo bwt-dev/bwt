@@ -19,12 +19,12 @@ pub mod banner;
 pub mod bitcoincore_ext;
 pub mod config;
 pub mod error;
-pub mod hd;
 pub mod indexer;
 pub mod query;
 pub mod store;
 pub mod types;
 pub mod util;
+pub mod wallet;
 
 #[cfg(unix)]
 pub mod listener;
@@ -41,8 +41,8 @@ pub mod webhooks;
 pub use app::App;
 pub use config::Config;
 pub use error::{Error, Result};
-pub use hd::{HDWallet, HDWatcher};
 pub use indexer::{IndexChange, Indexer};
 pub use query::Query;
+pub use wallet::{Wallet, WalletWatcher};
 
 pub const BWT_VERSION: &str = env!("CARGO_PKG_VERSION");

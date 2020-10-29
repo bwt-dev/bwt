@@ -4,9 +4,16 @@ use std::{sync::mpsc, thread};
 
 use serde_json::Value;
 
-use bitcoin::Txid;
+use bitcoin::{util::bip32::ExtendedPubKey, Network, Txid};
+
+pub mod descriptor;
 
 const VSIZE_BIN_WIDTH: u32 = 50_000; // vbytes
+
+pub fn xpub_matches_network(xpub: &ExtendedPubKey, network: Network) -> bool {
+    // testnet and regtest share the same bip32 version bytes
+    xpub.network == network || (xpub.network == Network::Testnet && network == Network::Regtest)
+}
 
 // Make the fee histogram our of a list of `getrawmempool true` entries
 pub fn make_fee_histogram(mempool_entries: HashMap<Txid, Value>) -> Vec<(f32, u32)> {
@@ -94,15 +101,22 @@ pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sen
     debounce_tx
 }
 
-// Similar to https://doc.rust-lang.org/std/primitive.bool.html#method.then (nightly only),
-// but with a function that returns an `Option<T>` instead of `T`. Adding something like
-// this to std is being discussed: https://github.com/rust-lang/rust/issues/64260
-
 pub trait BoolThen {
+    // Similar to https://doc.rust-lang.org/std/primitive.bool.html#method.then (nightly only)
+    fn do_then<T>(self, f: impl FnOnce() -> T) -> Option<T>;
+
+    // Alternative version where the closure returns an Option<T>
     fn and_then<T>(self, f: impl FnOnce() -> Option<T>) -> Option<T>;
 }
 
 impl BoolThen for bool {
+    fn do_then<T>(self, f: impl FnOnce() -> T) -> Option<T> {
+        if self {
+            Some(f())
+        } else {
+            None
+        }
+    }
     fn and_then<T>(self, f: impl FnOnce() -> Option<T>) -> Option<T> {
         if self {
             f()

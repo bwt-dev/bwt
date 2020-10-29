@@ -8,12 +8,12 @@ use warp::http::{header, StatusCode};
 use warp::sse::ServerSentEvent;
 use warp::{reply, Filter, Reply};
 
-use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{Address, BlockHash, OutPoint, Txid};
 use bitcoin_hashes::hex::FromHex;
 
 use crate::error::{fmt_error_chain, BwtError, Error, OptionExt};
 use crate::types::{BlockId, ScriptHash};
+use crate::util::descriptor::Checksum;
 use crate::{banner, store, IndexChange, Query};
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
@@ -47,52 +47,50 @@ async fn run(
                 reply::json(&wallets)
             });
 
-    // GET /hd/:fingerprint
+    // GET /hd/:checksum
     let hd_wallet_handler = warp::get()
-        .and(warp::path!("hd" / Fingerprint))
+        .and(warp::path!("hd" / Checksum))
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, query: Arc<Query>| {
+        .map(|checksum: Checksum, query: Arc<Query>| {
             let wallet = query
-                .get_hd_wallet(fingerprint)
+                .get_hd_wallet(&checksum)
                 .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&wallet))
         })
         .map(handle_error);
 
-    // GET /hd/:fingerprint/:index
+    // GET /hd/:checksum/:index
     let hd_key_handler = warp::get()
-        .and(warp::path!("hd" / Fingerprint / u32))
+        .and(warp::path!("hd" / Checksum / u32))
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
+        .map(|checksum: Checksum, index: u32, query: Arc<Query>| {
             let script_info = query
-                .get_hd_script_info(fingerprint, index)
+                .get_hd_script_info(&checksum, index)
                 .or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&script_info))
         })
         .map(handle_error);
 
-    // GET /hd/:fingerprint/gap
+    // GET /hd/:checksum/gap
     let hd_gap_handler = warp::get()
-        .and(warp::path!("hd" / Fingerprint / "gap"))
+        .and(warp::path!("hd" / Checksum / "gap"))
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, query: Arc<Query>| {
-            let gap = query
-                .find_hd_gap(fingerprint)
-                .or_err(StatusCode::NOT_FOUND)?;
+        .map(|checksum: Checksum, query: Arc<Query>| {
+            let gap = query.find_hd_gap(&checksum).or_err(StatusCode::NOT_FOUND)?;
             Ok(reply::json(&gap))
         })
         .map(handle_error);
 
-    // GET /hd/:fingerprint/next
+    // GET /hd/:checksum/next
     let hd_next_handler = warp::get()
-        .and(warp::path!("hd" / Fingerprint / "next"))
+        .and(warp::path!("hd" / Checksum / "next"))
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, query: Arc<Query>| {
+        .map(|checksum: Checksum, query: Arc<Query>| {
             let wallet = query
-                .get_hd_wallet(fingerprint)
+                .get_hd_wallet(&checksum)
                 .or_err(StatusCode::NOT_FOUND)?;
             let next_index = wallet.get_next_index();
-            let uri = format!("/hd/{}/{}", fingerprint, next_index);
+            let uri = format!("/hd/{}/{}", checksum, next_index);
             // issue a 307 redirect to the hdkey resource uri, and also include the derivation
             // index in the response
             Ok(reply::with_header(
@@ -110,12 +108,12 @@ async fn run(
     let address_route = warp::path!("address" / Address / ..).map(ScriptHash::from);
     // TODO check address version bytes matches the configured network
 
-    // GET /hd/:fingerprint/:index/*
-    let hd_key_route = warp::path!("hd" / Fingerprint / u32 / ..)
+    // GET /hd/:checksum/:index/*
+    let hd_key_route = warp::path!("hd" / Checksum / u32 / ..)
         .and(query.clone())
-        .map(|fingerprint: Fingerprint, index: u32, query: Arc<Query>| {
+        .map(|checksum: Checksum, index: u32, query: Arc<Query>| {
             let script_info = query
-                .get_hd_script_info(fingerprint, index)
+                .get_hd_script_info(&checksum, index)
                 .or_err(StatusCode::NOT_FOUND)?;
             Ok(script_info.scripthash)
         })
@@ -127,7 +125,7 @@ async fn run(
         .or(hd_key_route)
         .unify();
 
-    // GET /hd/:fingerprint/:index
+    // GET /hd/:checksum/:index
     // GET /address/:address
     // GET /scripthash/:scripthash
     let spk_handler = warp::get()
@@ -142,7 +140,7 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /hd/:fingerprint/:index/stats
+    // GET /hd/:checksum/:index/stats
     // GET /address/:address/stats
     // GET /scripthash/:scripthash/stats
     let spk_stats_handler = warp::get()
@@ -157,7 +155,7 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /hd/:fingerprint/:index/utxos
+    // GET /hd/:checksum/:index/utxos
     // GET /address/:address/utxos
     // GET /scripthash/:scripthash/utxos
     let spk_utxo_handler = warp::get()
@@ -172,7 +170,7 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /hd/:fingerprint/:index/txs
+    // GET /hd/:checksum/:index/txs
     // GET /address/:address/txs
     // GET /scripthash/:scripthash/txs
     let spk_txs_handler = warp::get()
@@ -187,7 +185,7 @@ async fn run(
         })
         .map(handle_error);
 
-    // GET /hd/:fingerprint/:index/txs/compact
+    // GET /hd/:checksum/:index/txs/compact
     // GET /address/:address/txs/compact
     // GET /scripthash/:scripthash/txs/compact
     let spk_txs_compact_handler = warp::get()
@@ -314,7 +312,7 @@ async fn run(
         )
         .map(handle_error);
 
-    // GET /hd/:fingerprint/:index/stream
+    // GET /hd/:checksum/:index/stream
     // GET /scripthash/:scripthash/stream
     // GET /address/:address/stream
     let spk_sse_handler = warp::get()

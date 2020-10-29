@@ -5,9 +5,9 @@ use serde::Serialize;
 
 use bitcoin::{Address, OutPoint, Txid};
 
-use crate::hd::KeyOrigin;
 use crate::types::{MempoolEntry, ScriptHash, TxStatus};
 use crate::util::remove_if;
+use crate::wallet::KeyOrigin;
 
 #[cfg(feature = "track-spends")]
 use crate::types::InPoint;

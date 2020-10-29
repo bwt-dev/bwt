@@ -4,7 +4,7 @@ use std::{thread, time};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::util::debounce_sender;
-use crate::{banner, Config, HDWallet, HDWatcher, Indexer, Query, Result};
+use crate::{banner, Config, Indexer, Query, Result, WalletWatcher};
 
 #[cfg(feature = "electrum")]
 use crate::electrum::ElectrumServer;
@@ -35,14 +35,14 @@ impl App {
     pub fn boot(config: Config) -> Result<Self> {
         debug!("{:?}", config);
 
-        let wallets = HDWallet::from_xpubs(
+        let watcher = WalletWatcher::from_config(
+            &config.descriptors[..],
             &config.xpubs[..],
             &config.bare_xpubs[..],
             config.network,
             config.gap_limit,
             config.initial_import_size,
         )?;
-        let watcher = HDWatcher::new(wallets);
 
         let rpc = Arc::new(RpcClient::new(
             config.bitcoind_url(),

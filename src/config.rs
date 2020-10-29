@@ -9,9 +9,10 @@ use bitcoin::Network;
 use bitcoincore_rpc::Auth as RpcAuth;
 
 use crate::error::{Context, OptionExt, Result};
-use crate::hd::XyzPubKey;
 use crate::query::QueryConfig;
 use crate::types::RescanSince;
+use crate::util::descriptor::ExtendedDescriptor;
+use crate::wallet::XyzPubKey;
 
 #[derive(StructOpt, Debug)]
 pub struct Config {
@@ -97,12 +98,23 @@ pub struct Config {
     pub bitcoind_cookie: Option<path::PathBuf>,
 
     #[structopt(
+        short = "D",
+        long = "descriptor",
+        help = "descriptors to track and since when (rescans from genesis by default,  use ?? to specify a timestmap, or <xpub>:none to disable rescan)",
+        parse(try_from_str = parse_descr),
+        env, hide_env_values(true),
+        use_delimiter(true), value_delimiter(";"),
+        display_order(20)
+    )]
+    pub descriptors: Vec<(ExtendedDescriptor, RescanSince)>,
+
+    #[structopt(
         short = "x",
         long = "xpub",
         help = "xpubs to track and since when (rescans from genesis by default, use <xpub>:<yyyy-mm-dd> or <xpub>:<unix-epoch> to specify a timestmap, or <xpub>:none to disable rescan)",
         parse(try_from_str = parse_xpub),
         env, hide_env_values(true), use_delimiter(true),
-        display_order(20)
+        display_order(21)
     )]
     pub xpubs: Vec<(XyzPubKey, RescanSince)>,
 
@@ -112,7 +124,7 @@ pub struct Config {
         help = "Bare xpubs to track (like --xpub, but does not derive separate internal/external chains)",
         parse(try_from_str = parse_xpub),
         env, hide_env_values(true), use_delimiter(true),
-        display_order(21)
+        display_order(22)
     )]
     pub bare_xpubs: Vec<(XyzPubKey, RescanSince)>,
 
@@ -354,6 +366,11 @@ fn apply_log_env(mut builder: LogBuilder) -> LogBuilder {
         builder.parse_write_style(&s);
     }
     builder
+}
+
+fn parse_descr(s: &str) -> Result<(ExtendedDescriptor, RescanSince)> {
+    // TODO rescan
+    Ok((s.parse()?, RescanSince::Timestamp(0)))
 }
 
 fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {

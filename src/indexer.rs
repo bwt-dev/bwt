@@ -11,19 +11,19 @@ use bitcoincore_rpc::json::{
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::Result;
-use crate::hd::{HDWatcher, KeyOrigin};
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
 use crate::types::{BlockId, InPoint, ScriptHash, TxStatus};
+use crate::wallet::{KeyOrigin, WalletWatcher};
 
 pub struct Indexer {
     rpc: Arc<RpcClient>,
-    watcher: HDWatcher,
+    watcher: WalletWatcher,
     store: MemoryStore,
     tip: Option<BlockId>,
 }
 
 impl Indexer {
-    pub fn new(rpc: Arc<RpcClient>, watcher: HDWatcher) -> Self {
+    pub fn new(rpc: Arc<RpcClient>, watcher: WalletWatcher) -> Self {
         Indexer {
             rpc,
             watcher,
@@ -36,7 +36,7 @@ impl Indexer {
         &self.store
     }
 
-    pub fn watcher(&self) -> &HDWatcher {
+    pub fn watcher(&self) -> &WalletWatcher {
         &self.watcher
     }
 
