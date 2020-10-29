@@ -21,13 +21,17 @@ pub struct WalletWatcher {
 }
 
 impl WalletWatcher {
-    pub fn new(wallets: Vec<Wallet>) -> Self {
-        Self {
-            wallets: wallets
-                .into_iter()
-                .map(|wallet| (wallet.checksum.clone(), wallet))
-                .collect(),
-        }
+    pub fn new(wallets: Vec<Wallet>) -> Result<Self> {
+        let num_wallets = wallets.len();
+        let wallets = wallets
+            .into_iter()
+            .map(|wallet| (wallet.checksum.clone(), wallet))
+            .collect::<HashMap<_, _>>();
+        ensure!(
+            wallets.len() == num_wallets,
+            "Descriptor checksum collision detected"
+        );
+        Ok(Self { wallets })
     }
 
     pub fn from_config(
@@ -79,7 +83,7 @@ impl WalletWatcher {
             error!("Please provide at least one wallet to track (via --descriptor, --xpub or --bare-xpub).");
             bail!("no xpubs provided");
         }
-        Ok(Self::new(wallets))
+        Self::new(wallets)
     }
 
     pub fn wallets(&self) -> &HashMap<Checksum, Wallet> {
