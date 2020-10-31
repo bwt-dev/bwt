@@ -13,7 +13,7 @@ use crate::error::{BwtError, Context, OptionExt, Result};
 use crate::indexer::{IndexChange, Indexer};
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
 use crate::types::{BlockId, MempoolEntry, ScriptHash, TxStatus};
-use crate::util::descriptor::Checksum;
+use crate::util::descriptor::{Checksum, DescriptorChecksum};
 use crate::util::make_fee_histogram;
 use crate::wallet::{KeyOrigin, Wallet};
 
@@ -426,7 +426,7 @@ impl Query {
         if let KeyOrigin::Descriptor(ref checksum, index) = script_info.origin {
             let wallet = indexer.watcher().get(checksum)?;
             let desc = wallet.derive(index);
-            script_info.desc = Some(desc.to_string());
+            script_info.desc = Some(desc.to_string_with_checksum());
             script_info.bip32_origins = Some(wallet.bip32_origins(index));
         }
         Some(script_info)

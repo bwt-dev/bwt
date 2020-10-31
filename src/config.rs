@@ -11,7 +11,7 @@ use bitcoincore_rpc::Auth as RpcAuth;
 use crate::error::{Context, OptionExt, Result};
 use crate::query::QueryConfig;
 use crate::types::RescanSince;
-use crate::util::descriptor::{parse_desc_checksum, ExtendedDescriptor};
+use crate::util::descriptor::{DescriptorChecksum, ExtendedDescriptor};
 use crate::util::xpub::XyzPubKey;
 
 #[derive(StructOpt, Debug)]
@@ -372,7 +372,7 @@ fn apply_log_env(mut builder: LogBuilder) -> LogBuilder {
 
 fn parse_desc(s: &str) -> Result<(ExtendedDescriptor, RescanSince)> {
     let mut parts = s.trim().splitn(2, '@');
-    let desc = parse_desc_checksum(parts.next().req()?)?;
+    let desc = ExtendedDescriptor::parse_with_checksum(parts.next().req()?)?;
     let rescan = parse_rescan(parts.next())?;
     Ok((desc, rescan))
 }

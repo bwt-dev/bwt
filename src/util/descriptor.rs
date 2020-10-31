@@ -86,34 +86,46 @@ impl DescKeyInfo {
     }
 }
 
-/// Parse a descriptor with an optional checksum suffix
-pub fn parse_desc_checksum(s: &str) -> Result<ExtendedDescriptor> {
-    let parts: Vec<&str> = s.splitn(2, '#').collect();
-    if parts.len() == 2 {
-        let desc_str = parts[0];
-        let desc = desc_str.parse::<ExtendedDescriptor>()?;
-        let provided_checksum = parts[1].parse::<Checksum>()?;
+pub trait DescriptorChecksum: Sized {
+    /// Encode to string with the `#checksum` suffix
+    fn to_string_with_checksum(&self) -> String;
+    /// Parse a descriptor with an optional checksum suffix
+    fn parse_with_checksum(s: &str) -> Result<Self>;
+}
 
-        // FIXME using canonical encoding should not be required, but the current implementation
-        // won't retain the checsum if the descriptor is encoded differently by rust-miniscript,
-        // which would result in an unexpected behaviour.
-        ensure!(
+impl DescriptorChecksum for ExtendedDescriptor {
+    fn to_string_with_checksum(&self) -> String {
+        format!("{}#{}", self, get_checksum(&self))
+    }
+
+    fn parse_with_checksum(s: &str) -> Result<ExtendedDescriptor> {
+        let parts: Vec<&str> = s.splitn(2, '#').collect();
+        if parts.len() == 2 {
+            let desc_str = parts[0];
+            let desc = desc_str.parse::<ExtendedDescriptor>()?;
+            let provided_checksum = parts[1].parse::<Checksum>()?;
+
+            // FIXME using canonical encoding should not be required, but the current implementation
+            // won't retain the checsum if the descriptor is encoded differently by rust-miniscript,
+            // which would result in an unexpected behaviour.
+            ensure!(
             desc.to_string() == desc_str,
             "Descriptors with explicit checksums must use canonical encoding. {} is expected to be encoded as `{}`",
             provided_checksum,
             desc.to_string()
         );
 
-        let actual_checksum = get_checksum(&desc);
-        ensure!(
-            provided_checksum == actual_checksum,
-            "Invalid descriptor checksum {}, expected {}",
-            provided_checksum,
-            actual_checksum,
-        );
-        Ok(desc)
-    } else {
-        Ok(s.parse()?)
+            let actual_checksum = get_checksum(&desc);
+            ensure!(
+                provided_checksum == actual_checksum,
+                "Invalid descriptor checksum {}, expected {}",
+                provided_checksum,
+                actual_checksum,
+            );
+            Ok(desc)
+        } else {
+            Ok(s.parse()?)
+        }
     }
 }
 

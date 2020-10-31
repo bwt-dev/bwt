@@ -6,7 +6,8 @@ use serde::Serialize;
 use bitcoin::{Address, OutPoint, Txid};
 
 use crate::types::{MempoolEntry, ScriptHash, TxStatus};
-use crate::util::{descriptor::ExtendedDescriptor, remove_if, xpub::Bip32Origin};
+use crate::util::descriptor::{DescriptorChecksum, ExtendedDescriptor};
+use crate::util::{remove_if, xpub::Bip32Origin};
 use crate::wallet::KeyOrigin;
 
 #[cfg(feature = "track-spends")]
@@ -410,8 +411,8 @@ impl MemoryStore {
 
 #[derive(Serialize, Debug, Clone)]
 pub struct ScriptInfo {
-    pub scripthash: ScriptHash,
     pub address: Address,
+    pub scripthash: ScriptHash,
     #[serde(skip_serializing_if = "KeyOrigin::is_standalone")]
     pub origin: KeyOrigin,
 
@@ -434,7 +435,7 @@ impl ScriptInfo {
             scripthash,
             address,
             origin,
-            desc: Some(desc.to_string()),
+            desc: Some(desc.to_string_with_checksum()),
             bip32_origins: Some(bip32_origins),
         }
     }
