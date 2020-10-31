@@ -211,6 +211,10 @@ pub struct Wallet {
     max_funded_index: Option<u32>,
     max_imported_index: Option<u32>,
     done_initial_import: bool,
+
+    // Used for optimized derivation for simple p2*pkh descriptors.
+    // Not available for more complex descriptor types.
+    optimized_xpub: Option<XyzPubKey>,
 }
 
 impl Wallet {
@@ -221,13 +225,14 @@ impl Wallet {
         initial_import_size: u32,
         rescan_policy: RescanSince,
     ) -> Result<Self> {
-        let keys_info = DescKeyInfo::extract(&desc, network)?;
-
         ensure!(
             desc.address(network).is_some(),
             "Descriptor does not have address representation: `{}`",
             desc
         );
+
+        let keys_info = DescKeyInfo::extract(&desc, network)?;
+        let optimized_xpub = XyzPubKey::try_from_desc(&desc);
 
         Ok(Self {
             checksum: Checksum::from(&desc),
@@ -242,6 +247,7 @@ impl Wallet {
             done_initial_import: false,
             max_funded_index: None,
             max_imported_index: None,
+            optimized_xpub,
         })
     }
 
@@ -349,9 +355,15 @@ impl Wallet {
     }
 
     pub fn derive_address(&self, index: u32) -> Address {
-        self.derive(index)
-            .address(self.network)
-            .expect("constructed Wallet must have address representation")
+        if let Some(optimized_xpub) = &self.optimized_xpub {
+            // Derive simple p2*pkh descriptors using the extended pubkey directly, which
+            // is *significantly* faster compared to invoking the full descriptor mechanism.
+            optimized_xpub.derive_address(index, self.network)
+        } else {
+            self.derive(index)
+                .address(self.network)
+                .expect("constructed Wallet must have address representation")
+        }
     }
 
     pub fn get_next_index(&self) -> u32 {

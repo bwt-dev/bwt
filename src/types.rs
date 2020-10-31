@@ -53,7 +53,7 @@ impl InPoint {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum ScriptType {
     P2pkh,

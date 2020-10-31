@@ -1,7 +1,6 @@
 use std::iter::FromIterator;
 use std::str::FromStr;
 
-use bitcoin::secp256k1::{self, Secp256k1};
 use bitcoin::Network;
 use miniscript::descriptor::{Descriptor, DescriptorPublicKey};
 
@@ -43,9 +42,6 @@ impl FromStr for Checksum {
 
 impl DescKeyInfo {
     pub fn extract(desc: &ExtendedDescriptor, network: Network) -> Result<Vec<DescKeyInfo>> {
-        lazy_static! {
-            static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
-        }
         let mut valid_networks = true;
         let mut keys_info = vec![];
 

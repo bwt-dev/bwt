@@ -2,6 +2,7 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::time::{Duration, Instant};
 use std::{sync::mpsc, thread};
 
+use bitcoin::secp256k1::{self, Secp256k1};
 use serde_json::Value;
 
 use bitcoin::Txid;
@@ -13,6 +14,10 @@ pub mod banner;
 pub mod bitcoincore_ext;
 pub mod descriptor;
 pub mod xpub;
+
+lazy_static! {
+    pub static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
+}
 
 const VSIZE_BIN_WIDTH: u32 = 50_000; // vbytes
 

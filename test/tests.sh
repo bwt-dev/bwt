@@ -1,6 +1,11 @@
 #!/bin/bash
 set -eo pipefail
 
+# Run unit tests
+cargo test
+
+# Run integration tests
+
 NO_FUNDING=1
 NO_WATCH=1
 INTERVAL=1
