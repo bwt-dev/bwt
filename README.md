@@ -232,7 +232,7 @@ For example, `--unix-listener-path /bitcoin/bwt-socket`.
 You may configure the gap limit with `--gap--limit <N>` (defaults to 20).
 The gap limit sets the maximum number of consecutive unused addresses to be imported before assuming there are no more used addresses to be discovered.
 
-You can import larger batches with a higher gap during the initial sync using `--initial-import-size <N>` (defaults to 500).
+You can import larger batches with a higher gap during the initial sync using `--initial-import-size <N>` (defaults to 350).
 Higher value means less rescans. Should be increased for large wallets.
 
 ##### Bitcoin Core multi-wallet
