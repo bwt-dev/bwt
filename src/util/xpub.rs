@@ -19,12 +19,11 @@ pub fn xpub_matches_network(xpub: &ExtendedPubKey, network: Network) -> bool {
 /// Used to represent SLIP 32 [xyz]pubs, as well as simple p2*pkh descriptors.
 #[derive(Clone)]
 pub struct XyzPubKey {
-    pub network: Network,
-    pub script_type: ScriptType,
-    pub extended_pubkey: ExtendedPubKey,
+    script_type: ScriptType,
+    xpub: ExtendedPubKey,
 }
 
-impl_string_serializer!(XyzPubKey, xpub, xpub.extended_pubkey.to_string());
+impl_string_serializer!(XyzPubKey, xyzpub, xyzpub.xpub.to_string());
 impl_debug_display!(XyzPubKey);
 
 #[derive(Clone, Debug)]
@@ -32,16 +31,16 @@ pub struct Bip32Origin(pub Fingerprint, pub DerivationPath);
 
 impl XyzPubKey {
     pub fn as_descriptor(&self, derivation_path: DerivationPath) -> ExtendedDescriptor {
-        let bip32_origin = (self.extended_pubkey.depth > 0).do_then(|| {
+        let bip32_origin = (self.xpub.depth > 0).do_then(|| {
             (
-                self.extended_pubkey.parent_fingerprint,
-                [self.extended_pubkey.child_number][..].into(),
+                self.xpub.parent_fingerprint,
+                [self.xpub.child_number][..].into(),
             )
         });
 
         let desc_key = DescriptorPublicKey::XPub(DescriptorXPub {
             origin: bip32_origin,
-            xpub: self.extended_pubkey,
+            xpub: self.xpub,
             derivation_path,
             is_wildcard: true,
         });
@@ -67,9 +66,8 @@ impl XyzPubKey {
         }
 
         Some(XyzPubKey {
-            network: desc_xpub.xpub.network,
             script_type,
-            extended_pubkey: desc_xpub
+            xpub: desc_xpub
                 .xpub
                 .derive_pub(&*EC, &desc_xpub.derivation_path)
                 .unwrap(),
@@ -79,7 +77,7 @@ impl XyzPubKey {
     /// Get the address of the key at the specified derivation index
     /// Panics if given a hardened child number
     pub fn derive_address(&self, index: u32, network: Network) -> Address {
-        let key = self.extended_pubkey.ckd_pub(&*EC, index.into()).unwrap();
+        let key = self.xpub.ckd_pub(&*EC, index.into()).unwrap();
         match self.script_type {
             ScriptType::P2pkh => Address::p2pkh(&key.public_key, network),
             ScriptType::P2wpkh => Address::p2wpkh(&key.public_key, network).unwrap(),
@@ -102,20 +100,15 @@ impl FromStr for XyzPubKey {
         // rust-bitcoin's bip32 implementation does not support ypubs/zpubs.
         // instead, figure out the network and script type ourselves and feed rust-bitcoin with a
         // modified faux xpub string that uses the regular p2pkh xpub version bytes it expects.
-        // TODO make extkeys seralize back to a string using their original version bytes
 
         let version = &data[0..4];
         let (network, script_type) = parse_xyz_version(version)?;
         data.splice(0..4, get_xpub_p2pkh_version(network).iter().cloned());
 
         let faux_xpub = base58::check_encode_slice(&data);
-        let extended_pubkey = faux_xpub.parse()?;
+        let xpub = faux_xpub.parse()?;
 
-        Ok(XyzPubKey {
-            network,
-            script_type,
-            extended_pubkey,
-        })
+        Ok(XyzPubKey { script_type, xpub })
     }
 }
 
@@ -134,14 +127,11 @@ impl From<&(Fingerprint, DerivationPath)> for Bip32Origin {
     }
 }
 impl From<&ExtendedPubKey> for Bip32Origin {
-    fn from(ext_key: &ExtendedPubKey) -> Self {
-        if ext_key.depth > 0 {
-            Self(
-                ext_key.parent_fingerprint,
-                [ext_key.child_number][..].into(),
-            )
+    fn from(xpub: &ExtendedPubKey) -> Self {
+        if xpub.depth > 0 {
+            Self(xpub.parent_fingerprint, [xpub.child_number][..].into())
         } else {
-            Self(ext_key.fingerprint(), [][..].into())
+            Self(xpub.fingerprint(), [][..].into())
         }
     }
 }
@@ -211,7 +201,7 @@ mod tests {
             let xyzpub_rt = XyzPubKey::try_from_desc(&desc).unwrap();
 
             assert_eq!(desc.to_string(), *expected_desc);
-            assert_eq!(xyzpub_rt.extended_pubkey, xyzpub.extended_pubkey);
+            assert_eq!(xyzpub_rt.xpub, xyzpub.xpub);
             assert_eq!(xyzpub_rt.script_type, xyzpub.script_type);
 
             let address = xyzpub.derive_address(9, net);
@@ -241,7 +231,7 @@ mod tests {
             let xyzpub = XyzPubKey::try_from_desc(&desc).unwrap();
             let desc_rt = xyzpub.as_descriptor([][..].into());
 
-            assert_eq!(xyzpub.extended_pubkey.to_string(), *expected_xpub);
+            assert_eq!(xyzpub.xpub.to_string(), *expected_xpub);
             assert_eq!(xyzpub.script_type, *expected_type);
 
             let address = desc.derive(9.into()).address(net).unwrap();

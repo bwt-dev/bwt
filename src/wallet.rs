@@ -11,7 +11,7 @@ use crate::error::{Context, Result};
 use crate::store::MemoryStore;
 use crate::types::RescanSince;
 use crate::util::descriptor::{Checksum, DescKeyInfo, ExtendedDescriptor};
-use crate::util::xpub::{xpub_matches_network, Bip32Origin, XyzPubKey};
+use crate::util::xpub::{Bip32Origin, XyzPubKey};
 
 const LABEL_PREFIX: &str = "bwt";
 
@@ -258,14 +258,6 @@ impl Wallet {
         initial_import_size: u32,
         rescan_policy: RescanSince,
     ) -> Result<Self> {
-        ensure!(
-            xpub_matches_network(&xpub.extended_pubkey, network),
-            "xpub network mismatch, {} is {} and not {}",
-            xpub,
-            xpub.network,
-            network
-        );
-
         Self::from_descriptor(
             xpub.as_descriptor([][..].into()),
             network,
@@ -282,13 +274,6 @@ impl Wallet {
         initial_import_size: u32,
         rescan_policy: RescanSince,
     ) -> Result<Vec<Self>> {
-        ensure!(
-            xpub_matches_network(&xpub.extended_pubkey, network),
-            "xpub network mismatch, {} is {} and not {}",
-            xpub,
-            xpub.network,
-            network
-        );
         Ok(vec![
             // external chain (receive)
             Self::from_descriptor(
