@@ -424,10 +424,13 @@ impl Query {
 
         // attach descriptor and bip32 origins information
         if let KeyOrigin::Descriptor(ref checksum, index) = script_info.origin {
-            let wallet = indexer.watcher().get(checksum)?;
-            let desc = wallet.derive(index);
-            script_info.desc = Some(desc.to_string_with_checksum());
-            script_info.bip32_origins = Some(wallet.bip32_origins(index));
+            if let Some(wallet) = indexer.watcher().get(checksum) {
+                // XXX optimize by replacing s/\*/index/ on the descriptor as a string,
+                //     instead of deriving a child descriptor?
+                let desc = wallet.derive(index);
+                script_info.desc = Some(desc.to_string_with_checksum());
+                script_info.bip32_origins = Some(wallet.bip32_origins(index));
+            }
         }
         Some(script_info)
     }
