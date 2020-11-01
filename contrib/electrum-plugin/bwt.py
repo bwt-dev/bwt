@@ -188,7 +188,7 @@ def proc_logger(proc, log_handler):
         line = line.decode('utf-8').strip()
         _logger.debug(line)
 
-        m = re.match(r"^(ERROR|WARN|INFO|DEBUG|TRACE) +([^ ]+) +> (.*)", line)
+        m = re.match(r"^(?:\d{4}-[\d-]+T[\d:.]+Z )?(ERROR|WARN|INFO|DEBUG|TRACE) +([^ ]+) +> (.*)", line)
 
         if m is not None:
             log_handler(*m.groups())
