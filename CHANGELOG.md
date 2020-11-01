@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Descriptor based tracking! ✨🎉 (#1)
+
+  You can now specify output script descriptors to track via `--descriptor <descriptor>`.
+  Descriptors are also used internally to represent user-provided `--xpub`s.
+
+  The HTTP API was updated to be fully descriptor-based. Wallets and wallet origins
+  are now identified by the descriptor checksum, addresses have descriptors associated with them,
+  and a new `bip32_origins` field is available based on the descriptor origin information.
+
+  NOTE: The `-d` CLI option was changed to mean `--descriptor` instead of `--bitcoind-dir`
+  (which is now available as `-r`).
+
 - Fix `blockchain.scripthash.listunspent` / `Query::list_unspent` to return an empty set
   instead of erroring when there's no history.
 
