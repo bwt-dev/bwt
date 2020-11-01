@@ -6,7 +6,6 @@ use serde::Serialize;
 use bitcoin::{Address, OutPoint, Txid};
 
 use crate::types::{MempoolEntry, ScriptHash, TxStatus};
-use crate::util::descriptor::{DescriptorChecksum, ExtendedDescriptor};
 use crate::util::{remove_if, xpub::Bip32Origin};
 use crate::wallet::KeyOrigin;
 
@@ -428,14 +427,14 @@ impl ScriptInfo {
         scripthash: ScriptHash,
         address: Address,
         origin: KeyOrigin,
-        desc: &ExtendedDescriptor,
+        desc: String,
         bip32_origins: Vec<Bip32Origin>,
     ) -> Self {
         ScriptInfo {
             scripthash,
             address,
             origin,
-            desc: Some(desc.to_string_with_checksum()),
+            desc: Some(desc),
             bip32_origins: Some(bip32_origins),
         }
     }

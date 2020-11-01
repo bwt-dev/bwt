@@ -105,11 +105,11 @@ impl DescriptorChecksum for ExtendedDescriptor {
             // won't retain the checsum if the descriptor is encoded differently by rust-miniscript,
             // which would result in an unexpected behaviour.
             ensure!(
-            desc.to_string() == desc_str,
-            "Descriptors with explicit checksums must use canonical encoding. {} is expected to be encoded as `{}`",
-            provided_checksum,
-            desc.to_string()
-        );
+                desc.to_string() == desc_str,
+                "Descriptors with explicit checksums must use canonical encoding. {} is expected to be encoded as `{}`",
+                provided_checksum,
+                desc.to_string()
+            );
 
             let actual_checksum = get_checksum(&desc);
             ensure!(

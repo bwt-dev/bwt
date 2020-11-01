@@ -79,10 +79,7 @@ macro_rules! cache_forever {
 
 macro_rules! some_or_ret {
     ($option:expr) => {
-        match $option {
-            Some(x) => x,
-            None => return,
-        }
+        some_or_ret!($option, ())
     };
 
     ($option:expr, $ret:expr) => {

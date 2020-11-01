@@ -14,7 +14,7 @@ use crate::indexer::{IndexChange, Indexer};
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
 use crate::types::{BlockId, MempoolEntry, ScriptHash, TxStatus};
 use crate::util::descriptor::{Checksum, DescriptorChecksum};
-use crate::util::make_fee_histogram;
+use crate::util::{make_fee_histogram, BoolThen};
 use crate::wallet::{KeyOrigin, Wallet};
 
 #[cfg(feature = "track-spends")]
@@ -500,7 +500,7 @@ impl Query {
                 scripthash,
                 address,
                 origin,
-                &desc,
+                desc.to_string_with_checksum(),
                 bip32_origins,
             ))
         } else {
@@ -563,11 +563,10 @@ impl TxDetail {
         let store = indexer.store();
         let tx_entry = store.get_tx_entry(txid)?;
 
-        let mempool_entry = if tx_entry.status.is_unconfirmed() {
-            store.get_mempool_entry(txid)
-        } else {
-            None
-        };
+        let mempool_entry = tx_entry
+            .status
+            .is_unconfirmed()
+            .and_then(|| store.get_mempool_entry(txid));
 
         let funding = tx_entry
             .funding
