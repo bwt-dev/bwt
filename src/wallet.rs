@@ -231,14 +231,16 @@ impl Wallet {
             desc
         );
 
+        let checksum = Checksum::from(&desc);
         let keys_info = DescKeyInfo::extract(&desc, network)?;
+        let is_ranged = keys_info.iter().any(|x| x.is_ranged);
         let optimized_xpub = XyzPubKey::try_from_desc(&desc);
 
         Ok(Self {
-            checksum: Checksum::from(&desc),
-            is_ranged: keys_info.iter().any(|x| x.is_ranged),
             desc,
+            checksum,
             keys_info,
+            is_ranged,
             network,
             gap_limit,
             // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
@@ -508,6 +510,7 @@ impl Serialize for Wallet {
         let bip32_origins: Vec<_> = self.keys_info.iter().map(|i| &i.bip32_origin).collect();
 
         let mut rgb = serializer.serialize_struct("Wallet", 3)?;
+
         rgb.serialize_field("desc", &desc_str)?;
         rgb.serialize_field("network", &self.network)?;
         rgb.serialize_field("is_ranged", &self.is_ranged)?;
@@ -516,6 +519,7 @@ impl Serialize for Wallet {
         rgb.serialize_field("done_initial_import", &self.done_initial_import)?;
         rgb.serialize_field("max_funded_index", &self.max_funded_index)?;
         rgb.serialize_field("max_imported_index", &self.max_imported_index)?;
+        rgb.serialize_field("satisfaction_weight", &self.desc.max_satisfaction_weight())?;
 
         if self.is_ranged {
             rgb.serialize_field("gap_limit", &self.gap_limit)?;

@@ -324,6 +324,7 @@ You can associate the wallets to their parent xpub using the `bip32_origins` fie
 - `max_funded_index` - the maximum derivation index that is known to have history
 - `max_imported_index` - the maximum derivation index imported into bitcoind
 - `done_initial_import` - a boolean indicating whether we're done importing addresses for this wallet
+- `satisfaction_weight` - an upper bound on the weight of a satisfying witness to the transaction (also see [here](https://docs.rs/miniscript/3.0.0/miniscript/descriptor/enum.Descriptor.html#method.max_satisfaction_weight))
 
 See [`GET /wallet/:checksum`](#get-walletchecksum) for an example.
 
