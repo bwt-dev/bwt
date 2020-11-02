@@ -413,8 +413,8 @@ Get basic information for the wallet child address at derivation index `index`.
 Returned fields:
 - `address`
 - `scripthash`
+- `origin` - descriptor wallet origin information in `<checksum>/<index>` format
 - `desc` - the descriptor for this address
-- `origin` - descriptor origin information in `<checksum>/<index>` format
 - `bip32_origins` - an array of bip32 origins for the derived keys at this index
 
 Examples:
@@ -496,18 +496,20 @@ Transaction fields:
 - `block_height` - the confirming block height or `null` for unconfirmed transactions
 - `funding` - contains an entry for every output created by this transaction that is owned by the wallet
   - `vout` - the output index
-  - `amount` - the output amount
-  - `scripthash` - the scripthash funded by this output
-  - `address` - the address funded by this output
-  - `origin` - descriptor wallet origin information in `<checksum>/<index>` format
+  - `amount` - the output amount in satoshis
+  - scriptPubKey fields
+    - `address` - the address funded by this output
+    - `scripthash` - the scripthash funded by this output
+    - `origin` - descriptor wallet origin information in `<checksum>/<index>` format
+    - `desc` - the descriptor for this script
+    - `bip32_origins` - an array of bip32 origins for this script keys
   - `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
 - `spending` - contains an entry for every input spending a wallet output
   - `vin` - the input index
-  - `amount` - the amount of the previous output spent by this input
-  - `scripthash` - the scripthash of the previous output spent by this input
-  - `address` - the address of the previous output spent by this input
-  - `origin` - descriptor wallet origin information in `<checksum>/<index>` format
+  - `amount` - the amount in satoshis of the previous output spent by this input
   - `prevout` - the `<txid>:<vout>` being spent
+  - scriptPubKey fields
+    - `address`, `scripthash`, `origin`, `desc`, `bip32_origins`<br>*(same format as above for `funding`)*
 - `balance_change` - the net change to the wallet balance inflicted by this transaction
 
 Additional fields for unconfirmed mempool transactions:
@@ -540,21 +542,25 @@ $ curl localhost:3060/tx/e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f6
   "funding": [
     {
       "vout": 1,
-      "scripthash": "6bf2d435bc4e020d839900d708f02c721728ca6793024919c2c5bc029c00f033",
-      "address": "bcrt1qu04qqzwkjvya65g2agwx5gnqvgzwpjkr6q5jvf",
-      "origin": "c0yk9vwe/6",
       "amount": 949373,
+      "address": "bcrt1qu04qqzwkjvya65g2agwx5gnqvgzwpjkr6q5jvf",
+      "scripthash": "6bf2d435bc4e020d839900d708f02c721728ca6793024919c2c5bc029c00f033",
+      "origin": "xjm8w0el/16",
+      "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/16)#dtxjzdej",
+      "bip32_origins": [ "80e042a9/0/16" ],
       "spent_by": "950cc16e572062fa16956c4244738b35ea7b05e16c8efbd6b9812d561d68be3a:0"
     }
   ],
   "spending": [
     {
       "vin": 0,
-      "scripthash": "a55c30f4f7d79600d568bdfa0b4f48cdce4e59b6ffbf286e99856c3e8699740d",
-      "address": "bcrt1qxsvdm3jmwr79u67d82s08uykw6a82agzy42c6y",
-      "origin": "c0yk9vwe/9",
       "amount": 1049514,
-      "prevout": "70650243572b90705f7fe95c9f30a85a0cc55e4ea3159a8ada5f4d62d9841d7b:1"
+      "prevout": "70650243572b90705f7fe95c9f30a85a0cc55e4ea3159a8ada5f4d62d9841d7b:1",
+      "address": "bcrt1qxsvdm3jmwr79u67d82s08uykw6a82agzy42c6y",
+      "scripthash": "a55c30f4f7d79600d568bdfa0b4f48cdce4e59b6ffbf286e99856c3e8699740d",
+      "origin": "xjm8w0el/19",
+      "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/19)#wjtzksqe",
+      "bip32_origins": [ "80e042a9/0/19" ]
     }
   ],
   "balance_change": -100141
@@ -707,8 +713,8 @@ Get basic information for the provided address, scripthash or descriptor index.
 Returned fields:
 - `address`
 - `scripthash`
+- `origin` - descriptor wallet origin information in `<checksum>/<index>` format
 - `desc` - the descriptor for this address
-- `origin` - descriptor origin information in `<checksum>/<index>` format
 - `bip32_origins` - an array of bip32 origins for the derived keys at this index
 
 Example:
@@ -734,11 +740,12 @@ Get basic information and stats for the provided address, scripthash or descript
 <details><summary>Expand...</summary><p></p>
 
 Returned fields:
-- `scripthash`
-- `address`
-- `desc`
-- `origin`
-- `bip32_origins`
+- scriptPubKey fields
+  - `address`
+  - `scripthash`
+  - `origin`
+  - `desc`
+  - `bip32_origins`
 - `tx_count`
 - `confirmed_balanace`
 - `unconfirmed_balanace`
@@ -777,9 +784,11 @@ $ curl localhost:3060/address/bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg/utxos
     "txid": "664fba0bcc745b05fda0fbf1f6fb6fc003afd82e64caad2c9fea0e3d566f6a58",
     "vout": 1,
     "amount": 1500000,
-    "scripthash": "4c1af417b86da82af887678c36c93d3d8de15a5930f326600e533bf3ab9d0339",
     "address": "bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg",
+    "scripthash": "4c1af417b86da82af887678c36c93d3d8de15a5930f326600e533bf3ab9d0339",
     "origin": "xjm8w0el/10",
+    "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/10)#v9use49n",
+    "bip32_origins": [ "80e042a9/0/10" ],
     "block_height": 114,
     "spent_by": null
   },
@@ -787,9 +796,11 @@ $ curl localhost:3060/address/bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg/utxos
     "txid": "3a1c4dea8d376a2762dd9be1d39f7f13376b4c9ccb961725574689183c20cb90",
     "vout": 1,
     "amount": 1440000,
-    "scripthash": "4c1af417b86da82af887678c36c93d3d8de15a5930f326600e533bf3ab9d0339",
     "address": "bc1qaxlg48awxth5k72ltgrjp6qyegzdmfkfupyhhg",
+    "scripthash": "4c1af417b86da82af887678c36c93d3d8de15a5930f326600e533bf3ab9d0339",
     "origin": "xjm8w0el/10",
+    "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/10)#v9use49n",
+    "bip32_origins": [ "80e042a9/0/10" ],
     "block_height": 115,
     "spent_by": null
   },
@@ -855,10 +866,13 @@ $ curl localhost:3060/scripthash/c511375da743d7f6276db6cdaf9f03d7244c74d5569c9a8
 
 - `txid` - the transaction funding this output
 - `vout` - the output index
-- `amount` - the output amount
-- `scripthash` - the scripthash funded by this output
-- `address` - the address funded by this output
-- `origin` - wallet origin information in `<checksum>/<index>` format
+- `amount` - the output amount in satoshis
+- scriptPubKey fields
+  - `address` - the address funded by this output
+  - `scripthash` - the scripthash funded by this output
+  - `origin` - descriptor wallet origin information in `<checksum>/<index>` format
+  - `desc` - the descriptor for the funded script
+  - `bip32_origins` - an array of bip32 origins for this script keys
 - `block_height` - the confirming block height or `null` for unconfirmed transactions
 - `spent_by` - the transaction input spending this output in `txid:vin` format, or `null` for unspent outputs (only available with `track-spends`)
 
@@ -880,6 +894,8 @@ $ curl localhost:3060/txo/1b1170ac5996df9255299ae47b26ec3ad57c9801bc7bae68203b12
   "scripthash": "d7a6ac0b7af9fe218f24019dc2fe7919bd14fb56694056528464326a44917d20",
   "address": "bc1qrkud59a02lacfsa8hlp6yhg7qed30f2w7g2eh3",
   "origin": "xjm8w0el/32,
+  "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/32)#v9use49n",
+  "bip32_origins": [ "80e042a9/0/32" ],
   "block_height": 654712,
   "spent_by": null
 }

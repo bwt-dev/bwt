@@ -241,7 +241,7 @@ impl Query {
     }
 
     pub fn get_tx_detail(&self, txid: &Txid) -> Option<TxDetail> {
-        TxDetail::make(txid, &self.indexer.read().unwrap())
+        TxDetail::make(txid, &self)
     }
 
     //
@@ -332,6 +332,7 @@ impl Query {
             Ok(vec![])
         );
 
+        let indexer = self.indexer.read().unwrap();
         Ok(unspents
             .into_iter()
             .filter_map(|unspent| {
@@ -340,7 +341,9 @@ impl Query {
                     let address = unspent.address.as_ref()?;
                     let label = unspent.label.as_ref()?;
                     let origin = KeyOrigin::from_label(label)?;
-                    Some(ScriptInfo::from_address(address, origin))
+                    let mut script_info = ScriptInfo::from_address(address, origin);
+                    attach_wallet_info(&mut script_info, &indexer);
+                    Some(script_info)
                 })?;
                 Some(Txo::from_unspent(unspent, script_info, tip_height))
             })
@@ -363,11 +366,8 @@ impl Query {
             None => None,
             // if the scripthash can't be found, it means it has no history.
             Some(scripthash) => {
-                let indexer = self.indexer.read().unwrap();
-                Some(some_or_ret!(
-                    indexer.store().get_script_info(scripthash),
-                    Ok(None)
-                ))
+                let script_info = some_or_ret!(self.get_script_info(scripthash), Ok(None));
+                Some(script_info)
             }
         };
 
@@ -400,7 +400,7 @@ impl Query {
         let store = indexer.store();
 
         let FundingInfo(scripthash, amount) = store.lookup_txo_fund(outpoint)?;
-        let script_info = store.get_script_info(&scripthash).unwrap();
+        let script_info = self.get_script_info(&scripthash).unwrap();
         let status = store.get_tx_status(&outpoint.txid)?;
 
         Some(Txo {
@@ -421,17 +421,8 @@ impl Query {
     pub fn get_script_info(&self, scripthash: &ScriptHash) -> Option<ScriptInfo> {
         let indexer = self.indexer.read().unwrap();
         let mut script_info = indexer.store().get_script_info(scripthash)?;
+        attach_wallet_info(&mut script_info, &indexer);
 
-        // attach descriptor and bip32 origins information
-        if let KeyOrigin::Descriptor(ref checksum, index) = script_info.origin {
-            if let Some(wallet) = indexer.watcher().get(checksum) {
-                // XXX optimize by replacing s/\*/index/ on the descriptor as a string,
-                //     instead of deriving a child descriptor?
-                let desc = wallet.derive(index);
-                script_info.desc = Some(desc.to_string_with_checksum());
-                script_info.bip32_origins = Some(wallet.bip32_origins(index));
-            }
-        }
         Some(script_info)
     }
 
@@ -515,6 +506,19 @@ impl Query {
     }
 }
 
+// Attach descriptor and bip32 origin information when available
+fn attach_wallet_info(script_info: &mut ScriptInfo, indexer: &Indexer) {
+    if let KeyOrigin::Descriptor(ref checksum, index) = script_info.origin {
+        if let Some(wallet) = indexer.watcher().get(checksum) {
+            // XXX optimize by replacing s/\*/index/ on the descriptor as a string,
+            //     instead of deriving a child descriptor?
+            let desc = wallet.derive(index);
+            script_info.desc = Some(desc.to_string_with_checksum());
+            script_info.bip32_origins = Some(wallet.bip32_origins(index));
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct Txo {
     pub txid: Txid,
@@ -559,7 +563,8 @@ pub struct TxDetail {
 }
 
 impl TxDetail {
-    fn make(txid: &Txid, indexer: &Indexer) -> Option<Self> {
+    fn make(txid: &Txid, query: &Query) -> Option<Self> {
+        let indexer = query.indexer.read().unwrap();
         let store = indexer.store();
         let tx_entry = store.get_tx_entry(txid)?;
 
@@ -574,7 +579,7 @@ impl TxDetail {
             .map(|(vout, FundingInfo(scripthash, amount))| {
                 TxDetailFunding {
                     vout: *vout,
-                    script_info: store.get_script_info(scripthash).unwrap(), // must exists
+                    script_info: query.get_script_info(scripthash).unwrap(), // must exists
                     amount: *amount,
                     #[cfg(feature = "track-spends")]
                     spent_by: store.lookup_txo_spend(&OutPoint::new(*txid, *vout)),
@@ -588,7 +593,7 @@ impl TxDetail {
             .map(|(vin, SpendingInfo(scripthash, prevout, amount))| {
                 TxDetailSpending {
                     vin: *vin,
-                    script_info: store.get_script_info(scripthash).unwrap(), // must exists
+                    script_info: query.get_script_info(scripthash).unwrap(), // must exists
                     amount: *amount,
                     prevout: *prevout,
                 }
