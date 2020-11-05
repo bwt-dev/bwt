@@ -1,28 +1,36 @@
+use bwt::types::RescanSince;
 use bwt::{App, Config, Result};
-use structopt::StructOpt;
-
-// WARNING: The Rust API is still being evolved and is likely to break compatibility.
-// Use the HTTP API if you want stronger backwards compatibility guarantees.
 
 fn main() -> Result<()> {
+    let my_desc = "wpkh(tpubD6NzVbkrYhZ4Ya1aR2od7JTGK6b44cwKhWzrvrTeTWFrzGokdAGHrZLK6BdYwpx9K7EoY38LzHva3SWwF8yRrXM9x9DQ3jCGKZKt1nQEz7n/0/*)";
+
     // Initialize the config
-    let config = Config::from_args();
+    let config = Config {
+        network: bitcoin::Network::Regtest,
+        bitcoind_dir: Some("/home/satoshi/.bitcoin".into()),
+        bitcoind_wallet: Some("bwt".into()),
+        electrum_rpc_addr: Some("127.0.0.1:0".parse().unwrap()),
+        descriptors: vec![(my_desc.parse().unwrap(), RescanSince::Timestamp(0))],
+        verbose: 2,
+        ..Default::default()
+    };
     config.setup_logger(); // optional
 
-    // Boot up bwt. Blocks the thread until the initial sync is completed.
+    // Boot up bwt. The thread will be blocked until the initial sync is completed
     let app = App::boot(config)?;
 
     // The index is now ready for querying
     let query = app.query();
-    println!("{:?}", query.get_tip()?);
+    log::info!("synced up to {:?}", query.get_tip()?);
+    log::info!("utxos: {:?}", query.list_unspent(None, 0, None)?);
+    log::info!("electrum server running on {}", app.electrum_addr());
 
     // Start syncing new blocks/transactions in the background
     let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || app.sync(Some(shutdown_rx)));
 
-    // You can shutdown the app by sending a message to `shutdown_tx`.
-    // This will also happen automatically when its dropped out of scope.
-    shutdown_tx.send(());
+    // To shutdown the syncing thread, send a message to `shutdown_tx` or let it drop out of scope
+    shutdown_tx.send(()).unwrap();
 
     Ok(())
 }

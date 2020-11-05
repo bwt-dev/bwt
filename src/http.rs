@@ -540,8 +540,8 @@ impl HttpServer {
         })
     }
 
-    pub fn addr(&self) -> &net::SocketAddr {
-        &self.addr
+    pub fn addr(&self) -> net::SocketAddr {
+        self.addr
     }
 }
 

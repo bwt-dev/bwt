@@ -153,6 +153,16 @@ impl App {
         self.query.clone()
     }
 
+    #[cfg(feature = "electrum")]
+    pub fn electrum_addr(&self) -> net::SocketAddr {
+        self.electrum.addr()
+    }
+
+    #[cfg(feature = "http")]
+    pub fn http_addr(&self) -> net::SocketAddr {
+        self.http.addr()
+    }
+
     // Pipe the shutdown receiver `rx` to trigger `sync_tx`. This is needed to start the next
     // sync loop run immediately, which will then process the shutdown signal itself. Without
     // this, the shutdown signal will only be noticed after a delay.
