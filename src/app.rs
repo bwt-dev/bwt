@@ -66,7 +66,7 @@ impl App {
 
         let (sync_tx, sync_rx) = mpsc::channel();
         // debounce sync message rate to avoid excessive indexing when bitcoind catches up
-        let sync_tx = debounce_sender(sync_tx, DEBOUNCE_SEC);
+        let debounced_sync_tx = debounce_sender(sync_tx.clone(), DEBOUNCE_SEC);
 
         #[cfg(feature = "electrum")]
         let electrum = ElectrumServer::start(
@@ -80,13 +80,13 @@ impl App {
             config.http_server_addr,
             config.http_cors.clone(),
             query.clone(),
-            sync_tx.clone(),
+            debounced_sync_tx.clone(),
         );
 
         #[cfg(unix)]
         {
             if let Some(listener_path) = &config.unix_listener_path {
-                listener::start(listener_path.clone(), sync_tx.clone());
+                listener::start(listener_path.clone(), debounced_sync_tx.clone());
             }
         }
 
@@ -108,8 +108,19 @@ impl App {
     }
 
     /// Start a sync loop blocking the current thread
-    pub fn sync(self) {
+    pub fn sync(&self, shutdown_rx: Option<mpsc::Receiver<()>>) {
+        let shutdown_rx = shutdown_rx
+            .map(|rx| self.pipe_shutdown(rx))
+            .or_else(|| self.default_shutdown_signal());
+
         loop {
+            if let Some(shutdown_rx) = &shutdown_rx {
+                match shutdown_rx.try_recv() {
+                    Err(mpsc::TryRecvError::Empty) => (),
+                    Ok(()) | Err(mpsc::TryRecvError::Disconnected) => break,
+                }
+            }
+
             #[allow(clippy::option_map_unit_fn)]
             match self.indexer.write().unwrap().sync() {
                 Ok(updates) if !updates.is_empty() => {
@@ -128,7 +139,8 @@ impl App {
                 Err(e) => warn!("error while updating index: {:#?}", e),
             }
 
-            // wait for poll_interval seconds, or until we receive a sync notification message
+            // wait for poll_interval seconds, or until we receive a sync notification message,
+            // or until the shutdown signal is emitted
             self.sync_chan
                 .1
                 .recv_timeout(self.config.poll_interval)
@@ -139,6 +151,44 @@ impl App {
     /// Get the `Query` instance
     pub fn query(&self) -> Arc<Query> {
         self.query.clone()
+    }
+
+    // Pipe the shutdown receiver `rx` to trigger `sync_tx`. This is needed to start the next
+    // sync loop run immediately, which will then process the shutdown signal itself. Without
+    // this, the shutdown signal will only be noticed after a delay.
+    fn pipe_shutdown(&self, rx: mpsc::Receiver<()>) -> mpsc::Receiver<()> {
+        let sync_tx = self.sync_chan.0.clone();
+        let (c_tx, c_rx) = mpsc::sync_channel(1);
+        thread::spawn(move || {
+            rx.recv().ok();
+            c_tx.send(()).unwrap();
+            sync_tx.send(()).unwrap();
+        });
+        c_rx
+    }
+
+    #[cfg(unix)]
+    fn default_shutdown_signal(&self) -> Option<mpsc::Receiver<()>> {
+        use signal_hook::iterator::Signals;
+
+        let signals = Signals::new(&[signal_hook::SIGINT, signal_hook::SIGTERM]).unwrap();
+        let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
+        let sync_tx = self.sync_chan.0.clone();
+
+        thread::spawn(move || {
+            let signal = signals.into_iter().next().unwrap();
+            trace!("received shutdown signal {}", signal);
+            shutdown_tx.send(()).unwrap();
+            // Need to also trigger `sync_tx`, see rational above
+            sync_tx.send(()).unwrap();
+        });
+
+        Some(shutdown_rx)
+    }
+
+    #[cfg(not(unix))]
+    fn default_shutdown_signal(&self) -> Option<mpsc::Receiver<()>> {
+        None
     }
 }
 

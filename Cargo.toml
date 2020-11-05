@@ -40,6 +40,8 @@ tokio = { version = "0.2.20", features = ["macros"], optional = true }
 warp = { version = "0.2.3", optional = true }
 reqwest = { version = "0.10.6", optional = true, features = ["json", "blocking"] }
 
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.1.16"
 
 # Statically link OpenSSL when cross-compiling to ARM
 # OpenSSL is currently disabled on ARM, see https://github.com/shesek/bwt/issues/52

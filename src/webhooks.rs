@@ -34,6 +34,7 @@ impl WebHookNotifier {
                             .ok();
                     }
                 }
+                trace!("webhooks shutting down");
             }),
             tx,
             num_urls,

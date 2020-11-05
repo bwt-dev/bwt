@@ -2,9 +2,9 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::time::{Duration, Instant};
 use std::{sync::mpsc, thread};
 
-use bitcoin::secp256k1::{self, Secp256k1};
 use serde_json::Value;
 
+use bitcoin::secp256k1::{self, Secp256k1};
 use bitcoin::Txid;
 
 #[macro_use]
@@ -82,10 +82,12 @@ pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sen
     let (debounce_tx, debounce_rx) = mpsc::channel();
 
     thread::spawn(move || {
-        loop {
+        'outer: loop {
             let tick_start = Instant::now();
             // always wait for the first sync message to arrive first
-            debounce_rx.recv().unwrap();
+            if debounce_rx.recv().is_err() {
+                break 'outer;
+            }
             if tick_start.elapsed() < duration {
                 // if duration hasn't passed, debounce for another `duration` seconds
                 loop {
@@ -95,13 +97,16 @@ pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sen
                         Ok(()) => continue,
                         // if we timed-out, we're good!
                         Err(mpsc::RecvTimeoutError::Timeout) => break,
-                        Err(mpsc::RecvTimeoutError::Disconnected) => panic!(),
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break 'outer,
                     }
                 }
             }
             info!(target: "bwt::real-time", "triggering real-time index sync");
-            forward_tx.send(()).unwrap();
+            if forward_tx.send(()).is_err() {
+                break 'outer;
+            }
         }
+        trace!(target: "bwt::real-time", "debounce sync thread shutting down");
     });
 
     debounce_tx

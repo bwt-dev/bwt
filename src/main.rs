@@ -9,7 +9,7 @@ fn main() -> Result<()> {
     config.setup_logger();
 
     let app = App::boot(config)?;
-    app.sync();
+    app.sync(None);
 
     Ok(())
 }

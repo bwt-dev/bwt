@@ -24,9 +24,13 @@ fn bind_listener(socket_path: PathBuf, sync_tx: mpsc::Sender<()>) -> std::io::Re
     let listener = UnixListener::bind(socket_path)?;
     for stream in listener.incoming() {
         trace!("received sync notification via unix socket");
-        sync_tx.send(()).unwrap();
         // drop the connection, ignore any errors
         stream.and_then(|s| s.shutdown(net::Shutdown::Both)).ok();
+
+        if sync_tx.send(()).is_err() {
+            break;
+        }
+        // FIXME the listener thread won't be closed until it receives a connection and attempts to send()
     }
     Ok(())
 }
