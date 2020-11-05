@@ -112,6 +112,17 @@ pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sen
     debounce_tx
 }
 
+/// Wait for the future to resolve, blocking the current thread until it does
+#[cfg(feature = "tokio")]
+pub fn block_on_future<F: std::future::Future>(future: F) -> F::Output {
+    let mut rt = tokio::runtime::Builder::new()
+        .basic_scheduler()
+        .enable_all()
+        .build()
+        .unwrap();
+    rt.block_on(future)
+}
+
 pub trait BoolThen {
     // Similar to https://doc.rust-lang.org/std/primitive.bool.html#method.then (nightly only)
     fn do_then<T>(self, f: impl FnOnce() -> T) -> Option<T>;
