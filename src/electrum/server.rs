@@ -476,6 +476,7 @@ pub enum Notification {
 
 pub struct ElectrumServer {
     notification: Sender<Notification>,
+    addr: SocketAddr,
     server: Option<thread::JoinHandle<()>>, // so we can join the server while dropping this ojbect
 }
 
@@ -499,38 +500,40 @@ impl ElectrumServer {
         });
     }
 
-    fn start_acceptor(addr: SocketAddr) -> Channel<Option<(TcpStream, SocketAddr)>> {
+    fn start_acceptor(addr: SocketAddr) -> (SocketAddr, Channel<Option<(TcpStream, SocketAddr)>>) {
+        let listener = TcpListener::bind(addr)
+            .with_context(|| format!("bind({}) failed", addr))
+            .unwrap();
+        let bound_addr = listener.local_addr().unwrap();
+        info!(
+            target: LT,
+            "Electrum RPC server running on {} (protocol {})", bound_addr, PROTOCOL_VERSION
+        );
+
         let chan = Channel::unbounded();
         let acceptor = chan.sender();
-        spawn_thread("acceptor", move || {
-            let listener =
-                TcpListener::bind(addr).unwrap_or_else(|e| panic!("bind({}) failed: {}", addr, e));
-            info!(
-                target: LT,
-                "Electrum RPC server running on {} (protocol {})", addr, PROTOCOL_VERSION
-            );
-            loop {
-                let (stream, addr) = listener.accept().expect("accept failed");
-                stream
-                    .set_nonblocking(false)
-                    .expect("failed to set connection as blocking");
-                acceptor.send(Some((stream, addr))).expect("send failed");
-            }
+        spawn_thread("acceptor", move || loop {
+            let (stream, addr) = listener.accept().expect("accept failed");
+            stream
+                .set_nonblocking(false)
+                .expect("failed to set connection as blocking");
+            acceptor.send(Some((stream, addr))).expect("send failed");
         });
-        chan
+        (bound_addr, chan)
     }
 
     pub fn start(addr: SocketAddr, skip_merkle: bool, query: Arc<Query>) -> Self {
         let notification = Channel::unbounded();
+        let (bound_addr, acceptor) = Self::start_acceptor(addr);
         Self {
             notification: notification.sender(),
+            addr: bound_addr,
             server: Some(spawn_thread("rpc", move || {
                 let subman = Arc::new(Mutex::new(SubscriptionManager {
                     next_id: 0,
                     subscribers: HashMap::new(),
                     query: query.clone(),
                 }));
-                let acceptor = Self::start_acceptor(addr);
                 Self::start_notifier(notification, subman.clone(), acceptor.sender());
                 let mut children = vec![];
                 while let Some((stream, addr)) = acceptor.receiver().recv().unwrap() {
@@ -584,6 +587,10 @@ impl ElectrumServer {
         if let Some(server) = self.server.take() {
             server.join().unwrap()
         }
+    }
+
+    pub fn addr(&self) -> &SocketAddr {
+        &self.addr
     }
 }
 
