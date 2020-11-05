@@ -256,6 +256,20 @@ pub struct Config {
     pub webhook_urls: Option<Vec<String>>,
 }
 
+defaultable!(Config,
+  @default(verbose, timestamp, bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie,
+           descriptors, xpubs, bare_xpubs, broadcast_cmd, startup_banner,
+           #[cfg(feature = "electrum")] electrum_rpc_addr,
+           #[cfg(feature = "electrum")] electrum_skip_merkle,
+           #[cfg(feature = "http")] http_cors,
+           #[cfg(feature = "webhooks")] webhook_urls,
+           #[cfg(unix)] unix_listener_path,
+  )
+  @custom(network=Network::Bitcoin, gap_limit=20, initial_import_size=350, poll_interval=time::Duration::from_secs(5),
+          #[cfg(feature = "http")] http_server_addr=([127,0,0,1],3060).into(),
+  )
+);
+
 impl Config {
     pub fn dotenv() {
         dirs::home_dir().map(|home| dotenv::from_path(home.join("bwt.env")).ok());

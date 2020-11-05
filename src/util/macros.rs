@@ -90,6 +90,26 @@ macro_rules! some_or_ret {
     };
 }
 
+// Create a Default implementation that uses the default value for some fields,
+// and custom values for others. From https://stackoverflow.com/a/60002926,
+// enhanced with support for custom #[] attrs
+macro_rules! defaultable{
+    (
+        $t: ty,
+        @default($( $( #[$default_attrs:meta] )? $default_field:ident,)*)
+        @custom($( $( #[$custom_attrs:meta] )? $custom_field:ident = $custom_value:expr,)*)
+    )
+    => {
+    impl Default for $t {
+        fn default() -> Self {
+            Self {
+                $( $( #[$default_attrs] )? $default_field: Default::default(),)*
+                $( $( #[$custom_attrs] )? $custom_field: $custom_value,)*
+            }
+        }
+    }
+}}
+
 // Construct an efficient balanced Or tree of warp filters
 // From https://github.com/seanmonstar/warp/issues/619,
 // which includes a commented version of this macro

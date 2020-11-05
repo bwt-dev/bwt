@@ -1,5 +1,5 @@
 use std::sync::{mpsc, Arc, RwLock};
-use std::{thread, time};
+use std::{net, thread, time};
 
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
