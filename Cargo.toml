@@ -23,25 +23,29 @@ bitcoin = { version = "0.25.2", features = [ "use-serde" ] }
 bitcoin_hashes = { version = "0.9.0", features = [ "serde" ] }
 bitcoincore-rpc = "0.12.0"
 miniscript = "3.0.0"
-chrono = { version = "0.4.11", default-features = false }
+chrono = { version = "0.4.19", default-features = false }
 dotenv = "0.15.0"
-dirs = "3.0.0"
+dirs = "3.0.1"
 hex = "0.4.2"
-serde = { version = "1.0.113", features = [ "derive" ] }
-serde_json = "1.0.55"
+serde = { version = "1.0.117", features = [ "derive" ] }
+serde_json = "1.0.59"
 lazy_static = "1.4.0"
-anyhow = "1.0.31"
-log = "0.4.8"
+anyhow = "1.0.34"
+log = "0.4.11"
 pretty_env_logger = "0.4.0"
-structopt = "0.3.15"
-thiserror = "1.0.20"
+structopt = "0.3.20"
+thiserror = "1.0.22"
 
-tokio = { version = "0.2.20", features = ["macros"], optional = true }
-warp = { version = "0.2.3", optional = true }
-reqwest = { version = "0.10.6", optional = true, features = ["json", "blocking"] }
+tokio = { version = "0.2.22", features = ["macros"], optional = true }
+warp = { version = "0.2.5", optional = true }
+reqwest = { version = "0.10.8", optional = true, features = ["json", "blocking"] }
 
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.1.16"
+
+#[patch.crates-io]
+#bitcoincore-rpc = { path = "../rust-bitcoincore-rpc/client" }
+#warp = { path = "/tmp/warp" }
 
 # Statically link OpenSSL when cross-compiling to ARM
 # OpenSSL is currently disabled on ARM, see https://github.com/shesek/bwt/issues/52
