@@ -311,10 +311,10 @@ fn setup(
     // GET /scripthash/:scripthash/stream
     // GET /address/:address/stream
     let spk_sse_handler = warp::get()
-        .and(spk_route.clone())
+        .and(spk_route)
         .and(warp::path!("stream"))
         .and(ChangelogFilter::param())
-        .and(listeners.clone())
+        .and(listeners)
         .and(query.clone())
         .map(
             |scripthash: ScriptHash,
@@ -410,14 +410,14 @@ fn setup(
     // GET /banner.txt
     let banner_handler = warp::get()
         .and(warp::path!("banner.txt"))
-        .and(query.clone())
+        .and(query)
         .map(|query: Arc<Query>| banner::get_welcome_banner(&query, true))
         .map(handle_error);
 
     // POST /sync
     let sync_handler = warp::post()
         .and(warp::path!("sync"))
-        .and(sync_tx.clone())
+        .and(sync_tx)
         .map(|sync_tx: SyncChanSender| {
             info!("received sync notification");
             sync_tx.lock().unwrap().send(())?;

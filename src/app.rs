@@ -86,7 +86,7 @@ impl App {
         #[cfg(unix)]
         {
             if let Some(listener_path) = &config.unix_listener_path {
-                listener::start(listener_path.clone(), debounced_sync_tx.clone());
+                listener::start(listener_path.clone(), debounced_sync_tx);
             }
         }
 

@@ -350,6 +350,7 @@ impl Query {
             .collect())
     }
 
+    #[allow(clippy::type_complexity)]
     fn list_unspent_raw(
         &self,
         scripthash: Option<&ScriptHash>,

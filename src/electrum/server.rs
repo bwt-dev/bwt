@@ -567,11 +567,13 @@ impl ElectrumServer {
     pub fn send_updates(&self, changelog: &[IndexChange]) {
         let changelog: Vec<IndexChange> = changelog
             .iter()
-            .filter(|change| match change {
-                IndexChange::ChainTip(..)
-                | IndexChange::TxoFunded(..)
-                | IndexChange::TxoSpent(..) => true,
-                _ => false,
+            .filter(|change| {
+                matches!(
+                    change,
+                    IndexChange::ChainTip(..)
+                        | IndexChange::TxoFunded(..)
+                        | IndexChange::TxoSpent(..)
+                )
             })
             .cloned()
             .collect();
