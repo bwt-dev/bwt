@@ -55,7 +55,7 @@ pub fn make_fee_histogram(mempool_entries: HashMap<Txid, Value>) -> Vec<(f32, u3
     }
 
     if bin_size > 0 {
-       histogram.push((last_feerate, bin_size));
+        histogram.push((last_feerate, bin_size));
     }
 
     histogram

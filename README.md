@@ -1211,7 +1211,7 @@ Dumps the contents of the index store as a debug string.
 #### `GET /banner.txt`
 
 Get the welcome banner text.
-([example](https://gist.githubusercontent.com/shesek/4986c4291df1a7c6de62c20bc72e58bf/raw/42539cd10f1836ae511f4c2ec7b4fc82ad52252a/bwt-welcome-banner.txt))
+(see [live example here](https://bwt.dev/banner.txt), or a [static one here](https://gist.githubusercontent.com/shesek/4986c4291df1a7c6de62c20bc72e58bf/raw/42539cd10f1836ae511f4c2ec7b4fc82ad52252a/bwt-welcome-banner.txt))
 
 ## Web Hooks
 
