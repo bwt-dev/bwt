@@ -1,0 +1,27 @@
+{
+  "name": "bwt-daemon",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shesek/bwt.git"
+  },
+  "keywords": [
+    "bwt"
+  ],
+  "author": "Nadav Ivgi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/shesek/bwt/issues"
+  },
+  "homepage": "https://github.com/shesek/bwt#readme",
+  "dependencies": {
+    "debug": "^4.2.0",
+    "ffi-napi": "^3.0.1",
+    "ref-napi": "^3.0.1"
+  }
+}
