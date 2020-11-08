@@ -517,7 +517,10 @@ impl ElectrumServer {
             stream
                 .set_nonblocking(false)
                 .expect("failed to set connection as blocking");
-            acceptor.send(Some((stream, addr))).expect("send failed");
+            if acceptor.send(Some((stream, addr))).is_err() {
+                trace!(target: LT, "acceptor shutting down");
+                break;
+            }
         });
         (bound_addr, chan)
     }
