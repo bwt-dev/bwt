@@ -14,7 +14,7 @@ use crate::types::RescanSince;
 use crate::util::descriptor::{DescriptorChecksum, ExtendedDescriptor};
 use crate::util::xpub::XyzPubKey;
 
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt, Debug, Deserialize)]
 pub struct Config {
     #[structopt(
         short = "n",
@@ -25,6 +25,7 @@ pub struct Config {
         hide_env_values(true),
         display_order(1)
     )]
+    #[serde(default = "default_network")]
     pub network: Network,
 
     // cannot be set using an env var, it does not play nicely with from_occurrences
@@ -35,6 +36,7 @@ pub struct Config {
         parse(from_occurrences),
         display_order(98)
     )]
+    #[serde(default = "default_verbose")]
     pub verbose: usize,
 
     // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
@@ -44,6 +46,7 @@ pub struct Config {
         help = "Show timestmaps in log messages",
         display_order(99)
     )]
+    #[serde(default = "default_false")]
     pub timestamp: bool,
 
     #[structopt(
@@ -106,6 +109,7 @@ pub struct Config {
         use_delimiter(true), value_delimiter(";"),
         display_order(20)
     )]
+    #[serde(default = "default_empty_vec")]
     pub descriptors: Vec<(ExtendedDescriptor, RescanSince)>,
 
     #[structopt(
@@ -117,6 +121,7 @@ pub struct Config {
         use_delimiter(true), value_delimiter(";"),
         display_order(21)
     )]
+    #[serde(default = "default_empty_vec")]
     pub xpubs: Vec<(XyzPubKey, RescanSince)>,
 
     #[structopt(
@@ -127,6 +132,7 @@ pub struct Config {
         env, hide_env_values(true), use_delimiter(true),
         display_order(22)
     )]
+    #[serde(default = "default_empty_vec")]
     pub bare_xpubs: Vec<(XyzPubKey, RescanSince)>,
 
     #[structopt(
@@ -138,6 +144,7 @@ pub struct Config {
         hide_env_values(true),
         display_order(51)
     )]
+    #[serde(default = "default_gap_limit")]
     pub gap_limit: u32,
 
     #[structopt(
@@ -149,6 +156,7 @@ pub struct Config {
         hide_env_values(true),
         display_order(52)
     )]
+    #[serde(default = "default_initial_import_size")]
     pub initial_import_size: u32,
 
     //// TODO
@@ -177,6 +185,7 @@ pub struct Config {
         help = "Skip generating merkle proofs. Reduces resource usage, requires running Electrum with --skipmerklecheck",
         display_order(41)
     )]
+    #[serde(default = "default_false")]
     pub electrum_skip_merkle: bool,
 
     #[cfg(feature = "http")]
@@ -189,6 +198,7 @@ pub struct Config {
         hide_env_values(true),
         display_order(45)
     )]
+    #[serde(default = "default_http_server_addr")]
     pub http_server_addr: net::SocketAddr,
 
     #[cfg(feature = "http")]
@@ -210,6 +220,7 @@ pub struct Config {
         env, hide_env_values(true),
         display_order(90)
     )]
+    #[serde(default = "default_poll_interval")]
     pub poll_interval: time::Duration,
 
     #[structopt(
@@ -229,6 +240,7 @@ pub struct Config {
         parse(from_flag = std::ops::Not::not),
         display_order(92)
     )]
+    #[serde(default = "default_false")]
     pub startup_banner: bool,
 
     #[cfg(unix)]
@@ -255,20 +267,6 @@ pub struct Config {
     )]
     pub webhook_urls: Option<Vec<String>>,
 }
-
-defaultable!(Config,
-  @default(verbose, timestamp, bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie,
-           descriptors, xpubs, bare_xpubs, broadcast_cmd, startup_banner,
-           #[cfg(feature = "electrum")] electrum_rpc_addr,
-           #[cfg(feature = "electrum")] electrum_skip_merkle,
-           #[cfg(feature = "http")] http_cors,
-           #[cfg(feature = "webhooks")] webhook_urls,
-           #[cfg(unix)] unix_listener_path,
-  )
-  @custom(network=Network::Bitcoin, gap_limit=20, initial_import_size=350, poll_interval=time::Duration::from_secs(5),
-          #[cfg(feature = "http")] http_server_addr=([127,0,0,1],3060).into(),
-  )
-);
 
 impl Config {
     pub fn dotenv() {
@@ -401,7 +399,7 @@ fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {
 fn parse_rescan(s: Option<&str>) -> Result<RescanSince> {
     Ok(match s {
         None | Some("all") => RescanSince::Timestamp(0),
-        Some("none") => RescanSince::Now,
+        Some("now") | Some("none") => RescanSince::Now,
         Some(s) => {
             // try as a unix timestamp first, then as a datetime string
             RescanSince::Timestamp(
@@ -468,4 +466,51 @@ impl From<&Config> for QueryConfig {
             broadcast_cmd: config.broadcast_cmd.clone(),
         }
     }
+}
+
+// NOTE: the default values below are also duplicated in structopt's attributes
+
+// Create a Default implementation
+defaultable!(Config,
+  @default(
+    verbose, timestamp, descriptors, xpubs, bare_xpubs, broadcast_cmd, startup_banner,
+    bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie,
+    #[cfg(feature = "electrum")] electrum_rpc_addr,
+    #[cfg(feature = "electrum")] electrum_skip_merkle,
+    #[cfg(feature = "http")] http_cors,
+    #[cfg(feature = "webhooks")] webhook_urls,
+    #[cfg(unix)] unix_listener_path,
+  )
+  @custom(
+    network=Network::Bitcoin, gap_limit=20, initial_import_size=350, poll_interval=time::Duration::from_secs(5),
+    #[cfg(feature = "http")] http_server_addr=([127,0,0,1],3060).into(),
+  )
+);
+
+// Used for serde's default attributes, which must be provided as functions
+
+fn default_false() -> bool {
+    false
+}
+fn default_network() -> Network {
+    Network::Bitcoin
+}
+fn default_verbose() -> usize {
+    0
+}
+fn default_gap_limit() -> u32 {
+    20
+}
+fn default_initial_import_size() -> u32 {
+    350
+}
+fn default_poll_interval() -> time::Duration {
+    time::Duration::from_secs(5)
+}
+fn default_empty_vec<T>() -> Vec<T> {
+    vec![]
+}
+#[cfg(feature = "http")]
+fn default_http_server_addr() -> net::SocketAddr {
+    ([127, 0, 0, 1], 3060).into()
 }

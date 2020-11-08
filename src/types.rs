@@ -5,7 +5,8 @@ use serde::Serialize;
 use bitcoin::{Address, BlockHash, Txid};
 use bitcoin_hashes::{sha256, Hash};
 use bitcoincore_rpc::json::GetMempoolEntryResult;
-pub use bitcoincore_rpc::json::ImportMultiRescanSince as RescanSince;
+
+pub use crate::util::bitcoincore_ext::RescanSince;
 
 hash_newtype!(
     ScriptHash,
@@ -53,7 +54,7 @@ impl InPoint {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScriptType {
     P2pkh,

@@ -419,7 +419,7 @@ fn batch_import(rpc: &RpcClient, import_reqs: Vec<(Address, RescanSince, String)
                 ImportMultiRequest {
                     label: Some(&label),
                     watchonly: Some(true),
-                    timestamp: *rescan,
+                    timestamp: rescan.into(),
                     script_pubkey: Some(ImportMultiRequestScriptPubkey::Address(&address)),
                     ..Default::default()
                 }

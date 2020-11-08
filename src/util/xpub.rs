@@ -2,6 +2,8 @@ use std::fmt;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
+pub use serde::de;
+
 use bitcoin::util::bip32::{ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint};
 use bitcoin::{util::base58, Address, Network};
 use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorXPub};
@@ -109,6 +111,17 @@ impl FromStr for XyzPubKey {
         let xpub = faux_xpub.parse()?;
 
         Ok(XyzPubKey { script_type, xpub })
+    }
+}
+
+// Deserialize using the FromStr implementation
+impl<'de> de::Deserialize<'de> for XyzPubKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        FromStr::from_str(&s).map_err(de::Error::custom)
     }
 }
 

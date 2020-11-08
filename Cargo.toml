@@ -22,7 +22,7 @@ track-spends = []
 bitcoin = { version = "0.25.2", features = [ "use-serde" ] }
 bitcoin_hashes = { version = "0.9.0", features = [ "serde" ] }
 bitcoincore-rpc = "0.12.0"
-miniscript = "3.0.0"
+miniscript = { version = "3.0.0", features = [ "serde" ] }
 chrono = { version = "0.4.19", default-features = false }
 dotenv = "0.15.0"
 dirs = "3.0.1"
