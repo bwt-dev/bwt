@@ -9,7 +9,7 @@ use warp::sse::ServerSentEvent;
 use warp::{self, reply, Filter, Reply};
 
 use bitcoin::{Address, BlockHash, OutPoint, Txid};
-use bitcoin_hashes::hex::FromHex;
+use bitcoin_hashes::hex::{FromHex, ToHex};
 
 use crate::error::{fmt_error_chain, BwtError, Error, OptionExt};
 use crate::types::{BlockId, ScriptHash};
@@ -225,7 +225,7 @@ fn setup(
         .and(query.clone())
         .map(|txid: Txid, query: Arc<Query>| {
             let tx_raw = query.get_tx_raw(&txid)?;
-            Ok(hex::encode(tx_raw))
+            Ok(tx_raw.to_hex())
         })
         .map(handle_error);
 
@@ -236,7 +236,7 @@ fn setup(
         .and(query.clone())
         .map(|txid: Txid, query: Arc<Query>| {
             let proof = query.get_tx_proof(&txid)?;
-            Ok(hex::encode(proof))
+            Ok(proof.to_hex())
         })
         .map(handle_error);
 

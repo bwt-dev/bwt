@@ -35,7 +35,6 @@ bitcoin_hashes = { version = "0.9.0", features = [ "serde" ] }
 bitcoincore-rpc = "0.12.0"
 miniscript = { version = "3.0.0", features = [ "serde" ] }
 chrono = { version = "0.4.19", default-features = false }
-hex = "0.4.2"
 serde = { version = "1.0.117", features = [ "derive" ] }
 serde_json = "1.0.59"
 lazy_static = "1.4.0"

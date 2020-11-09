@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use bitcoin::Txid;
+use bitcoin_hashes::hex::ToHex;
 use serde_json::{from_str, from_value, Value};
 
 use crate::electrum::{electrum_height, QueryExt};
@@ -255,7 +256,7 @@ impl Connection {
             json!(self.query.get_tx_json(&txid)?)
         } else {
             let raw = self.query.get_tx_raw(&txid)?;
-            json!(hex::encode(&raw))
+            json!(raw.to_hex())
         })
     }
 

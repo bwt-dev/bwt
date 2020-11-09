@@ -7,6 +7,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use bitcoin::{BlockHash, BlockHeader, Network, OutPoint, Transaction, Txid};
+use bitcoin_hashes::hex::FromHex;
 use bitcoincore_rpc::{json as rpcjson, Client as RpcClient, RpcApi};
 
 use crate::error::{BwtError, Context, OptionExt, Result};
@@ -184,7 +185,7 @@ impl Query {
         // and is incompatible with pruning, but works for non-wallet transactions too.
         else {
             let tx_hex = self.rpc.get_raw_transaction_hex(txid, None)?;
-            Ok(hex::decode(tx_hex)?)
+            Ok(Vec::from_hex(&tx_hex)?)
         }
     }
 
@@ -204,14 +205,12 @@ impl Query {
 
     pub fn broadcast(&self, tx_hex: &str) -> Result<Txid> {
         if let Some(broadcast_cmd) = &self.config.broadcast_cmd {
-            // need to deserialize to ensure validity (preventing code injection) and to determine the txid
-            let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
+            // deserialize the tx to ensure validity (preventing potential code injection) and to determine the txid
+            let tx: Transaction = bitcoin::consensus::deserialize(&Vec::from_hex(tx_hex)?)?;
             let cmd = broadcast_cmd.replacen("{tx_hex}", tx_hex, 1);
             debug!("broadcasting tx with cmd {}", broadcast_cmd);
             let status = Command::new("sh").arg("-c").arg(cmd).status()?;
-            if !status.success() {
-                bail!(BwtError::BroadcastCmdFailed(status))
-            }
+            ensure!(status.success(), BwtError::BroadcastCmdFailed(status));
             Ok(tx.txid())
         } else {
             Ok(self.rpc.send_raw_transaction(tx_hex)?)
