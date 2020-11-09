@@ -77,6 +77,9 @@ console.log('bwt http server ready on', bwt.http_server_addr)
 bwt.shutdown()
 ```
 
+See [`example.js`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-ffi/example.js) for an even more complete
+example, including connecting to the HTTP API.
+
 ### Options
 
 #### Network and Bitcoin Core RPC

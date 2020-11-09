@@ -74,6 +74,8 @@ class BwtDaemon {
     this.shutdown_ptr = shutdown_ptr
     Object.entries(services).forEach(([ name, addr ]) =>
       this[`${name}_addr`] = addr)
+
+    if (this.http_server_addr) this.http_server_url = `http://${this.http_server_addr}/`
   }
 
   shutdown() {
