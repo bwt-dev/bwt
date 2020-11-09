@@ -1,6 +1,7 @@
 # bwt-daemon
 
-Programmatically manage the Bitcoin Wallet Tracker daemons.
+A library for programmatically controlling the Bitcoin Wallet Tracker daemons
+using the bwt ffi interface.
 
 ### Install
 
@@ -8,10 +9,25 @@ Programmatically manage the Bitcoin Wallet Tracker daemons.
 $ npm install bwt-daemon
 ```
 
+This will download the `libbwt` library for your platform.
+The currently supported platforms are linux-x64, macos-x64, windows-x64, linux-arm32v7 and linux-arm64v8.
+
+The hash of the downloaded library is verified against the
+[`SHA256SUMS`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-ffi/SHA256SUMS)
+file that ships with the npm package.
+
+The library comes with the electrum and http servers by default.
+If you're only interested in the Electrum server only, install with `BWT_VARIANT=electrum_only npm install bwt-daemon`.
+This reduces the download size by ~1.6MB.
+
+> Note: `bwt-daemon` uses [`ffi-napi`](https://github.com/node-ffi-napi/node-ffi-napi), which requires
+> a recent nodejs version. If you're running into errors during installation or segmentation fault,
+> try updating to a newer version.
+
 ### Use
 
-Below is a minimally viable configuration. If bitcoind is running at the default location,
-with the default ports and cookie auth enabled, this should Just Work™ \o/
+Below is the minimally viable configuration. If bitcoind is running at the default,
+location with the default ports and cookie auth enabled, this should Just Work™ \o/
 
 ```js
 import BwtDaemon from 'bwt-daemon'

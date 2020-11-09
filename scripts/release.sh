@@ -60,7 +60,7 @@ fi
 
 if [ -z "$SKIP_GIT" ]; then
   echo Tagging...
-  git add Cargo.{toml,lock} CHANGELOG.md SHA256SUMS.asc README.md
+  git add Cargo.{toml,lock} CHANGELOG.md SHA256SUMS.asc README.md contrib/nodejs-ffi
   git commit -S -m v$version
   git tag --sign -m "$changelog" v$version
   git branch -f stable HEAD
@@ -73,6 +73,11 @@ fi
 if [ -z "$SKIP_CRATE" ]; then
   echo Publishing to crates.io...
   cargo publish
+fi
+
+if [ -z "$SKIP_NPM_DAEMON" ]; then
+  echo Publishing bwt-daemon to npm...
+  (cd contrib/nodejs-ffi && npm publish)
 fi
 
 if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then

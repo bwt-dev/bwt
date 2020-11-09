@@ -1,2 +1,4 @@
 *.so
+*.dll
+*.dylib
 node_modules
