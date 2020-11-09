@@ -5,8 +5,7 @@ set -xeo pipefail
 TARGETS=${TARGETS:-x86_64-linux,x86_64-win,arm32v7,arm64v8}
 
 build() {
-  name=$1; target=$2; features=$3
-  ext=$([[ $target != *"-windows-"* ]] || echo .exe)
+  name=$1; target=$2; features=$3; filename=$4
   dest=dist/$name
   mkdir -p $dest
 
@@ -14,12 +13,26 @@ build() {
 
   cargo build --release --target $target --no-default-features --features "$features"
 
-  mv target/$target/release/bwt$ext $dest/
-  strip_symbols $target $dest/bwt$ext
+  mv target/$target/release/$filename $dest/
+  strip_symbols $target $dest/$filename
 
-  cp README.md LICENSE $dest/
+  cp LICENSE $dest/
+  if [[ $name == "libbwt-"* ]]; then
+    cp contrib/libbwt.h $dest/
+  else
+    cp README.md $dest/
+  fi
 
   pack $name
+}
+
+build_bin() {
+  ext=$([[ $target == *"-windows-"* ]] && echo .exe || echo '')
+  build $1 $2 cli,$3 bwt$ext
+}
+build_lib() {
+  ext=$([[ $target == *"-windows-"* ]] && echo .dll || ([[ $target == *"-apple-"* ]] && echo .dylib || echo .so))
+  build $1 $2 ffi,extra,$3 libbwt$ext
 }
 
 strip_symbols() {
@@ -36,7 +49,7 @@ pack() {
   name=$1; dir=${2:-$1}
   pushd dist
   touch -t 1711081658 $name $name/*
-  if [[ $name == *"-linux" || $name == *"-arm"* ]]; then
+  if [[ $name == *"-linux" || $name == *"-arm"* || $name == "libbwt-"* ]]; then
     TZ=UTC tar --mtime='2017-11-08 16:58:00' --owner=0 --sort=name -I 'gzip --no-name' -chf $name.tar.gz $dir
   else
     find -H $dir | sort | xargs zip -X -q $name.zip
@@ -56,11 +69,13 @@ for cfg in x86_64-linux,x86_64-unknown-linux-gnu \
 
   # The OpenSSL dependency enabled by the webhooks feature causes an error on ARM targets.
   # Disable it for now on ARM, follow up at https://github.com/shesek/bwt/issues/52
-  complete_feat=cli,http,electrum,track-spends$([[ $platform == "arm"* ]] || echo ',webhooks')
-  electrum_feat=cli,electrum
+  complete_feat=http,electrum,track-spends$([[ $platform == "arm"* ]] || echo ',webhooks')
 
-  build bwt-$version-$platform $target $complete_feat
-  build bwt-$version-electrum_only-$platform $target $electrum_feat
+  build_bin bwt-$version-$platform $target $complete_feat
+  build_bin bwt-$version-electrum_only-$platform $target electrum
+
+  build_lib libbwt-$version-$platform $target $complete_feat
+  build_lib libbwt-$version-electrum_only-$platform $target electrum
 done
 
 echo Building electrum plugin
