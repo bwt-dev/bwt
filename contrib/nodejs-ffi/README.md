@@ -1,7 +1,7 @@
 # bwt-daemon
 
-A library for programmatically controlling the Bitcoin Wallet Tracker daemons
-using the bwt ffi interface.
+A nodejs library for programmatically controlling the Bitcoin Wallet Tracker daemons
+using the `libbwt` ffi interface.
 
 ### Install
 
@@ -17,17 +17,17 @@ The hash of the downloaded library is verified against the
 file that ships with the npm package.
 
 The library comes with the electrum and http servers by default.
-If you're only interested in the Electrum server only, install with `BWT_VARIANT=electrum_only npm install bwt-daemon`.
+If you're only interested in the Electrum server, you can install with `BWT_VARIANT=electrum_only npm install bwt-daemon`.
 This reduces the download size by ~1.6MB.
 
 > Note: `bwt-daemon` uses [`ffi-napi`](https://github.com/node-ffi-napi/node-ffi-napi), which requires
-> a recent nodejs version. If you're running into errors during installation or segmentation fault,
+> a recent nodejs version. If you're running into errors during installation or segmentation faults,
 > try updating to a newer version.
 
 ### Use
 
-Below is the minimally viable configuration. If bitcoind is running at the default,
-location with the default ports and cookie auth enabled, this should Just Work™ \o/
+Below is the minimally viable configuration. If bitcoind is running at the default
+location, on the default ports and with cookie auth enabled, this should Just Work™ \o/
 
 ```js
 import BwtDaemon from 'bwt-daemon'
@@ -50,6 +50,11 @@ let bwt = await BwtDaemon({
   bitcoind_url: 'http://127.0.0.1:9008/',
   bitcoind_wallet: 'bwt',
 
+  // Descriptors or xpubs to track as an array of (desc_or_xpub, rescan_since) tuples
+  // Use 'now' to look for new transactions only, or the unix timestamp to begin rescanning from.
+  descriptors: [ [ 'wpkh(tpub61.../0/*)', 'now' ] ],
+  xpubs: [ [ 'tpub66...', 'now' ] ],
+
   // Enable HTTP and Electrum servers
   http: true,
   electrum: true,
@@ -58,12 +63,8 @@ let bwt = await BwtDaemon({
   electrum_rpc_addr: '127.0.0.1:0',
   http_server_addr: '127.0.0.1:0',
 
-  // Descriptors or xpubs to track as an array of (desc_or_xpub, rescan_since) tuples
-  // Use 'now' to look for new transactions only, or the unix timestamp to begin rescanning from.
-  descriptors: [ [ 'wpkh(tpub61.../0/*)', 'now' ] ],
-  xpubs: [ [ 'tpub66...', 'now' ] ],
-
-  gap_limit: 10000,
+  // Set the gap limit of watched unused addresses
+  gap_limit: 100,
 
   // Progress notifications for history scanning (a full rescan from genesis can take 20-30 minutes)
   progress_fn: progress => console.log('bwt progress %f%%', progress*100),
