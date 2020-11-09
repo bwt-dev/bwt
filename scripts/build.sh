@@ -54,13 +54,13 @@ for cfg in x86_64-linux,x86_64-unknown-linux-gnu \
   IFS=',' read platform target <<< $cfg
   if [[ $TARGETS != *"$platform"* ]]; then continue; fi
 
-  # The OpenSSL dependency enabled by the webhooks feature causes the following error on ARM targets:
-  # /lib/aarch64-linux-gnu/libc.so.6: version `GLIBC_2.25' not found (required by bwt-0.1.4-arm64v8/bwt)
+  # The OpenSSL dependency enabled by the webhooks feature causes an error on ARM targets.
   # Disable it for now on ARM, follow up at https://github.com/shesek/bwt/issues/52
-  features=http,electrum,track-spends$([[ $platform == "arm"* ]] || echo ',webhooks')
+  complete_feat=cli,http,electrum,track-spends$([[ $platform == "arm"* ]] || echo ',webhooks')
+  electrum_feat=cli,electrum
 
-  build bwt-$version-$platform $target $features
-  build bwt-$version-electrum_only-$platform $target electrum
+  build bwt-$version-$platform $target $complete_feat
+  build bwt-$version-electrum_only-$platform $target $electrum_feat
 done
 
 echo Building electrum plugin

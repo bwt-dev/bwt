@@ -106,7 +106,7 @@ if [ -z "$SKIP_DOCKER" ]; then
 
   docker_tag=$docker_name:$version
   docker build -t $docker_tag .
-  docker build -t $docker_tag-electrum --build-arg FEATURES=electrum .
+  docker build -t $docker_tag-electrum --build-arg FEATURES=cli,electrum .
   docker tag $docker_tag $docker_name:latest
   docker tag $docker_tag-electrum $docker_name:electrum
   docker push $docker_name

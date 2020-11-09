@@ -12,7 +12,9 @@ edition = "2018"
 include = [ "src", "LICENSE" ]
 
 [features]
-default = [ "electrum", "http", "track-spends" ]
+default = [ "cli", "electrum", "http", "track-spends" ]
+cli = [ "extra", "structopt", "dotenv" ]
+extra = [ "dirs", "pretty_env_logger", "signal-hook" ]
 electrum = []
 http = [ "warp", "tokio" ]
 webhooks = [ "reqwest" ]
@@ -22,38 +24,42 @@ ffi = []
 [lib]
 crate-type = [ "lib", "cdylib" ]
 
+[[bin]]
+name = "bwt"
+path = "src/main.rs"
+required-features = [ "cli" ]
+
 [dependencies]
 bitcoin = { version = "0.25.2", features = [ "use-serde" ] }
 bitcoin_hashes = { version = "0.9.0", features = [ "serde" ] }
 bitcoincore-rpc = "0.12.0"
 miniscript = { version = "3.0.0", features = [ "serde" ] }
 chrono = { version = "0.4.19", default-features = false }
-dotenv = "0.15.0"
-dirs = "3.0.1"
 hex = "0.4.2"
 serde = { version = "1.0.117", features = [ "derive" ] }
 serde_json = "1.0.59"
 lazy_static = "1.4.0"
 anyhow = "1.0.34"
 log = "0.4.11"
-pretty_env_logger = "0.4.0"
-structopt = "0.3.20"
 thiserror = "1.0.22"
 
+# http deps
 tokio = { version = "0.2.22", features = ["macros"], optional = true }
 warp = { version = "0.2.5", optional = true }
+
+# webhooks deps
 reqwest = { version = "0.10.8", optional = true, features = ["json", "blocking"] }
 
+# cli/extra deps
+structopt = { version = "0.3.20", optional = true }
+dotenv = { version = "0.15.0", optional = true }
+dirs = { version = "3.0.1", optional = true }
+pretty_env_logger = { version = "0.4.0", optional = true }
 [target.'cfg(unix)'.dependencies]
-signal-hook = "0.1.16"
-
-#[patch.crates-io]
-#bitcoincore-rpc = { path = "../rust-bitcoincore-rpc/client" }
-#warp = { path = "/tmp/warp" }
+signal-hook = { version = "0.1.16", optional = true }
 
 # Statically link OpenSSL when cross-compiling to ARM
 # OpenSSL is currently disabled on ARM, see https://github.com/shesek/bwt/issues/52
-
 # [target.'cfg(any(target_arch = "arm", target_arch = "aarch64"))'.dependencies]
 # openssl = { version = "0.10", features = ["vendored"], optional = true }
 # webhooks = [ "reqwest", "openssl" ]

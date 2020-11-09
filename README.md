@@ -1258,13 +1258,13 @@ If you have [`cargo watch`](https://github.com/passcod/cargo-watch) installed, i
 
 ### Features
 
-bwt has 4 optional features: `http`, `electrum`, `webhooks` and `track-spends`.
+bwt has 7 optional features: `cli`, `http`, `electrum`, `webhooks`, `track-spends`, `ffi` and `extra`.
 
-All are enabled by default except for `webhooks`.
+All are enabled by default except for `webhooks` and `ffi`.
 
-If you're working on code that is unrelated to the HTTP API, it is faster to build with just the `electrum track-spends` features.
+If you're working on code that is unrelated to the HTTP API, it is faster to build without the `http` feature.
 
-You can use `scripts/check.sh` to run `cargo check` for all (sensible) feature combos. This is important to ensure no errors were introduced for feature combos that you didn't use.
+You can use `scripts/check.sh` to run `cargo check` for some feature combos. This is important to ensure no errors were introduced for feature combos that you didn't use.
 
 ### Tests
 

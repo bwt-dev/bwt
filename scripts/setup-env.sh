@@ -5,7 +5,7 @@ shopt -s expand_aliases
 (command -v electrum && command -v bitcoind && command -v bitcoin-cli) > /dev/null \
   || { echo >&2 "bitcoind, bitcoin-cli and electrum must be installed in PATH"; exit 1; }
 
-export FEATURES=${FEATURES:-http electrum webhooks track-spends}
+export FEATURES=${FEATURES:-cli http electrum webhooks track-spends}
 
 if [ -z "$DIR" ]; then
   DIR=`mktemp -d --suffix -bwt-env`
