@@ -23,7 +23,7 @@ fn main() -> Result<()> {
     let query = app.query();
     log::info!("synced up to {:?}", query.get_tip()?);
     log::info!("utxos: {:?}", query.list_unspent(None, 0, None)?);
-    log::info!("electrum server running on {}", app.electrum_addr());
+    log::info!("electrum running on {}", app.electrum_addr().unwrap());
 
     // Start syncing new blocks/transactions in the background
     let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();

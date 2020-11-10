@@ -24,9 +24,9 @@ pub struct App {
     sync_chan: (mpsc::Sender<()>, mpsc::Receiver<()>),
 
     #[cfg(feature = "electrum")]
-    electrum: ElectrumServer,
+    electrum: Option<ElectrumServer>,
     #[cfg(feature = "http")]
-    http: HttpServer,
+    http: Option<HttpServer>,
     #[cfg(feature = "webhooks")]
     webhook: Option<WebHookNotifier>,
 }
@@ -69,19 +69,19 @@ impl App {
         let debounced_sync_tx = debounce_sender(sync_tx.clone(), DEBOUNCE_SEC);
 
         #[cfg(feature = "electrum")]
-        let electrum = ElectrumServer::start(
-            config.electrum_rpc_addr(),
-            config.electrum_skip_merkle,
-            query.clone(),
-        );
+        let electrum = config
+            .electrum_rpc_addr()
+            .map(|addr| ElectrumServer::start(addr, config.electrum_skip_merkle, query.clone()));
 
         #[cfg(feature = "http")]
-        let http = HttpServer::start(
-            config.http_server_addr,
-            config.http_cors.clone(),
-            query.clone(),
-            debounced_sync_tx.clone(),
-        );
+        let http = config.http_server_addr().map(|addr| {
+            HttpServer::start(
+                addr,
+                config.http_cors.clone(),
+                query.clone(),
+                debounced_sync_tx.clone(),
+            )
+        });
 
         #[cfg(unix)]
         {
@@ -125,10 +125,12 @@ impl App {
             match self.indexer.write().unwrap().sync() {
                 Ok(updates) if !updates.is_empty() => {
                     #[cfg(feature = "electrum")]
-                    self.electrum.send_updates(&updates);
+                    self.electrum
+                        .as_ref()
+                        .map(|electrum| electrum.send_updates(&updates));
 
                     #[cfg(feature = "http")]
-                    self.http.send_updates(&updates);
+                    self.http.as_ref().map(|http| http.send_updates(&updates));
 
                     #[cfg(feature = "webhooks")]
                     self.webhook
@@ -154,13 +156,13 @@ impl App {
     }
 
     #[cfg(feature = "electrum")]
-    pub fn electrum_addr(&self) -> net::SocketAddr {
-        self.electrum.addr()
+    pub fn electrum_addr(&self) -> Option<net::SocketAddr> {
+        Some(self.electrum.as_ref()?.addr())
     }
 
     #[cfg(feature = "http")]
-    pub fn http_addr(&self) -> net::SocketAddr {
-        self.http.addr()
+    pub fn http_addr(&self) -> Option<net::SocketAddr> {
+        Some(self.http.as_ref()?.addr())
     }
 
     // Pipe the shutdown receiver `rx` to trigger `sync_tx`. This is needed to start the next

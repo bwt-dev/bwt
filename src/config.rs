@@ -229,15 +229,13 @@ pub struct Config {
         structopt(
             short,
             long,
-            help = "Address to bind the http api server",
-            default_value = "127.0.0.1:3060",
+            help = "Address to bind the http api server [default: 127.0.0.1:3060]",
             env,
             hide_env_values(true),
             display_order(45)
         )
     )]
-    #[serde(default = "default_http_server_addr")]
-    pub http_server_addr: net::SocketAddr,
+    pub http_server_addr: Option<net::SocketAddr>,
 
     #[cfg(feature = "http")]
     #[cfg_attr(
@@ -362,16 +360,32 @@ impl Config {
     }
 
     #[cfg(feature = "electrum")]
-    pub fn electrum_rpc_addr(&self) -> net::SocketAddr {
-        self.electrum_rpc_addr.clone().unwrap_or_else(|| {
-            net::SocketAddr::new(
-                "127.0.0.1".parse().unwrap(),
+    pub fn electrum_rpc_addr(&self) -> Option<net::SocketAddr> {
+        self.electrum_rpc_addr.clone().or_else(|| {
+            // Use a default value when used as CLI, require explicitly setting it for library use
+            #[cfg(feature = "cli")]
+            return Some(net::SocketAddr::new(
+                [127, 0, 0, 1].into(),
                 match self.network {
                     Network::Bitcoin => 50001,
                     Network::Testnet => 60001,
                     Network::Regtest => 60401,
                 },
-            )
+            ));
+            #[cfg(not(feature = "cli"))]
+            return None;
+        })
+    }
+
+    #[cfg(feature = "electrum")]
+    pub fn http_server_addr(&self) -> Option<net::SocketAddr> {
+        self.http_server_addr.clone().or_else(|| {
+            // Use a default value when used as CLI, require explicitly setting it for library use
+            #[cfg(feature = "cli")]
+            return Some(([127, 0, 0, 1], 3060).into());
+
+            #[cfg(not(feature = "cli"))]
+            return None;
         })
     }
 
@@ -544,13 +558,14 @@ defaultable!(Config,
     bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie,
     #[cfg(feature = "electrum")] electrum_rpc_addr,
     #[cfg(feature = "electrum")] electrum_skip_merkle,
+    #[cfg(feature = "http")] http_server_addr,
     #[cfg(feature = "http")] http_cors,
     #[cfg(feature = "webhooks")] webhook_urls,
     #[cfg(unix)] unix_listener_path,
   )
   @custom(
-    network=Network::Bitcoin, gap_limit=20, initial_import_size=350, poll_interval=time::Duration::from_secs(5),
-    #[cfg(feature = "http")] http_server_addr=([127,0,0,1],3060).into(),
+    network=Network::Bitcoin, gap_limit=20, initial_import_size=350,
+    poll_interval=time::Duration::from_secs(5),
   )
 );
 
@@ -576,8 +591,4 @@ fn default_poll_interval() -> time::Duration {
 }
 fn default_empty_vec<T>() -> Vec<T> {
     vec![]
-}
-#[cfg(feature = "http")]
-fn default_http_server_addr() -> net::SocketAddr {
-    ([127, 0, 0, 1], 3060).into()
 }

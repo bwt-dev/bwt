@@ -38,9 +38,11 @@ mod ffi {
             let app = App::boot(config)?;
 
             #[cfg(feature = "electrum")]
-            callback("ready:electrum_rpc", 1.0, &app.electrum_addr().to_string());
+            app.electrum_addr()
+                .map(|addr| callback("ready:electrum_rpc", 1.0, &addr.to_string()));
             #[cfg(feature = "http")]
-            callback("ready:http_server", 1.0, &app.http_addr().to_string());
+            app.http_addr()
+                .map(|addr| callback("ready:http_server", 1.0, &addr.to_string()));
 
             callback("ready", 1.0, "");
 

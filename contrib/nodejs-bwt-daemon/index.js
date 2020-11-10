@@ -39,6 +39,7 @@ function init(options) {
       opt_progress = options.progress_cb
       delete options.progress_cb
     }
+
     // Convenience shortcuts
     if (options.electrum) {
       options.electrum_rpc_addr || (options.electrum_rpc_addr = '127.0.0.1:0')
@@ -47,6 +48,10 @@ function init(options) {
     if (options.http) {
       options.http_server_addr || (options.http_server_addr = '127.0.0.1:0')
       delete options.http
+    }
+
+    if (!options.electrum_rpc_addr && !options.http_server_addr) {
+      throw new Error('None of the bwt services are enabled')
     }
 
     const services = {}
@@ -87,4 +92,4 @@ class BwtDaemon {
   }
 }
 
-module.exports = init.BwtDaemon = init.init = init
+module.exports = init.BwtDaemon = init
