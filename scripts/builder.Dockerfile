@@ -1,5 +1,5 @@
 FROM rust:1.46-slim as builder
-RUN apt-get update && apt-get install -y pkg-config make zip nodejs npm jq \
+RUN apt-get update && apt-get install -y pkg-config make zip nodejs npm \
         libssl-dev gcc-mingw-w64-x86-64 gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu && \
     rustup target add x86_64-pc-windows-gnu && \
     rustup target add armv7-unknown-linux-gnueabihf && \
