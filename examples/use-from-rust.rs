@@ -9,7 +9,7 @@ fn main() -> Result<()> {
         network: bitcoin::Network::Regtest,
         bitcoind_dir: Some("/home/satoshi/.bitcoin".into()),
         bitcoind_wallet: Some("bwt".into()),
-        electrum_rpc_addr: Some("127.0.0.1:0".parse().unwrap()),
+        electrum_addr: Some("127.0.0.1:0".parse().unwrap()),
         descriptors: vec![(my_desc.parse().unwrap(), RescanSince::Timestamp(0))],
         verbose: 2,
         ..Default::default()

@@ -70,11 +70,11 @@ impl App {
 
         #[cfg(feature = "electrum")]
         let electrum = config
-            .electrum_rpc_addr()
+            .electrum_addr()
             .map(|addr| ElectrumServer::start(addr, config.electrum_skip_merkle, query.clone()));
 
         #[cfg(feature = "http")]
-        let http = config.http_server_addr().map(|addr| {
+        let http = config.http_addr().map(|addr| {
             HttpServer::start(
                 addr,
                 config.http_cors.clone(),

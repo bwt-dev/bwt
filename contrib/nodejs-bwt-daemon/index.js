@@ -42,15 +42,15 @@ function init(options) {
 
     // Convenience shortcuts
     if (options.electrum) {
-      options.electrum_rpc_addr || (options.electrum_rpc_addr = '127.0.0.1:0')
+      options.electrum_addr || (options.electrum_addr = '127.0.0.1:0')
       delete options.electrum
     }
     if (options.http) {
-      options.http_server_addr || (options.http_server_addr = '127.0.0.1:0')
+      options.http_addr || (options.http_addr = '127.0.0.1:0')
       delete options.http
     }
 
-    if (!options.electrum_rpc_addr && !options.http_server_addr) {
+    if (!options.electrum_addr && !options.http_addr) {
       throw new Error('None of the bwt services are enabled')
     }
 
@@ -80,7 +80,7 @@ class BwtDaemon {
     Object.entries(services).forEach(([ name, addr ]) =>
       this[`${name}_addr`] = addr)
 
-    if (this.http_server_addr) this.http_server_url = `http://${this.http_server_addr}/`
+    if (this.http_addr) this.http_url = `http://${this.http_addr}/`
   }
 
   shutdown() {

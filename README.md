@@ -141,8 +141,8 @@ as `yyyy-mm-dd` to scan from that date onwards only, or use `none` to disable re
 *Setting this can significantly speed up scanning and is highly recommended.*
 
 By default, the Electrum server will be bound on port `50001`/`60001`/`60401` (according to the network)
-and the HTTP server will be bound on port `3060`. This can be controlled with `--electrum-rpc-addr`
-and `--http-server-addr`.
+and the HTTP server will be bound on port `3060`. This can be controlled with `--electrum-addr`
+and `--http-addr`.
 
 > ⚠️ Both the HTTP API server and the Electrum server are *unauthenticated and unencrypted.*
 If you're exposing them over the internet, they should be put behind something like an SSH tunnel,

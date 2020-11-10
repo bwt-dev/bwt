@@ -37,7 +37,7 @@ let bwt = await BwtDaemon({
   electrum: true,
 })
 
-console.log('bwt electrum server ready on', bwt.electrum_rpc_addr)
+console.log('bwt electrum server ready on', bwt.electrum_addr)
 ```
 
 With some more advanced options:
@@ -60,8 +60,8 @@ let bwt = await BwtDaemon({
   electrum: true,
 
   // Bind on port 0 to use any available port (the default)
-  electrum_rpc_addr: '127.0.0.1:0',
-  http_server_addr: '127.0.0.1:0',
+  electrum_addr: '127.0.0.1:0',
+  http_addr: '127.0.0.1:0',
 
   // Set the gap limit of watched unused addresses
   gap_limit: 100,
@@ -71,8 +71,8 @@ let bwt = await BwtDaemon({
 })
 
 // Get the assigned address/port for the Electrum/HTTP servers
-console.log('bwt electrum server ready on', bwt.electrum_rpc_addr)
-console.log('bwt http server ready on', bwt.http_server_addr)
+console.log('bwt electrum server ready on', bwt.electrum_addr)
+console.log('bwt http server ready on', bwt.http_addr)
 
 // Shutdown
 bwt.shutdown()
@@ -105,12 +105,12 @@ example, including connecting to the HTTP API.
 
 #### Electrum
 - `electrum`
-- `electrum_rpc_addr`
+- `electrum_addr`
 - `electrum_skip_merkle`
 
 #### HTTP
 - `http`
-- `http_server_addr`
+- `http_addr`
 - `http_cors`
 
 #### Web Hooks

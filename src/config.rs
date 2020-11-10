@@ -208,7 +208,7 @@ pub struct Config {
             display_order(40)
         )
     )]
-    pub electrum_rpc_addr: Option<net::SocketAddr>,
+    pub electrum_addr: Option<net::SocketAddr>,
 
     // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
     #[cfg(feature = "electrum")]
@@ -235,7 +235,7 @@ pub struct Config {
             display_order(45)
         )
     )]
-    pub http_server_addr: Option<net::SocketAddr>,
+    pub http_addr: Option<net::SocketAddr>,
 
     #[cfg(feature = "http")]
     #[cfg_attr(
@@ -360,8 +360,8 @@ impl Config {
     }
 
     #[cfg(feature = "electrum")]
-    pub fn electrum_rpc_addr(&self) -> Option<net::SocketAddr> {
-        self.electrum_rpc_addr.clone().or_else(|| {
+    pub fn electrum_addr(&self) -> Option<net::SocketAddr> {
+        self.electrum_addr.clone().or_else(|| {
             // Use a default value when used as CLI, require explicitly setting it for library use
             #[cfg(feature = "cli")]
             return Some(net::SocketAddr::new(
@@ -377,9 +377,9 @@ impl Config {
         })
     }
 
-    #[cfg(feature = "electrum")]
-    pub fn http_server_addr(&self) -> Option<net::SocketAddr> {
-        self.http_server_addr.clone().or_else(|| {
+    #[cfg(feature = "http")]
+    pub fn http_addr(&self) -> Option<net::SocketAddr> {
+        self.http_addr.clone().or_else(|| {
             // Use a default value when used as CLI, require explicitly setting it for library use
             #[cfg(feature = "cli")]
             return Some(([127, 0, 0, 1], 3060).into());
@@ -556,9 +556,9 @@ defaultable!(Config,
   @default(
     verbose, timestamp, descriptors, xpubs, bare_xpubs, broadcast_cmd, startup_banner,
     bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie,
-    #[cfg(feature = "electrum")] electrum_rpc_addr,
+    #[cfg(feature = "electrum")] electrum_addr,
     #[cfg(feature = "electrum")] electrum_skip_merkle,
-    #[cfg(feature = "http")] http_server_addr,
+    #[cfg(feature = "http")] http_addr,
     #[cfg(feature = "http")] http_cors,
     #[cfg(feature = "webhooks")] webhook_urls,
     #[cfg(unix)] unix_listener_path,

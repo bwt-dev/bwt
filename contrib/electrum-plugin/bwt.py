@@ -58,7 +58,7 @@ class BwtPlugin(BasePlugin):
             '--network', get_network_name(),
             '--bitcoind-url', self.bitcoind_url,
             '--bitcoind-dir', self.bitcoind_dir,
-            '--electrum-rpc-addr', '127.0.0.1:%d' % self.rpc_port,
+            '--electrum-addr', '127.0.0.1:%d' % self.rpc_port,
             '--electrum-skip-merkle',
             '--no-startup-banner',
         ]

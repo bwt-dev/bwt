@@ -39,10 +39,10 @@ mod ffi {
 
             #[cfg(feature = "electrum")]
             app.electrum_addr()
-                .map(|addr| callback("ready:electrum_rpc", 1.0, &addr.to_string()));
+                .map(|addr| callback("ready:electrum", 1.0, &addr.to_string()));
             #[cfg(feature = "http")]
             app.http_addr()
-                .map(|addr| callback("ready:http_server", 1.0, &addr.to_string()));
+                .map(|addr| callback("ready:http", 1.0, &addr.to_string()));
 
             callback("ready", 1.0, "");
 

@@ -7,18 +7,18 @@ const BwtDaemon = require('bwt-daemon')
     network: 'regtest',
     bitcoind_dir: '/tmp/bd1',
     bitcoind_wallet: 'bwt',
-    electrum_rpc_addr: '127.0.0.1:0',
-    http_server_addr: '127.0.0.1:0',
     descriptors: [ [ my_desc, 'now' ] ],
-    progress_cb: progress => console.log('bwt progress %f%%', progress*100),
+    electrum: true,
+    http: true,
     verbose: 2,
+    progress_cb: progress => console.log('bwt progress %f%%', progress*100),
   })
 
-  console.log('bwt running', bwtd.electrum_rpc_addr, bwtd.http_server_addr)
+  console.log('bwt running', bwtd.electrum_addr, bwtd.http_addr)
 
   // Connect to the HTTP API. Requires `npm install node-fetch`
   const fetch = require('node-fetch')
-  const bwt = (...path) => fetch(bwtd.http_server_url + path.join('/')).then(r => r.json())
+  const bwt = (...path) => fetch(bwtd.http_url + path.join('/')).then(r => r.json())
 
   console.log('wallets:', await bwt('wallets'))
   console.log('address:', await bwt('wallet/qufmgwfu/10'))
