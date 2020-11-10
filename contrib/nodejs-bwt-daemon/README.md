@@ -13,7 +13,7 @@ This will download the `libbwt` library for your platform.
 The currently supported platforms are linux-x64, macos-x64, windows-x64, linux-arm32v7 and linux-arm64v8.
 
 The hash of the downloaded library is verified against the
-[`SHA256SUMS`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-ffi/SHA256SUMS)
+[`SHA256SUMS`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-bwt-daemon/SHA256SUMS)
 file that ships with the npm package.
 
 The library comes with the electrum and http servers by default.
@@ -78,7 +78,7 @@ console.log('bwt http server ready on', bwt.http_server_addr)
 bwt.shutdown()
 ```
 
-See [`example.js`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-ffi/example.js) for an even more complete
+See [`example.js`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-bwt-daemon/example.js) for an even more complete
 example, including connecting to the HTTP API.
 
 ### Options

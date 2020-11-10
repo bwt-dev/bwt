@@ -96,7 +96,7 @@ done
 
 echo Building the nodejs bwt-daemon package
 realdist=$(realpath dist)
-(cd contrib/nodejs-ffi && npm run dist -- $version $realdist)
+(cd contrib/nodejs-bwt-daemon && npm run dist -- $version $realdist)
 
 # remove subdirectories, keep release tarballs
 rm -r dist/*/
