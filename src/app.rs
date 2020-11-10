@@ -179,7 +179,7 @@ impl App {
         c_rx
     }
 
-    #[cfg(all(unix, feature = "signal_hook"))]
+    #[cfg(all(unix, feature = "signal-hook"))]
     fn default_shutdown_signal(&self) -> Option<mpsc::Receiver<()>> {
         use signal_hook::iterator::Signals;
 
@@ -198,7 +198,7 @@ impl App {
         Some(shutdown_rx)
     }
 
-    #[cfg(not(all(unix, feature = "signal_hook")))]
+    #[cfg(not(all(unix, feature = "signal-hook")))]
     fn default_shutdown_signal(&self) -> Option<mpsc::Receiver<()>> {
         None
     }
