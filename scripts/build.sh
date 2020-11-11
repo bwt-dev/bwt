@@ -17,7 +17,7 @@ build() {
   cargo build --release --target $target --no-default-features --features "$features"
 
   mv target/$target/release/$src_filename $dest/
-  strip_symbols $target $dest/$filename
+  strip_symbols $target $dest/$filename || true
 
   cp LICENSE $dest/
   if [[ $name == "libbwt-"* ]]; then
