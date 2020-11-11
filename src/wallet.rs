@@ -162,14 +162,8 @@ impl WalletWatcher {
 
                 pending_updates.push((wallet, watch_index));
             } else if !wallet.done_initial_import {
-                debug!(
-                    "done initial import for {} up to index {}",
-                    checksum,
-                    wallet.max_imported_index.unwrap()
-                );
+                trace!("done initial import for {}", checksum,);
                 wallet.done_initial_import = true;
-            } else {
-                trace!("no imports needed for {}", checksum);
             }
         }
 
@@ -182,14 +176,10 @@ impl WalletWatcher {
                 import_reqs.len()
             );
             batch_import(rpc, import_reqs)?;
-            info!("done importing batch");
+            debug!("done importing batch");
         }
 
         for (wallet, imported_index) in pending_updates {
-            debug!(
-                "imported {} up to index {}",
-                wallet.checksum, imported_index
-            );
             wallet.max_imported_index = Some(imported_index);
         }
 
