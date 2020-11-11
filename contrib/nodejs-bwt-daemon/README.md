@@ -32,18 +32,18 @@ location, on the default ports and with cookie auth enabled, this should Just Wo
 ```js
 import BwtDaemon from 'bwt-daemon'
 
-let bwt = await BwtDaemon({
+let bwtd = await BwtDaemon({
   xpubs: [ [ 'xpub66...', 'now' ] ],
   electrum: true,
 })
 
-console.log('bwt electrum server ready on', bwt.electrum_addr)
+console.log('bwt electrum server ready on', bwtd.electrum_addr)
 ```
 
 With some more advanced options:
 
 ```js
-let bwt = await BwtDaemon({
+let bwtd = await BwtDaemon({
   // Network and Bitcoin Core RPC settings
   network: 'regtest',
   bitcoind_dir: '/home/satoshi/.bitcoin',
@@ -71,11 +71,11 @@ let bwt = await BwtDaemon({
 })
 
 // Get the assigned address/port for the Electrum/HTTP servers
-console.log('bwt electrum server ready on', bwt.electrum_addr)
-console.log('bwt http server ready on', bwt.http_addr)
+console.log('bwt electrum server ready on', bwtd.electrum_addr)
+console.log('bwt http server ready on', bwtd.http_addr)
 
 // Shutdown
-bwt.shutdown()
+bwtd.shutdown()
 ```
 
 See [`example.js`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-bwt-daemon/example.js) for an even more complete

@@ -53,11 +53,12 @@ async function getFile(url, dest) {
         return reject(new Error(`Invalid status code ${resp.statusCode} while downloading bwt`))
       }
       const hasher = crypto.createHash('sha256')
-      const stream = fs.createWriteStream(dest)
 
-      resp.on('data', d => hasher.update(d)).pipe(stream)
-      stream.on('finish', () => resolve(hasher.digest('hex')))
-            .on('error', reject)
+      resp.on('data', d => hasher.update(d))
+        .pipe(fs.createWriteStream(dest)
+           .on('finish', () => resolve(hasher.digest('hex')))
+           .on('error', reject)
+         )
     }).on('error', err => {
       reject(`Error while downloading bwt: ${err}`)
     })
