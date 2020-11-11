@@ -45,7 +45,7 @@ pub fn make_fee_histogram(mempool_entries: HashMap<Txid, Value>) -> Vec<(f32, u3
     let mut last_feerate = 0.0;
 
     for (vsize, feerate) in entries.into_iter().rev() {
-        if bin_size > VSIZE_BIN_WIDTH && last_feerate != feerate {
+        if bin_size > VSIZE_BIN_WIDTH && (last_feerate - feerate).abs() > f32::EPSILON {
             // vsize of transactions paying >= last_feerate
             histogram.push((last_feerate, bin_size));
             bin_size = 0;
