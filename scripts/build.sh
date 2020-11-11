@@ -9,11 +9,14 @@ build() {
   dest=dist/$name
   mkdir -p $dest
 
+  # Rust builds Windows dll files as `bwt.dll`, without the `lib` prefix
+  src_filename=$([[ $filename == *".dll" ]] && echo ${filename#lib} || echo $filename)
+
   echo Building $name for $target with features $features
 
   cargo build --release --target $target --no-default-features --features "$features"
 
-  mv target/$target/release/$filename $dest/
+  mv target/$target/release/$src_filename $dest/
   strip_symbols $target $dest/$filename
 
   cp LICENSE $dest/
