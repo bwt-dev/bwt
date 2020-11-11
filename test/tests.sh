@@ -2,7 +2,7 @@
 set -eo pipefail
 
 # Run unit tests
-cargo test
+cargo test --all-features
 
 # Run integration tests
 
