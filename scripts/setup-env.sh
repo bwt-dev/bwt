@@ -48,11 +48,11 @@ runbwt () {
 cleanup() {
   trap - SIGTERM SIGINT
   set +eo pipefail
-  kill `jobs -rp` 2> /dev/null
+  kill -9 `jobs -rp` 2> /dev/null
   wait `jobs -rp` 2> /dev/null
   ele daemon stop &> /dev/null
   [ -n "$KEEP_DIR" ] || rm -rf $DIR
-  kill -- -$$ 2> /dev/null
+  kill -9 -- -$$ 2> /dev/null
 }
 trap cleanup SIGINT SIGTERM EXIT
 

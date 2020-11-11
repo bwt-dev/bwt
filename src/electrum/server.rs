@@ -559,6 +559,7 @@ impl ElectrumServer {
                 for (_, subscriber) in subman.subscribers.iter() {
                     let _ = subscriber.sender.send(Message::Done);
                 }
+                // FIXME this can deadlock
                 trace!(target: LT, "waiting for {} RPC threads", children.len());
                 for child in children {
                     let _ = child.join();
