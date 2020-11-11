@@ -41,7 +41,7 @@ pub struct Config {
             display_order(98)
         )
     )]
-    #[serde(default = "default_verbose")]
+    #[serde(default)]
     pub verbose: usize,
 
     // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
@@ -54,7 +54,7 @@ pub struct Config {
             display_order(99)
         )
     )]
-    #[serde(default = "default_false")]
+    #[serde(default)]
     pub timestamp: bool,
 
     #[cfg_attr(
@@ -132,7 +132,7 @@ pub struct Config {
         use_delimiter(true), value_delimiter(";"),
         display_order(20)
     ))]
-    #[serde(default = "default_empty_vec")]
+    #[serde(default)]
     pub descriptors: Vec<(ExtendedDescriptor, RescanSince)>,
 
     #[cfg_attr(feature = "cli", structopt(
@@ -144,7 +144,7 @@ pub struct Config {
         use_delimiter(true), value_delimiter(";"),
         display_order(21)
     ))]
-    #[serde(default = "default_empty_vec")]
+    #[serde(default)]
     pub xpubs: Vec<(XyzPubKey, RescanSince)>,
 
     #[cfg_attr(feature = "cli", structopt(
@@ -155,7 +155,7 @@ pub struct Config {
         env, hide_env_values(true), use_delimiter(true),
         display_order(22)
     ))]
-    #[serde(default = "default_empty_vec")]
+    #[serde(default)]
     pub bare_xpubs: Vec<(XyzPubKey, RescanSince)>,
 
     #[cfg_attr(
@@ -220,7 +220,7 @@ pub struct Config {
             display_order(41)
         )
     )]
-    #[serde(default = "default_false")]
+    #[serde(default)]
     pub electrum_skip_merkle: bool,
 
     #[cfg(feature = "http")]
@@ -282,7 +282,7 @@ pub struct Config {
         parse(from_flag = std::ops::Not::not),
         display_order(92)
     ))]
-    #[serde(default = "default_false")]
+    #[serde(default)]
     pub startup_banner: bool,
 
     #[cfg(unix)]
@@ -564,21 +564,17 @@ defaultable!(Config,
     #[cfg(unix)] unix_listener_path,
   )
   @custom(
-    network=Network::Bitcoin, gap_limit=20, initial_import_size=350,
+    network=Network::Bitcoin,
+    gap_limit=20,
+    initial_import_size=350,
     poll_interval=time::Duration::from_secs(5),
   )
 );
 
 // Used for serde's default attributes, which must be provided as functions
 
-fn default_false() -> bool {
-    false
-}
 fn default_network() -> Network {
     Network::Bitcoin
-}
-fn default_verbose() -> usize {
-    0
 }
 fn default_gap_limit() -> u32 {
     20
@@ -588,7 +584,4 @@ fn default_initial_import_size() -> u32 {
 }
 fn default_poll_interval() -> time::Duration {
     time::Duration::from_secs(5)
-}
-fn default_empty_vec<T>() -> Vec<T> {
-    vec![]
 }
