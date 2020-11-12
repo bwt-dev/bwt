@@ -2,7 +2,7 @@
 mod ffi {
     use std::ffi::{CStr, CString};
     use std::os::raw::c_char;
-    use std::sync::mpsc;
+    use std::sync::{mpsc, Once};
     use std::thread;
 
     use crate::{App, Config, Result};
@@ -13,8 +13,13 @@ mod ffi {
     #[repr(C)]
     pub struct ShutdownHandler(mpsc::Sender<()>);
 
+    static INIT_LOGGER: Once = Once::new();
+
     /// Start bwt. Accepts the config as a json string, a callback function
-    /// to receive status updates, and a pointer for the shutdown handler
+    /// to receive status updates, and a pointer for the shutdown handler.
+    ///
+    /// This will locks the thread until the initial sync is completed, then spawn
+    /// a background thread for continuous syncing and return a shutdown handler.
     #[no_mangle]
     pub extern "C" fn bwt_start(
         json_config: *const c_char,
@@ -30,7 +35,8 @@ mod ffi {
         let start = || -> Result<_> {
             let config: Config = serde_json::from_str(json_config)?;
             if config.verbose > 0 {
-                config.setup_logger();
+                // The verbosity level cannot be changed once enabled.
+                INIT_LOGGER.call_once(|| config.setup_logger());
             }
 
             // TODO emit rescan progress updates with ETA from App::boot() and forward them
