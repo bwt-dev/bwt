@@ -539,30 +539,41 @@ impl ElectrumServer {
                     query: query.clone(),
                 }));
                 Self::start_notifier(notification, subman.clone(), acceptor.sender());
-                let mut children = vec![];
+
+                let threads = Arc::new(Mutex::new(HashMap::new()));
+
                 while let Some((stream, addr)) = acceptor.receiver().recv().unwrap() {
                     let query = query.clone();
                     let subman = subman.clone();
-                    children.push(spawn_thread("peer", move || {
+                    let threads_ = threads.clone();
+
+                    let thandle = spawn_thread("peer", move || {
                         info!(target: LT, "[{}] connected peer", addr);
                         let conn = Connection::new(query, skip_merkle, stream, addr, subman);
                         conn.run();
                         info!(target: LT, "[{}] disconnected peer", addr);
-                    }));
+                        threads_.lock().unwrap().remove(&thread::current().id());
+                    });
+
+                    let thread_id = thandle.thread().id();
+                    threads.lock().unwrap().insert(thread_id, thandle);
                 }
+
                 let subman = subman.lock().unwrap();
-                trace!(
-                    target: LT,
-                    "closing {} RPC connections",
-                    subman.subscribers.len()
-                );
-                for (_, subscriber) in subman.subscribers.iter() {
+                let subscribers = &subman.subscribers;
+                trace!(target: LT, "closing {} RPC connections", subscribers.len());
+                for (_, subscriber) in subscribers.iter() {
                     let _ = subscriber.sender.send(Message::Done);
                 }
-                // FIXME this can deadlock
-                trace!(target: LT, "waiting for {} RPC threads", children.len());
-                for child in children {
-                    let _ = child.join();
+                drop(subman); // Needed because the threads unsubscribe themselves during shutdown.
+
+                // Collect the threads JoinHandles, free the `threads` mutex and only then join them.
+                // Needed because the threads access the mutex to attempt removing themselves during shutdown.
+                let handles: Vec<_> = threads.lock().unwrap().drain().map(|(_, t)| t).collect();
+
+                trace!(target: LT, "waiting for {} RPC threads", handles.len());
+                for thandle in handles {
+                    let _ = thandle.join();
                 }
                 trace!(target: LT, "RPC connections are closed");
             })),
