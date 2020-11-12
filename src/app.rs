@@ -150,6 +150,13 @@ impl App {
         }
     }
 
+    /// Start a sync loop in a new background thread.
+    pub fn sync_background(self) -> mpsc::SyncSender<()> {
+        let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
+        thread::spawn(move || self.sync(Some(shutdown_rx)));
+        shutdown_tx
+    }
+
     /// Get the `Query` instance
     pub fn query(&self) -> Arc<Query> {
         self.query.clone()

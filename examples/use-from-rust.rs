@@ -26,8 +26,7 @@ fn main() -> Result<()> {
     log::info!("electrum running on {}", app.electrum_addr().unwrap());
 
     // Start syncing new blocks/transactions in the background
-    let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || app.sync(Some(shutdown_rx)));
+    let shutdown_tx = app.sync_background();
 
     // To shutdown the syncing thread, send a message to `shutdown_tx` or let it drop out of scope
     shutdown_tx.send(()).unwrap();

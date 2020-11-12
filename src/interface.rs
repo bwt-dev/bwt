@@ -48,8 +48,7 @@ mod ffi {
 
             callback("ready", 1.0, "");
 
-            let (shutdown_tx, shutdown_rx) = mpsc::channel();
-            thread::spawn(move || app.sync(Some(shutdown_rx)));
+            let shutdown_tx = app.sync_background();
 
             Ok(ShutdownHandler(shutdown_tx))
         };
