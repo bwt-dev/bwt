@@ -2,7 +2,7 @@ use std::iter::FromIterator;
 use std::str::FromStr;
 
 use bitcoin::secp256k1::{self, Secp256k1};
-use bitcoin::Network;
+use bitcoin::{Address, Network};
 use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorPublicKeyCtx};
 
 use crate::error::{Error, OptionExt, Result};
@@ -21,6 +21,19 @@ pub struct Checksum(String);
 
 impl_string_serializer!(Checksum, c, c.0);
 
+/// Derive the address at `index`, without creating a new Descriptor
+pub fn derive_address(desc: &ExtendedDescriptor, index: u32, network: Network) -> Option<Address> {
+    let ctx = DescriptorPublicKeyCtx::new(&EC, index.into());
+    desc.address(network, ctx)
+}
+
+/// Derive the descriptor string at `index`, without creating a new Descriptor
+pub fn derive_desc_str(desc: &ExtendedDescriptor, index: u32) -> String {
+    // A hack, but it works and its fast. ^_^
+    let desc_str = desc.to_string().replace("*", &index.to_string());
+    format!("{}#{}", desc_str, get_checksum(&desc_str))
+}
+
 #[derive(Debug, Clone)]
 pub struct DescKeyInfo {
     pub bip32_origin: Bip32Origin,
@@ -29,7 +42,7 @@ pub struct DescKeyInfo {
 
 impl From<&ExtendedDescriptor> for Checksum {
     fn from(desc: &ExtendedDescriptor) -> Self {
-        get_checksum(desc)
+        get_checksum(&desc.to_string())
     }
 }
 
@@ -98,7 +111,7 @@ pub trait DescriptorChecksum: Sized {
 
 impl DescriptorChecksum for ExtendedDescriptor {
     fn to_string_with_checksum(&self) -> String {
-        format!("{}#{}", self, get_checksum(&self))
+        format!("{}#{}", self, get_checksum(&self.to_string()))
     }
 
     fn parse_with_checksum(s: &str) -> Result<ExtendedDescriptor> {
@@ -118,7 +131,7 @@ impl DescriptorChecksum for ExtendedDescriptor {
                 desc.to_string()
             );
 
-            let actual_checksum = get_checksum(&desc);
+            let actual_checksum = get_checksum(&desc.to_string());
             ensure!(
                 provided_checksum == actual_checksum,
                 "Invalid descriptor checksum {}, expected {}",
@@ -164,8 +177,7 @@ const INPUT_CHARSET: &str =  "0123456789()[],'/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ
 const CHECKSUM_CHARSET: &str = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
 /// Compute the checksum of a descriptor
-fn get_checksum(desc: &ExtendedDescriptor) -> Checksum {
-    let desc_str = desc.to_string();
+fn get_checksum(desc_str: &str) -> Checksum {
     let mut c = 1;
     let mut cls = 0;
     let mut clscount = 0;

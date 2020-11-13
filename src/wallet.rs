@@ -2,7 +2,6 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::result::Result as StdResult;
 
-use bitcoin::util::bip32::ChildNumber;
 use bitcoin::{Address, Network};
 use bitcoincore_rpc::json::{ImportMultiRequest, ImportMultiRequestScriptPubkey};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
@@ -10,7 +9,7 @@ use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 use crate::error::{Context, Result};
 use crate::store::MemoryStore;
 use crate::types::RescanSince;
-use crate::util::descriptor::{Checksum, DescKeyInfo, ExtendedDescriptor, DESC_CTX};
+use crate::util::descriptor::{self, Checksum, DescKeyInfo, ExtendedDescriptor, DESC_CTX};
 use crate::util::xpub::{Bip32Origin, XyzPubKey};
 
 const LABEL_PREFIX: &str = "bwt";
@@ -212,7 +211,7 @@ impl Wallet {
         rescan_policy: RescanSince,
     ) -> Result<Self> {
         ensure!(
-            desc.address(network, *DESC_CTX).is_some(),
+            descriptor::derive_address(&desc, 0, network).is_some(),
             "Descriptor does not have address representation: `{}`",
             desc
         );
@@ -280,14 +279,6 @@ impl Wallet {
         ])
     }
 
-    /// Derives the specified child key
-    ///
-    /// Panics if given a hardened child number
-    pub fn derive(&self, index: u32) -> ExtendedDescriptor {
-        self.desc
-            .derive(ChildNumber::from_normal_idx(index).unwrap())
-    }
-
     /// Returns the maximum index that needs to be watched
     fn watch_index(&self) -> u32 {
         if !self.is_ranged {
@@ -326,9 +317,12 @@ impl Wallet {
     }
 
     pub fn derive_address(&self, index: u32) -> Address {
-        self.derive(index)
-            .address(self.network, *DESC_CTX)
+        descriptor::derive_address(&self.desc, index, self.network)
             .expect("constructed Wallet must have address representation")
+    }
+
+    pub fn derive_desc_str(&self, index: u32) -> String {
+        descriptor::derive_desc_str(&self.desc, index)
     }
 
     pub fn get_next_index(&self) -> u32 {

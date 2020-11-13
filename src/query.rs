@@ -14,7 +14,7 @@ use crate::error::{BwtError, Context, OptionExt, Result};
 use crate::indexer::{IndexChange, Indexer};
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
 use crate::types::{BlockId, MempoolEntry, ScriptHash, TxStatus};
-use crate::util::descriptor::{Checksum, DescriptorChecksum, DESC_CTX};
+use crate::util::descriptor::Checksum;
 use crate::util::{make_fee_histogram, BoolThen};
 use crate::wallet::{KeyOrigin, Wallet};
 
@@ -483,15 +483,15 @@ impl Query {
 
         if wallet.is_valid_index(index) {
             let origin = KeyOrigin::Descriptor(checksum.clone(), index);
-            let desc = wallet.derive(index);
-            let address = desc.address(self.config.network, *DESC_CTX).unwrap();
+            let address = wallet.derive_address(index);
+            let desc_str = wallet.derive_desc_str(index);
             let scripthash = ScriptHash::from(&address);
             let bip32_origins = wallet.bip32_origins(index);
             Some(ScriptInfo::from_desc(
                 scripthash,
                 address,
                 origin,
-                desc.to_string_with_checksum(),
+                desc_str,
                 bip32_origins,
             ))
         } else {
@@ -510,10 +510,7 @@ impl Query {
 fn attach_wallet_info(script_info: &mut ScriptInfo, indexer: &Indexer) {
     if let KeyOrigin::Descriptor(ref checksum, index) = script_info.origin {
         if let Some(wallet) = indexer.watcher().get(checksum) {
-            // XXX optimize by replacing s/\*/index/ on the descriptor as a string,
-            //     instead of deriving a child descriptor?
-            let desc = wallet.derive(index);
-            script_info.desc = Some(desc.to_string_with_checksum());
+            script_info.desc = Some(wallet.derive_desc_str(index));
             script_info.bip32_origins = Some(wallet.bip32_origins(index));
         }
     }
