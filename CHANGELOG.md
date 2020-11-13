@@ -20,6 +20,16 @@
 - Support non-wallet transactions in `blockchain.transaction.get` / `GET /tx/:txid/hex`
   (requires txindex and no pruning).
 
+- Reduce the number of dependencies (#61)
+
+- Support binding on ephemeral port (`--http-addr 127.0.0.1:0`) (#63)
+
+- Shutdown cleanly, via `SIGINT`/`SIGTERM` for CLI or a custom signal for library users (#62, #66)
+
+- Electrum: Fix `mempool.get_fee_histogram` (5af7bfc62d7d98)
+
+- Renamed CLI options: `--http-server-addr` to `--http-addr`, `--electrum-rpc-addr` to `--electrum-addr`
+
 - Upgrade to rust-bitcoin v0.25 and rust-bitcoincore-rpc v0.12
 
 ## 0.1.5 - 2020-10-05
