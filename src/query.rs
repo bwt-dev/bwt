@@ -14,7 +14,7 @@ use crate::error::{BwtError, Context, OptionExt, Result};
 use crate::indexer::{IndexChange, Indexer};
 use crate::store::{FundingInfo, HistoryEntry, ScriptInfo, SpendingInfo, TxEntry};
 use crate::types::{BlockId, MempoolEntry, ScriptHash, TxStatus};
-use crate::util::descriptor::{Checksum, DescriptorChecksum};
+use crate::util::descriptor::{Checksum, DescriptorChecksum, DESC_CTX};
 use crate::util::{make_fee_histogram, BoolThen};
 use crate::wallet::{KeyOrigin, Wallet};
 
@@ -484,7 +484,7 @@ impl Query {
         if wallet.is_valid_index(index) {
             let origin = KeyOrigin::Descriptor(checksum.clone(), index);
             let desc = wallet.derive(index);
-            let address = desc.address(self.config.network).unwrap();
+            let address = desc.address(self.config.network, *DESC_CTX).unwrap();
             let scripthash = ScriptHash::from(&address);
             let bip32_origins = wallet.bip32_origins(index);
             Some(ScriptInfo::from_desc(

@@ -10,7 +10,7 @@ use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 use crate::error::{Context, Result};
 use crate::store::MemoryStore;
 use crate::types::RescanSince;
-use crate::util::descriptor::{Checksum, DescKeyInfo, ExtendedDescriptor};
+use crate::util::descriptor::{Checksum, DescKeyInfo, ExtendedDescriptor, DESC_CTX};
 use crate::util::xpub::{Bip32Origin, XyzPubKey};
 
 const LABEL_PREFIX: &str = "bwt";
@@ -201,10 +201,6 @@ pub struct Wallet {
     max_funded_index: Option<u32>,
     max_imported_index: Option<u32>,
     done_initial_import: bool,
-
-    // Used for optimized derivation for simple p2*pkh descriptors.
-    // Not available for more complex descriptor types.
-    optimized_xpub: Option<XyzPubKey>,
 }
 
 impl Wallet {
@@ -216,7 +212,7 @@ impl Wallet {
         rescan_policy: RescanSince,
     ) -> Result<Self> {
         ensure!(
-            desc.address(network).is_some(),
+            desc.address(network, *DESC_CTX).is_some(),
             "Descriptor does not have address representation: `{}`",
             desc
         );
@@ -224,7 +220,6 @@ impl Wallet {
         let checksum = Checksum::from(&desc);
         let keys_info = DescKeyInfo::extract(&desc, network)?;
         let is_ranged = keys_info.iter().any(|x| x.is_ranged);
-        let optimized_xpub = XyzPubKey::try_from_desc(&desc);
 
         Ok(Self {
             desc,
@@ -239,7 +234,6 @@ impl Wallet {
             done_initial_import: false,
             max_funded_index: None,
             max_imported_index: None,
-            optimized_xpub,
         })
     }
 
@@ -332,15 +326,9 @@ impl Wallet {
     }
 
     pub fn derive_address(&self, index: u32) -> Address {
-        if let Some(optimized_xpub) = &self.optimized_xpub {
-            // Derive simple p2*pkh descriptors using the extended pubkey directly, which
-            // is *significantly* faster compared to invoking the full descriptor mechanism.
-            optimized_xpub.derive_address(index, self.network)
-        } else {
-            self.derive(index)
-                .address(self.network)
-                .expect("constructed Wallet must have address representation")
-        }
+        self.derive(index)
+            .address(self.network, *DESC_CTX)
+            .expect("constructed Wallet must have address representation")
     }
 
     pub fn get_next_index(&self) -> u32 {
@@ -509,7 +497,10 @@ impl Serialize for Wallet {
         rgb.serialize_field("done_initial_import", &self.done_initial_import)?;
         rgb.serialize_field("max_funded_index", &self.max_funded_index)?;
         rgb.serialize_field("max_imported_index", &self.max_imported_index)?;
-        rgb.serialize_field("satisfaction_weight", &self.desc.max_satisfaction_weight())?;
+        rgb.serialize_field(
+            "satisfaction_weight",
+            &self.desc.max_satisfaction_weight(*DESC_CTX),
+        )?;
 
         if self.is_ranged {
             rgb.serialize_field("gap_limit", &self.gap_limit)?;

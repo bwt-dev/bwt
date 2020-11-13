@@ -32,7 +32,7 @@
 
 - Electrum: Fix `mempool.get_fee_histogram` (5af7bfc62d7d98)
 
-- Upgrade to rust-bitcoin v0.25 and rust-bitcoincore-rpc v0.12
+- Upgrade to rust-bitcoin v0.25, rust-miniscript v4.0.0 and rust-bitcoincore-rpc v0.12
 
 Breaking CLI changes:
 

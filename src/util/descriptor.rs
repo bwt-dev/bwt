@@ -1,11 +1,18 @@
 use std::iter::FromIterator;
 use std::str::FromStr;
 
+use bitcoin::secp256k1::{self, Secp256k1};
 use bitcoin::Network;
-use miniscript::descriptor::{Descriptor, DescriptorPublicKey};
+use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorPublicKeyCtx};
 
 use crate::error::{Error, OptionExt, Result};
 use crate::util::xpub::{xpub_matches_network, Bip32Origin};
+
+lazy_static! {
+    static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
+    pub static ref DESC_CTX: DescriptorPublicKeyCtx<'static, secp256k1::VerifyOnly> =
+        DescriptorPublicKeyCtx::new(&EC, 0.into());
+}
 
 pub type ExtendedDescriptor = Descriptor<DescriptorPublicKey>;
 
@@ -52,7 +59,7 @@ impl DescKeyInfo {
                 let bip32_origin = desc_xpub
                     .origin
                     .as_ref()
-                    .map_or_else(|| (&desc_xpub.xpub).into(), Into::<Bip32Origin>::into)
+                    .map_or_else(|| (&desc_xpub.xkey).into(), Into::<Bip32Origin>::into)
                     .extend(&desc_xpub.derivation_path);
 
                 keys_info.push(DescKeyInfo {
@@ -60,7 +67,7 @@ impl DescKeyInfo {
                     is_ranged: desc_xpub.is_wildcard,
                 });
 
-                valid_networks = valid_networks && xpub_matches_network(&desc_xpub.xpub, network);
+                valid_networks = valid_networks && xpub_matches_network(&desc_xpub.xkey, network);
             }
             DescriptorPublicKey::SinglePub(desc_single) => {
                 if let Some(bip32_origin) = &desc_single.origin {
