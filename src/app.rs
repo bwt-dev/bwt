@@ -15,7 +15,7 @@ use crate::listener;
 #[cfg(feature = "webhooks")]
 use crate::webhooks::WebHookNotifier;
 
-const DEBOUNCE_SEC: u64 = 7;
+const DEBOUNCE_SEC: u64 = 2;
 
 pub struct App {
     config: Config,
