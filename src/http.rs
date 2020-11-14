@@ -240,9 +240,15 @@ fn setup(
         })
         .map(handle_error);
 
+    // GET /txs
     // GET /txs/since/:block_height
     let txs_since_handler = warp::get()
-        .and(warp::path!("txs" / "since" / u32))
+        .and(warp::path("txs"))
+        .and(
+            warp::path!("since" / u32)
+                .or(warp::path::end().map(|| 0))
+                .unify(),
+        )
         .and(query.clone())
         .map(|min_block_height: u32, query: Arc<Query>| {
             let txs = query.map_history_since(min_block_height, |txhist| {

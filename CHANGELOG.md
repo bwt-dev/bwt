@@ -26,9 +26,11 @@
 
 - Shutdown cleanly, via `SIGINT`/`SIGTERM` for CLI or a custom signal for library users (#62, #66)
 
-- Electrum: Fix `mempool.get_fee_histogram` (5af7bfc62d7d98)
-
 - Renamed CLI options: `--http-server-addr` to `--http-addr`, `--electrum-rpc-addr` to `--electrum-addr`
+
+- HTTP: Alias `GET /txs/since/0` as `GET /txs`
+
+- Electrum: Fix `mempool.get_fee_histogram` (5af7bfc62d7d98)
 
 - Upgrade to rust-bitcoin v0.25 and rust-bitcoincore-rpc v0.12
 

@@ -22,7 +22,7 @@ const BwtDaemon = require('bwt-daemon')
 
   console.log('wallets:', await bwt('wallets'))
   console.log('address:', await bwt('wallet/qufmgwfu/10'))
-  console.log('transactions:', await bwt('txs/since/0'))
+  console.log('transactions:', await bwt('txs'))
 
   setTimeout(_ => bwtd.shutdown(), 5000)
 })()

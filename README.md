@@ -631,10 +631,13 @@ $ curl localhost:3060/tx/1f2e3c4cee8ea127a79c5dbc951f1e005671a1e8bf385e791ff95b7
 
 </details>
 
+#### `GET /txs`
 #### `GET /txs/since/:block-height`
 
 Get all wallet transactions confirmed at or after `block-height`, plus all unconfirmed transactions,
 for all tracked addresses.
+
+`GET /txs` is an alias for `GET /txs/since/0`.
 
 <details><summary>Expand...</summary><p></p>
 
@@ -642,7 +645,7 @@ Returned in the [wallet transaction format](#wallet-transaction-format). Sorted 
 
 Example:
 ```
-$ curl localhost:3060/txs/since/0
+$ curl localhost:3060/txs
 [
   {
     "txid": "e700187477d262f370b4f1dfd17c496d108524ee2d440a0b7e476f66da872dda",
