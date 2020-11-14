@@ -337,7 +337,7 @@ impl Query {
             .filter_map(|unspent| {
                 // XXX we assume that any unspent output with a "bwt/..." label is ours, this may not necessarily be true.
                 let script_info = req_script_info.clone().or_else(|| {
-                    let address = unspent.address.as_ref()?;
+                    let address = unspent.address.clone()?;
                     let label = unspent.label.as_ref()?;
                     let origin = KeyOrigin::from_label(label)?;
                     let mut script_info = ScriptInfo::from_address(address, origin);
@@ -482,17 +482,11 @@ impl Query {
         let wallet = indexer.watcher().get(checksum)?;
 
         if wallet.is_valid_index(index) {
-            let origin = KeyOrigin::Descriptor(checksum.clone(), index);
-            let address = wallet.derive_address(index);
-            let desc_str = wallet.derive_desc_str(index);
-            let scripthash = ScriptHash::from(&address);
-            let bip32_origins = wallet.bip32_origins(index);
             Some(ScriptInfo::from_desc(
-                scripthash,
-                address,
-                origin,
-                desc_str,
-                bip32_origins,
+                KeyOrigin::Descriptor(checksum.clone(), index),
+                wallet.derive_address(index),
+                wallet.derive_desc_str(index),
+                wallet.bip32_origins(index),
             ))
         } else {
             None

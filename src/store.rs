@@ -424,24 +424,23 @@ pub struct ScriptInfo {
 
 impl ScriptInfo {
     pub fn from_desc(
-        scripthash: ScriptHash,
-        address: Address,
         origin: KeyOrigin,
+        address: Address,
         desc: String,
         bip32_origins: Vec<Bip32Origin>,
     ) -> Self {
         ScriptInfo {
-            scripthash,
+            scripthash: ScriptHash::from(&address),
             address,
             origin,
             desc: Some(desc),
             bip32_origins: Some(bip32_origins),
         }
     }
-    pub fn from_address(address: &Address, origin: KeyOrigin) -> Self {
+    pub fn from_address(address: Address, origin: KeyOrigin) -> Self {
         ScriptInfo {
-            scripthash: ScriptHash::from(address),
-            address: address.clone(),
+            scripthash: ScriptHash::from(&address),
+            address,
             origin,
             desc: None,
             bip32_origins: None,
