@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::{fmt, time};
+use std::sync::{mpsc, Arc};
+use std::{fmt, thread, time};
 
 use serde::Serialize;
 
@@ -13,6 +13,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use crate::error::Result;
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
 use crate::types::{BlockId, InPoint, ScriptHash, TxStatus};
+use crate::util::bitcoincore_ext::{Progress, RpcApiExt};
 use crate::wallet::{KeyOrigin, WalletWatcher};
 
 pub struct Indexer {
@@ -42,7 +43,7 @@ impl Indexer {
 
     // continue to sync transactions and import addresses (with rescan) until no more new addresses
     // need to be imported. the initial sync does not collect the Changelog and does not emit updates.
-    pub fn initial_sync(&mut self) -> Result<()> {
+    pub fn initial_sync(&mut self, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<()> {
         let timer = time::Instant::now();
 
         info!("starting initial sync");
@@ -50,6 +51,8 @@ impl Indexer {
 
         let mut changelog = Changelog::new(false);
         let mut synced_tip;
+
+        spawn_send_progress_thread(self.rpc.clone(), progress_tx);
 
         while {
             synced_tip = self.sync_transactions(&mut changelog)?;
@@ -414,4 +417,19 @@ impl fmt::Display for IndexChange {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
     }
+}
+
+// Spawn a thread to poll getwalletinfo, log progress and send progress updates via mpsc
+fn spawn_send_progress_thread(
+    rpc: Arc<RpcClient>,
+    progress_tx: Option<mpsc::Sender<Progress>>,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        // allow some time for the indexer to start the first set of imports
+        thread::sleep(time::Duration::from_secs(2));
+
+        if let Err(e) = rpc.wait_wallet_scan(progress_tx) {
+            warn!("getwalletinfo failed: {:?}", e);
+        }
+    })
 }

@@ -62,8 +62,12 @@ function init(options) {
         reject(new Error(detail))
       } else if (msg_type.startsWith('ready:')) {
         services[msg_type.substr(6)] = detail
-      } else if (['booting', 'scanning', 'ready'].includes(msg_type)) {
-        opt_progress && opt_progress(progress)
+      } else if (msg_type == 'progress:sync') {
+        opt_progress && opt_progress('sync', progress, { tip_time: +detail })
+      } else if (msg_type == 'progress:scan') {
+        opt_progress && opt_progress('scan', progress, { eta: +detail })
+      } else if (['booting', 'ready'].includes(msg_type)) {
+        opt_progress && opt_progress(msg_type, progress, {})
       }
     }
 

@@ -1,11 +1,11 @@
 use serde::{de, Serialize};
 use std::fmt::{self, Formatter};
-use std::{thread, time};
+use std::{sync::mpsc, thread, time};
 
 use bitcoincore_rpc::json::{self, ImportMultiRescanSince, ScanningDetails};
 use bitcoincore_rpc::{Client, Result as RpcResult, RpcApi};
 
-const WAIT_INTERVAL: time::Duration = time::Duration::from_secs(10);
+const WAIT_INTERVAL: time::Duration = time::Duration::from_secs(7);
 
 // Extensions for rust-bitcoincore-rpc
 
@@ -30,7 +30,10 @@ pub trait RpcApiExt: RpcApi {
         self.call("getmempoolinfo", &[])
     }
 
-    fn wait_blockchain_sync(&self) -> RpcResult<json::GetBlockchainInfoResult> {
+    fn wait_blockchain_sync(
+        &self,
+        progress_tx: Option<mpsc::Sender<Progress>>,
+    ) -> RpcResult<json::GetBlockchainInfoResult> {
         Ok(loop {
             let info = self.get_blockchain_info()?;
 
@@ -45,11 +48,23 @@ pub trait RpcApiExt: RpcApi {
                 info.blocks, info.headers, info.verification_progress * 100.0
             );
 
+            if let Some(ref progress_tx) = progress_tx {
+                let progress = Progress::Sync {
+                    progress_n: info.verification_progress as f32,
+                    tip_time: info.median_time,
+                };
+                if progress_tx.send(progress).is_err() {
+                    break info;
+                }
+            }
             thread::sleep(WAIT_INTERVAL);
         })
     }
 
-    fn wait_wallet_scan(&self) -> RpcResult<json::GetWalletInfoResult> {
+    fn wait_wallet_scan(
+        &self,
+        progress_tx: Option<mpsc::Sender<Progress>>,
+    ) -> RpcResult<json::GetWalletInfoResult> {
         Ok(loop {
             let info = self.get_wallet_info()?;
             match info.scanning {
@@ -61,13 +76,20 @@ pub trait RpcApiExt: RpcApi {
                 Some(ScanningDetails::NotScanning(_)) => break info,
                 Some(ScanningDetails::Scanning { progress, duration }) => {
                     let duration = duration as u64;
-                    let progress = progress as f64;
-                    let eta = (duration as f64 / progress) as u64 - duration;
+                    let progress_n = progress as f32;
+                    let eta = (duration as f32 / progress_n) as u64 - duration;
 
                     info!(target: "bwt",
                         "waiting for bitcoind to finish scanning [done {:.1}%, running for {}m, eta {}m]",
-                        progress * 100.0, duration / 60, eta / 60
+                        progress_n * 100.0, duration / 60, eta / 60
                     );
+
+                    if let Some(ref progress_tx) = progress_tx {
+                        let progress = Progress::Scan { progress_n, eta };
+                        if progress_tx.send(progress).is_err() {
+                            break info;
+                        }
+                    }
                 }
             };
             thread::sleep(WAIT_INTERVAL);
@@ -76,6 +98,12 @@ pub trait RpcApiExt: RpcApi {
 }
 
 impl RpcApiExt for Client {}
+
+#[derive(Debug, Copy, Clone)]
+pub enum Progress {
+    Sync { progress_n: f32, tip_time: u64 },
+    Scan { progress_n: f32, eta: u64 },
+}
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
 pub struct GetBlockStatsResult {

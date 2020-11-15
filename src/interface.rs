@@ -5,13 +5,16 @@ mod ffi {
     use std::sync::{mpsc, Once};
     use std::thread;
 
+    use crate::util::bitcoincore_ext::Progress;
     use crate::{App, Config, Result};
 
     const OK: i32 = 0;
     const ERR: i32 = -1;
 
+    type Callback = extern "C" fn(*const c_char, f32, *const c_char);
+
     #[repr(C)]
-    pub struct ShutdownHandler(mpsc::Sender<()>);
+    pub struct ShutdownHandler(mpsc::SyncSender<()>);
 
     static INIT_LOGGER: Once = Once::new();
 
@@ -23,14 +26,10 @@ mod ffi {
     #[no_mangle]
     pub extern "C" fn bwt_start(
         json_config: *const c_char,
-        callback_fn: extern "C" fn(*const c_char, f32, *const c_char),
+        callback_fn: Callback,
         shutdown_out: *mut *const ShutdownHandler,
     ) -> i32 {
         let json_config = unsafe { CStr::from_ptr(json_config) }.to_str().unwrap();
-
-        let callback = |msg_type: &str, progress: f32, detail: &str| {
-            callback_fn(cstring(msg_type), progress, cstring(detail))
-        };
 
         let start = || -> Result<_> {
             let config: Config = serde_json::from_str(json_config)?;
@@ -39,20 +38,24 @@ mod ffi {
                 INIT_LOGGER.call_once(|| config.setup_logger());
             }
 
-            // TODO emit rescan progress updates with ETA from App::boot() and forward them
-            callback("booting", 0.0, "");
-            let app = App::boot(config)?;
+            let (progress_tx, progress_rx) = mpsc::channel();
+            let _progress_thread = spawn_recv_progress_thread(progress_rx, callback_fn.clone());
+
+            notify(callback_fn, "booting", 0.0, "");
+            let app = App::boot(config, Some(progress_tx))?;
+
+            // XXX progress_thread.join().unwrap();
 
             #[cfg(feature = "electrum")]
             if let Some(addr) = app.electrum_addr() {
-                callback("ready:electrum", 1.0, &addr.to_string());
+                notify(callback_fn, "ready:electrum", 1.0, &addr.to_string());
             }
             #[cfg(feature = "http")]
             if let Some(addr) = app.http_addr() {
-                callback("ready:http", 1.0, &addr.to_string());
+                notify(callback_fn, "ready:http", 1.0, &addr.to_string());
             }
 
-            callback("ready", 1.0, "");
+            notify(callback_fn, "ready", 1.0, "");
 
             let shutdown_tx = app.sync_background();
 
@@ -66,7 +69,7 @@ mod ffi {
             },
             Err(e) => {
                 warn!("{:?}", e);
-                callback("error", 0.0, &e.to_string());
+                notify(callback_fn, "error", 0.0, &e.to_string());
                 ERR
             }
         }
@@ -82,7 +85,35 @@ mod ffi {
         OK
     }
 
+    fn notify(callback_fn: Callback, msg_type: &str, progress: f32, detail: &str) {
+        callback_fn(cstring(msg_type), progress, cstring(detail))
+    }
+
     fn cstring(s: &str) -> *const c_char {
         CString::new(s).unwrap().into_raw()
+    }
+
+    // Spawn a thread to receive mpsc progress updates and forward them to the callback_fn
+    fn spawn_recv_progress_thread(
+        progress_rx: mpsc::Receiver<Progress>,
+        callback_fn: Callback,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || loop {
+            match progress_rx.recv() {
+                Ok(Progress::Sync {
+                    progress_n,
+                    tip_time,
+                }) => notify(
+                    callback_fn,
+                    "progress:sync",
+                    progress_n,
+                    &tip_time.to_string(),
+                ),
+                Ok(Progress::Scan { progress_n, eta }) => {
+                    notify(callback_fn, "progress:scan", progress_n, &eta.to_string())
+                }
+                Err(mpsc::RecvError) => break,
+            }
+        })
     }
 }

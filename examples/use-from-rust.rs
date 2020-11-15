@@ -17,7 +17,7 @@ fn main() -> Result<()> {
     config.setup_logger(); // optional
 
     // Boot up bwt. The thread will be blocked until the initial sync is completed
-    let app = App::boot(config)?;
+    let app = App::boot(config, None)?;
 
     // The index is now ready for querying
     let query = app.query();

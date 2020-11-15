@@ -25,6 +25,8 @@
 - Support binding on ephemeral port (`--http-addr 127.0.0.1:0`) (#63)
 
 - Shutdown cleanly, via `SIGINT`/`SIGTERM` for CLI or a custom signal for library users (#62, #66)
+  
+- Emit wallet rescan and blockchain sync progress updates (via mpsc, [ffi](#64) and console)
 
 - Renamed CLI options: `--http-server-addr` to `--http-addr`, `--electrum-rpc-addr` to `--electrum-addr`
 

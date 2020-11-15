@@ -3,7 +3,8 @@ use std::{net, thread};
 
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
-use crate::util::{banner, debounce_sender, RpcApiExt};
+use crate::util::bitcoincore_ext::{Progress, RpcApiExt};
+use crate::util::{banner, debounce_sender};
 use crate::{Config, Indexer, Query, Result, WalletWatcher};
 
 #[cfg(feature = "electrum")]
@@ -32,7 +33,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn boot(config: Config) -> Result<Self> {
+    pub fn boot(config: Config, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<Self> {
         debug!("{:?}", config);
 
         let watcher = WalletWatcher::from_config(
@@ -55,14 +56,14 @@ impl App {
             load_wallet(&rpc, bitcoind_wallet)?;
         }
 
-        wait_bitcoind(&rpc)?;
+        wait_bitcoind(&rpc, progress_tx.clone())?;
 
         if config.startup_banner {
             println!("{}", banner::get_welcome_banner(&query, false)?);
         }
 
         // do an initial sync without keeping track of updates
-        indexer.write().unwrap().initial_sync()?;
+        indexer.write().unwrap().initial_sync(progress_tx)?;
 
         let (sync_tx, sync_rx) = mpsc::channel();
         // debounce sync message rate to avoid excessive indexing when bitcoind catches up
@@ -221,9 +222,9 @@ fn load_wallet(rpc: &RpcClient, name: &str) -> Result<()> {
 }
 
 // wait for bitcoind to sync and finish rescanning
-fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
-    let bcinfo = rpc.wait_blockchain_sync()?;
-    let walletinfo = rpc.wait_wallet_scan()?;
+fn wait_bitcoind(rpc: &RpcClient, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<()> {
+    let bcinfo = rpc.wait_blockchain_sync(progress_tx.clone())?;
+    let walletinfo = rpc.wait_wallet_scan(progress_tx)?;
 
     let netinfo = rpc.get_network_info()?;
     info!(
@@ -234,6 +235,7 @@ fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
         netinfo.protocol_version,
         bcinfo.best_block_hash
     );
+
     trace!("{:?}", netinfo);
     trace!("{:?}", bcinfo);
     trace!("{:?}", walletinfo);

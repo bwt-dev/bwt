@@ -67,7 +67,7 @@ let bwtd = await BwtDaemon({
   gap_limit: 100,
 
   // Progress notifications for history scanning (a full rescan from genesis can take 20-30 minutes)
-  progress_fn: progress => console.log('bwt progress %f%%', progress*100),
+  progress_cb: (type, progress, detail) => console.log('bwt progress %s %f%%', type, progress*100, detail),
 })
 
 // Get the assigned address/port for the Electrum/HTTP servers

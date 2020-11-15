@@ -170,7 +170,6 @@ impl WalletWatcher {
         let has_imports = !import_reqs.is_empty();
 
         if has_imports {
-            // TODO report syncing progress
             info!(
                 "importing batch of {} addresses... (this may take awhile)",
                 import_reqs.len()
