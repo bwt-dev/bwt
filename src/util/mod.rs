@@ -15,6 +15,8 @@ pub mod bitcoincore_ext;
 pub mod descriptor;
 pub mod xpub;
 
+pub use bitcoincore_ext::RpcApiExt;
+
 lazy_static! {
     pub static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
 }

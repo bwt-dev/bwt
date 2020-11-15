@@ -1,14 +1,16 @@
 use serde::{de, Serialize};
 use std::fmt::{self, Formatter};
+use std::{thread, time};
 
-use bitcoincore_rpc::json::ImportMultiRescanSince;
+use bitcoincore_rpc::json::{self, ImportMultiRescanSince, ScanningDetails};
 use bitcoincore_rpc::{Client, Result as RpcResult, RpcApi};
+
+const WAIT_INTERVAL: time::Duration = time::Duration::from_secs(10);
 
 // Extensions for rust-bitcoincore-rpc
 
 pub trait RpcApiExt: RpcApi {
     // Only supports the fields we're interested in (so not currently upstremable)
-
     fn get_block_stats(&self, blockhash: &bitcoin::BlockHash) -> RpcResult<GetBlockStatsResult> {
         let fields = (
             "height",
@@ -23,8 +25,53 @@ pub trait RpcApiExt: RpcApi {
         self.call("getblockstats", &[json!(blockhash), json!(fields)])
     }
 
+    // Only supports the fields we're interested in (so not currently upstremable)
     fn get_mempool_info(&self) -> RpcResult<GetMempoolInfoResult> {
         self.call("getmempoolinfo", &[])
+    }
+
+    fn wait_blockchain_sync(&self) -> RpcResult<json::GetBlockchainInfoResult> {
+        Ok(loop {
+            let info = self.get_blockchain_info()?;
+
+            if info.blocks == info.headers
+                && (!info.initial_block_download || info.chain == "regtest")
+            {
+                break info;
+            }
+
+            info!(target: "bwt",
+                "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%]",
+                info.blocks, info.headers, info.verification_progress * 100.0
+            );
+
+            thread::sleep(WAIT_INTERVAL);
+        })
+    }
+
+    fn wait_wallet_scan(&self) -> RpcResult<json::GetWalletInfoResult> {
+        Ok(loop {
+            let info = self.get_wallet_info()?;
+            match info.scanning {
+                None => {
+                    warn!("Your bitcoin node does not report the `scanning` status in `getwalletinfo`. It is recommended to upgrade to Bitcoin Core v0.19+ to enable this.");
+                    warn!("This is needed for bwt to wait for scanning to finish before starting up. Starting bwt while the node is scanning may lead to unexpected results. Continuing anyway...");
+                    break info;
+                }
+                Some(ScanningDetails::NotScanning(_)) => break info,
+                Some(ScanningDetails::Scanning { progress, duration }) => {
+                    let duration = duration as u64;
+                    let progress = progress as f64;
+                    let eta = (duration as f64 / progress) as u64 - duration;
+
+                    info!(target: "bwt",
+                        "waiting for bitcoind to finish scanning [done {:.1}%, running for {}m, eta {}m]",
+                        progress * 100.0, duration / 60, eta / 60
+                    );
+                }
+            };
+            thread::sleep(WAIT_INTERVAL);
+        })
     }
 }
 

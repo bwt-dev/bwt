@@ -1,9 +1,9 @@
 use std::sync::{mpsc, Arc, RwLock};
-use std::{net, thread, time};
+use std::{net, thread};
 
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
-use crate::util::{banner, debounce_sender};
+use crate::util::{banner, debounce_sender, RpcApiExt};
 use crate::{Config, Indexer, Query, Result, WalletWatcher};
 
 #[cfg(feature = "electrum")]
@@ -222,8 +222,10 @@ fn load_wallet(rpc: &RpcClient, name: &str) -> Result<()> {
 
 // wait for bitcoind to sync and finish rescanning
 fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
+    let bcinfo = rpc.wait_blockchain_sync()?;
+    let walletinfo = rpc.wait_wallet_scan()?;
+
     let netinfo = rpc.get_network_info()?;
-    let mut bcinfo = rpc.get_blockchain_info()?;
     info!(
         "bwt v{} connected to {} on {}, protocolversion={}, bestblock={}",
         crate::BWT_VERSION,
@@ -232,70 +234,9 @@ fn wait_bitcoind(rpc: &RpcClient) -> Result<()> {
         netinfo.protocol_version,
         bcinfo.best_block_hash
     );
-
     trace!("{:?}", netinfo);
     trace!("{:?}", bcinfo);
-
-    let dur = time::Duration::from_secs(15);
-    while (bcinfo.chain != "regtest" && bcinfo.initial_block_download)
-        || bcinfo.blocks < bcinfo.headers
-    {
-        info!(
-            "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%, initialblockdownload={}]",
-            bcinfo.blocks,
-            bcinfo.headers,
-            bcinfo.verification_progress * 100.0,
-            bcinfo.initial_block_download
-        );
-        thread::sleep(dur);
-        bcinfo = rpc.get_blockchain_info()?;
-    }
-    loop {
-        match check_scanning(rpc)? {
-            ScanningResult::NotScanning => break,
-            ScanningResult::Unsupported => {
-                warn!("Your bitcoin node does not report the `scanning` status in `getwalletinfo`. It is recommended to upgrade to Bitcoin Core v0.19+ to enable this.");
-                warn!("This is needed for bwt to wait for scanning to finish before starting up. Starting bwt while the node is scanning may lead to unexpected results. Continuing anyway...");
-                break;
-            }
-            ScanningResult::Scanning(scanning) => {
-                info!(
-                    "waiting for bitcoind to finish scanning [done {:.1}%, running for {:?}]",
-                    scanning.progress * 100f64,
-                    time::Duration::from_secs(scanning.duration)
-                );
-            }
-        };
-        thread::sleep(dur);
-    }
+    trace!("{:?}", walletinfo);
 
     Ok(())
-}
-
-fn check_scanning(rpc: &RpcClient) -> Result<ScanningResult> {
-    let mut wallet_info: serde_json::Value = rpc.call("getwalletinfo", &[])?;
-
-    // the "rescanning" field is only supported as of Bitcoin Core v0.19
-    let rescanning = some_or_ret!(
-        wallet_info.get_mut("scanning"),
-        Ok(ScanningResult::Unsupported)
-    );
-
-    Ok(if rescanning.as_bool() == Some(false) {
-        ScanningResult::NotScanning
-    } else {
-        let details = serde_json::from_value(rescanning.take())?;
-        ScanningResult::Scanning(details)
-    })
-}
-
-enum ScanningResult {
-    Scanning(ScanningDetails),
-    NotScanning,
-    Unsupported,
-}
-#[derive(Deserialize)]
-struct ScanningDetails {
-    duration: u64,
-    progress: f64,
 }
