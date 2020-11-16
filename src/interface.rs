@@ -11,7 +11,7 @@ mod ffi {
     const OK: i32 = 0;
     const ERR: i32 = -1;
 
-    type Callback = extern "C" fn(*const c_char, f32, *const c_char);
+    type Callback = extern "C" fn(*const c_char, f32, u32, *const c_char);
 
     #[repr(C)]
     pub struct ShutdownHandler(mpsc::SyncSender<()>);
@@ -39,23 +39,21 @@ mod ffi {
             }
 
             let (progress_tx, progress_rx) = mpsc::channel();
-            let _progress_thread = spawn_recv_progress_thread(progress_rx, callback_fn.clone());
+            spawn_recv_progress_thread(progress_rx, callback_fn.clone());
 
-            notify(callback_fn, "booting", 0.0, "");
+            notify(callback_fn, "booting", 0.0, 0, "");
             let app = App::boot(config, Some(progress_tx))?;
-
-            // XXX progress_thread.join().unwrap();
 
             #[cfg(feature = "electrum")]
             if let Some(addr) = app.electrum_addr() {
-                notify(callback_fn, "ready:electrum", 1.0, &addr.to_string());
+                notify(callback_fn, "ready:electrum", 1.0, 0, &addr.to_string());
             }
             #[cfg(feature = "http")]
             if let Some(addr) = app.http_addr() {
-                notify(callback_fn, "ready:http", 1.0, &addr.to_string());
+                notify(callback_fn, "ready:http", 1.0, 0, &addr.to_string());
             }
 
-            notify(callback_fn, "ready", 1.0, "");
+            notify(callback_fn, "ready", 1.0, 0, "");
 
             let shutdown_tx = app.sync_background();
 
@@ -69,7 +67,7 @@ mod ffi {
             },
             Err(e) => {
                 warn!("{:?}", e);
-                notify(callback_fn, "error", 0.0, &e.to_string());
+                notify(callback_fn, "error", 0.0, 0, &e.to_string());
                 ERR
             }
         }
@@ -85,8 +83,8 @@ mod ffi {
         OK
     }
 
-    fn notify(callback_fn: Callback, msg_type: &str, progress: f32, detail: &str) {
-        callback_fn(cstring(msg_type), progress, cstring(detail))
+    fn notify(callback_fn: Callback, msg_type: &str, progress: f32, detail_n: u32, detail_s: &str) {
+        callback_fn(cstring(msg_type), progress, detail_n, cstring(detail_s))
     }
 
     fn cstring(s: &str) -> *const c_char {
@@ -100,17 +98,11 @@ mod ffi {
     ) -> thread::JoinHandle<()> {
         thread::spawn(move || loop {
             match progress_rx.recv() {
-                Ok(Progress::Sync {
-                    progress_n,
-                    tip_time,
-                }) => notify(
-                    callback_fn,
-                    "progress:sync",
-                    progress_n,
-                    &tip_time.to_string(),
-                ),
+                Ok(Progress::Sync { progress_n, tip }) => {
+                    notify(callback_fn, "progress:sync", progress_n, tip as u32, "")
+                }
                 Ok(Progress::Scan { progress_n, eta }) => {
-                    notify(callback_fn, "progress:scan", progress_n, &eta.to_string())
+                    notify(callback_fn, "progress:scan", progress_n, eta as u32, "")
                 }
                 Err(mpsc::RecvError) => break,
             }

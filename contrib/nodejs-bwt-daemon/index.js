@@ -19,7 +19,7 @@ const libbwt = ffi.Library(LIB_PATH, {
 
 function start_bwt(options, progress_cb, done) {
   const opt_json = JSON.stringify(options)
-      , progress_cb_ffi = ffi.Callback('void', [ 'string', 'float', 'string' ], progress_cb)
+      , progress_cb_ffi = ffi.Callback('void', [ 'string', 'float', 'uint32', 'string' ], progress_cb)
       , shutdown_ptrptr = ref.alloc(shutdownPtrPtr)
 
   debug('starting');
@@ -56,16 +56,16 @@ function init(options) {
 
     const services = {}
 
-    function progress_cb(msg_type, progress, detail) {
-      debug('%s %s %s', msg_type, progress, detail)
+    function progress_cb(msg_type, progress, detail_n, detail_s) {
+      debug('%s %s %s', msg_type, progress, detail_n, detail_s)
       if (msg_type == 'error') {
-        reject(new Error(detail))
+        reject(new Error(detail_s))
       } else if (msg_type.startsWith('ready:')) {
-        services[msg_type.substr(6)] = detail
+        services[msg_type.substr(6)] = detail_s
       } else if (msg_type == 'progress:sync') {
-        opt_progress && opt_progress('sync', progress, { tip_time: +detail })
+        opt_progress && opt_progress('sync', progress, { tip_time: detail_n })
       } else if (msg_type == 'progress:scan') {
-        opt_progress && opt_progress('scan', progress, { eta: +detail })
+        opt_progress && opt_progress('scan', progress, { eta: detail_n })
       } else if (['booting', 'ready'].includes(msg_type)) {
         opt_progress && opt_progress(msg_type, progress, {})
       }

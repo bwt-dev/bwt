@@ -51,7 +51,7 @@ pub trait RpcApiExt: RpcApi {
             if let Some(ref progress_tx) = progress_tx {
                 let progress = Progress::Sync {
                     progress_n: info.verification_progress as f32,
-                    tip_time: info.median_time,
+                    tip: info.median_time,
                 };
                 if progress_tx.send(progress).is_err() {
                     break info;
@@ -101,7 +101,7 @@ impl RpcApiExt for Client {}
 
 #[derive(Debug, Copy, Clone)]
 pub enum Progress {
-    Sync { progress_n: f32, tip_time: u64 },
+    Sync { progress_n: f32, tip: u64 },
     Scan { progress_n: f32, eta: u64 },
 }
 
