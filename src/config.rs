@@ -13,6 +13,7 @@ use crate::util::xpub::XyzPubKey;
 use {log::Level, pretty_env_logger::env_logger::Builder as LogBuilder};
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "cli", derive(structopt::StructOpt))]
 pub struct Config {
     #[cfg_attr(
