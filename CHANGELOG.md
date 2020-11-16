@@ -11,30 +11,32 @@
   are now identified by the descriptor checksum, addresses have descriptors associated with them,
   and a new `bip32_origins` field is available based on the descriptor origin information.
 
-  NOTE: The `-d` CLI option was changed to mean `--descriptor` instead of `--bitcoind-dir`
-  (which is now available as `-r`).
+- Support binding on ephemeral port (e.g. `--http-addr 127.0.0.1:0`) (#63)
 
-- Fix `blockchain.scripthash.listunspent` / `Query::list_unspent` to return an empty set
-  instead of erroring when there's no history.
+- Reduce the number of dependencies (#61)
 
 - Support non-wallet transactions in `blockchain.transaction.get` / `GET /tx/:txid/hex`
   (requires txindex and no pruning).
 
-- Reduce the number of dependencies (#61)
-
-- Support binding on ephemeral port (`--http-addr 127.0.0.1:0`) (#63)
+- Emit wallet rescan and blockchain sync progress updates (via mpsc, [ffi](#64) and the console)
 
 - Shutdown cleanly, via `SIGINT`/`SIGTERM` for CLI or a custom signal for library users (#62, #66)
-  
-- Emit wallet rescan and blockchain sync progress updates (via mpsc, [ffi](#64) and console)
-
-- Renamed CLI options: `--http-server-addr` to `--http-addr`, `--electrum-rpc-addr` to `--electrum-addr`
 
 - HTTP: Alias `GET /txs/since/0` as `GET /txs`
+
+- Fix `blockchain.scripthash.listunspent` / `Query::list_unspent` to return an empty set
+  instead of erroring when there's no history.
 
 - Electrum: Fix `mempool.get_fee_histogram` (5af7bfc62d7d98)
 
 - Upgrade to rust-bitcoin v0.25 and rust-bitcoincore-rpc v0.12
+
+Breaking CLI changes:
+
+- The `-d` CLI option was changed to mean `--descriptor` instead of `--bitcoind-dir`
+   (which is now available as `-r`).
+
+- Renamed `--http-server-addr` to `--http-addr` and `--electrum-rpc-addr` to `--electrum-addr`
 
 ## 0.1.5 - 2020-10-05
 
