@@ -1294,17 +1294,24 @@ $ git clone https://github.com/shesek/bwt && cd bwt
 
 # Linux, Windows & ARMv7/v8
 $ docker build -t bwt-builder -f scripts/builder.Dockerfile .
-$ docker run -it --rm -u `id -u` -v `pwd`:/usr/src/bwt bwt-builder
+$ docker run -it -v `pwd`:/usr/src/bwt bwt-builder
 
 # Mac OSX (cross-compiled via osxcross)
 $ docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
-$ docker run -it --rm -u `id -u` -v `pwd`:/usr/src/bwt bwt-builder-osx
+$ docker run -it -v `pwd`:/usr/src/bwt bwt-builder-osx
+
+# NodeJS package (requires building all platforms first)
+$ docker run -it -v `pwd`:/usr/src/bwt -w /usr/src/bwt/contrib/nodejs-bwt-daemon \
+             --entrypoint npm bwt-builder run dist
 
 $ sha256sum dist/*
 ```
 
 The builds are [reproduced on Travis CI](https://travis-ci.org/github/shesek/bwt/branches) using the code from GitHub.
 The SHA256 checksums are available under the "Reproducible builds" stage.
+
+(Note: the `nodejs-bwt-daemon` package can be reproduced as shown above, but does not get reproduced on Travis
+due to a technical limitation.)
 
 ## Thanks
 

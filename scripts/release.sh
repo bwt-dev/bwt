@@ -1,5 +1,6 @@
 #!/bin/bash
 set -xeo pipefail
+shopt -s expand_aliases
 
 docker_name=shesek/bwt
 gh_repo=shesek/bwt
@@ -40,17 +41,20 @@ if [ -z "$SKIP_BUILD" ]; then
   rm -rf dist/*
 
   if [ -z "$BUILD_HOST" ]; then
-    docker_mounts="-v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo"
+    alias docker_run="docker run -it --rm -u `id -u` -v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo"
+
     docker build -t bwt-builder -f scripts/builder.Dockerfile .
-    docker run -it --rm -u `id -u` $docker_mounts bwt-builder
+    docker_run bwt-builder
     if [ -z "$SKIP_OSX" ]; then
       docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
-      docker run -it --rm -u `id -u` $docker_mounts bwt-builder-osx
+      docker_run bwt-builder-osx
     fi
+    docker_run -w /usr/src/bwt/contrib/nodejs-bwt-daemon --entrypoint npm bwt-builder run dist -- $version ../../dist
   else
     # macOS builds are disabled by default when building on the host.
     # to enable, set TARGETS=x86_64-osx,...
     ./scripts/build.sh
+    (cd contrib/nodejs-bwt-daemon && npm run dist -- $version ../../dist)
   fi
 
   echo Making SHA256SUMS...
@@ -75,7 +79,7 @@ if [ -z "$SKIP_CRATE" ]; then
   cargo publish
 fi
 
-if [ -z "$SKIP_NPM_DAEMON" ]; then
+if [ -z "$SKIP_PUBLISH_NPM_DAEMON" ]; then
   echo Publishing bwt-daemon to npm...
   (cd contrib/nodejs-bwt-daemon && npm publish)
 fi

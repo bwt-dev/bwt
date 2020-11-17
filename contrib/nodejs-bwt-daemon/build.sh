@@ -1,8 +1,10 @@
 #!/bin/bash
 set -xeo pipefail
 
-version=$1
-dest_dir=$2
+version=${1:-`cat ../../Cargo.toml | egrep '^version =' | cut -d'"' -f2`}
+dest_dir=${2:-../../dist}
+
+echo Building the nodejs bwt-daemon v$version package for $dest_dir
 
 npm version $version
 

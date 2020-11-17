@@ -97,9 +97,5 @@ for platform in x86_64-linux x86_64-win x86_64-osx arm32v7 arm64v8; do
   rm dist/bwt
 done
 
-echo Building the nodejs bwt-daemon package
-realdist=$(realpath dist)
-(cd contrib/nodejs-bwt-daemon && npm run dist -- $version $realdist)
-
 # remove subdirectories, keep release tarballs
 rm -r dist/*/
