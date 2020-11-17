@@ -6,7 +6,7 @@ dest_dir=${2:-../../dist}
 
 echo Building the nodejs bwt-daemon v$version package for $dest_dir
 
-npm version $version
+npm version --allow-same-version $version
 
 (cd $dest_dir && sha256sum libbwt*.tar.gz) > SHA256SUMS
 

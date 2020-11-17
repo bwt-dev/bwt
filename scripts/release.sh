@@ -4,6 +4,9 @@ shopt -s expand_aliases
 
 docker_name=shesek/bwt
 gh_repo=shesek/bwt
+node_image=node:14 # for packaging nodejs-bwt-daemon
+
+alias docker_run="docker run -it --rm -u `id -u` -v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo"
 
 if ! git diff-index --quiet HEAD; then
   echo git working directory is dirty
@@ -41,15 +44,13 @@ if [ -z "$SKIP_BUILD" ]; then
   rm -rf dist/*
 
   if [ -z "$BUILD_HOST" ]; then
-    alias docker_run="docker run -it --rm -u `id -u` -v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo"
-
     docker build -t bwt-builder -f scripts/builder.Dockerfile .
     docker_run bwt-builder
     if [ -z "$SKIP_OSX" ]; then
       docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
       docker_run bwt-builder-osx
     fi
-    docker_run -w /usr/src/bwt/contrib/nodejs-bwt-daemon --entrypoint npm bwt-builder run dist -- $version ../../dist
+    docker_run -w /usr/src/bwt/contrib/nodejs-bwt-daemon $node_image npm run dist -- $version ../../dist
   else
     # macOS builds are disabled by default when building on the host.
     # to enable, set TARGETS=x86_64-osx,...
