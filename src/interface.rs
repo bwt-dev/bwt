@@ -83,12 +83,15 @@ mod ffi {
         OK
     }
 
-    fn notify(callback_fn: Callback, msg_type: &str, progress: f32, detail_n: u32, detail_s: &str) {
-        callback_fn(cstring(msg_type), progress, detail_n, cstring(detail_s))
-    }
-
-    fn cstring(s: &str) -> *const c_char {
-        CString::new(s).unwrap().into_raw()
+    fn notify(callback_fn: Callback, msg_type: &str, progress: f32, detail_n: u64, detail_s: &str) {
+        let msg_type = CString::new(msg_type).unwrap();
+        let detail_s = CString::new(detail_s).unwrap();
+        callback_fn(
+            msg_type.as_ptr(),
+            progress,
+            detail_n as u32,
+            detail_s.as_ptr(),
+        );
     }
 
     // Spawn a thread to receive mpsc progress updates and forward them to the callback_fn
@@ -99,10 +102,10 @@ mod ffi {
         thread::spawn(move || loop {
             match progress_rx.recv() {
                 Ok(Progress::Sync { progress_n, tip }) => {
-                    notify(callback_fn, "progress:sync", progress_n, tip as u32, "")
+                    notify(callback_fn, "progress:sync", progress_n, tip, "")
                 }
                 Ok(Progress::Scan { progress_n, eta }) => {
-                    notify(callback_fn, "progress:scan", progress_n, eta as u32, "")
+                    notify(callback_fn, "progress:scan", progress_n, eta, "")
                 }
                 Err(mpsc::RecvError) => break,
             }
