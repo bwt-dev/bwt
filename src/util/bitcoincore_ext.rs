@@ -77,7 +77,11 @@ pub trait RpcApiExt: RpcApi {
                 Some(ScanningDetails::Scanning { progress, duration }) => {
                     let duration = duration as u64;
                     let progress_n = progress as f32;
-                    let eta = (duration as f32 / progress_n) as u64 - duration;
+                    let eta = if progress_n > 0.0 {
+                        (duration as f32 / progress_n) as u64 - duration
+                    } else {
+                        0
+                    };
 
                     info!(target: "bwt",
                         "waiting for bitcoind to finish scanning [done {:.1}%, running for {}m, eta {}m]",
