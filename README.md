@@ -134,10 +134,10 @@ your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 
 You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
 
-Alternatively, you can also track output script descriptord via `--descriptor`. For example, `--descriptor 'wpkh(<xpub>/0/*)'`.
+You can also track output script descriptors using `--descriptor`. For example, `--descriptor 'wpkh(<xpub>/0/*)'`.
 
 Rescanning can be controlled with `--xpub <xpub>@<rescan>`. You can specify `<rescan>` with the wallet birthday formatted
-as `yyyy-mm-dd` to scan from that date onwards only, or use `none` to disable rescanning entirely (for newly created wallets).
+as `yyyy-mm-dd` to scan from that date onwards only, or use `now` to disable rescanning and watch for new transactions only (for newly created wallets).
 *Setting this can significantly speed up scanning and is highly recommended.*
 
 By default, the Electrum server will be bound on port `50001`/`60001`/`60401` (according to the network)
@@ -263,15 +263,12 @@ For example, to broadcast transactions over Tor using the blockstream.info onion
 
 You can setup bwt as an Electrum plugin that embeds the Electrum server into the Electrum wallet.
 
-> ⚠️ **NOTE:** The plugin supports watch-only wallets only and **cannot be used with hot wallets**.
-> This is done as a security measure, which is expected to eventually be relaxed.
-> You can use the plugin with hardware wallets or with an offline Electrum setup.
-> For hot wallets, you will need to setup a standalone server instead of using the plugin, ideally away from your keys.
+![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
 
 Download the `electrum_plugin` package from the [releases page](https://github.com/shesek/bwt/releases), verify the signature and unpack into your `electrum/plugins` directory.
 After restarting Electrum, you should see bwt in the list of installed plugins under `Tools -> Plugins`.
 
-The plugin supports Electrum v3 and v4. It is available for Linux, Mac, Windows and ARM.
+The plugin supports Electrum v3 and v4. It works with multi-signature wallets. It is available for Linux, Mac, Windows and ARM.
 
 Note that it is not possible to install external plugins with the Electrum AppImage or standalone Windows executable.
 You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) on Linux, use the Windows installer, or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
@@ -282,7 +279,10 @@ To avoid connecting to public servers while setting up the plugin, make sure the
 
 To build the plugin from source, first build the binary as [described here](#from-source), copy it into the `contrib/electrum-plugin` directory, then place that directory under `electrum/plugins`, *but renamed to `bwt`* (Electrum won't recognize it otherwise).
 
-![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
+> ⚠️ **NOTE:** The plugin supports watch-only wallets only and **cannot be used with hot wallets**.
+> This is done as a security measure, which is expected to eventually be relaxed.
+> You can use the plugin with hardware wallets or with an offline Electrum setup.
+> For hot wallets, you will need to setup a standalone server instead of using the plugin, ideally away from your keys.
 
 ## Manual Electrum setup (without the plugin)
 
@@ -292,13 +292,13 @@ To build the plugin from source, first build the binary as [described here](#fro
 $ electrum --skipmerklecheck --oneserver --server 127.0.0.1:50001:t
 ```
 
-Note that setting `--skipmerklecheck` is only necessary if your node is pruned,
-but it can also be used to save some resource when combined with `--electrum-skip-merkle`.
-See [more details here](#pruning).
-
 Alternatively, you can also set `127.0.0.1:50001:t` as your server using the server selection GUI
 (note the `:t`, which disables TLS). Note, however, that it is not possible to configure `oneserver`
 and `skipmerklecheck` using the GUI.
+
+> Note that setting `--skipmerklecheck` is only necessary if your node is pruned,
+but it can also be used to save some resource when combined with `--electrum-skip-merkle`.
+See [more details here](#pruning).
 
 ## HTTP API
 
