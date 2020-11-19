@@ -74,7 +74,7 @@ impl DescKeyInfo {
 
         ensure!(
             valid_networks,
-            "Descriptor xpubs do not match the configured network {}",
+            "xpubs do not match the configured network {}",
             network
         );
 

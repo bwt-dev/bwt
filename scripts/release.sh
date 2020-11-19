@@ -29,7 +29,7 @@ changelog="`sed -nr '/^## (Unreleased|'$version' )/{n;:a;n;/^## /q;p;ba}' CHANGE
 grep '## Unreleased' CHANGELOG.md > /dev/null \
   && sed -i "s/^## Unreleased/## $version - `date +%Y-%m-%d`/" CHANGELOG.md
 
-sed -i -r "s~bwt-[0-9.]+-x86_64~bwt-$version-x86_64~g; s~/(download|tag)/v[0-9.]+~/\1/v$version~;" README.md
+sed -i -r "s~bwt-[0-9a-z.-]+-x86_64-linux\.~bwt-$version-x86_64-linux.~g; s~/(download|tag)/v[0-9a-z.-]+~/\1/v$version~;" README.md
 
 echo -e "Releasing bwt v$version\n================\n\n$changelog\n\n"
 
@@ -82,7 +82,7 @@ fi
 
 if [ -z "$SKIP_PUBLISH_NPM_DAEMON" ]; then
   echo Publishing bwt-daemon to npm...
-  (cd contrib/nodejs-bwt-daemon && npm publish)
+  npm publish dist/nodejs-bwt-daemon-$version.tgz
 fi
 
 if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then

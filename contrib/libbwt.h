@@ -6,7 +6,8 @@
 #define BWT_OK 0
 #define BWT_ERR -1
 
-typedef void (*bwt_callback)(const char*, float, uint32_t, const char*);
+typedef void (*bwt_callback)(const char* msg_type, float progress,
+                             uint32_t detail_n, const char* detail_s);
 
 int32_t bwt_start(const char* json_config,
                   bwt_callback callback,

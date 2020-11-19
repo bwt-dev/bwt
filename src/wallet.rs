@@ -81,7 +81,7 @@ impl WalletWatcher {
         }
         if wallets.is_empty() {
             error!("Please provide at least one wallet to track (via --descriptor, --xpub or --bare-xpub).");
-            bail!("no xpubs provided");
+            bail!("No descriptors/xpubs provided");
         }
         Self::new(wallets)
     }

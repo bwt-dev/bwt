@@ -98,4 +98,4 @@ for platform in x86_64-linux x86_64-win x86_64-osx arm32v7 arm64v8; do
 done
 
 # remove subdirectories, keep release tarballs
-rm -r dist/*/
+rm -rf dist/*/

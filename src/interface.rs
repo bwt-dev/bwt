@@ -92,6 +92,7 @@ mod ffi {
             detail_n as u32,
             detail_s.as_ptr(),
         );
+        // drop CStrings
     }
 
     // Spawn a thread to receive mpsc progress updates and forward them to the callback_fn
