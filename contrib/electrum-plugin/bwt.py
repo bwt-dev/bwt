@@ -58,6 +58,7 @@ class BwtPlugin(BasePlugin):
             '--network', get_network_name(),
             '--bitcoind-url', self.bitcoind_url,
             '--bitcoind-dir', self.bitcoind_dir,
+            '--rescan-since', self.rescan_since,
             '--electrum-addr', '127.0.0.1:%d' % self.rpc_port,
             '--electrum-skip-merkle',
             '--no-startup-banner',
@@ -74,7 +75,7 @@ class BwtPlugin(BasePlugin):
 
         for wallet in self.wallets:
             for xpub in wallet.get_master_public_keys():
-                args.extend([ '--xpub', '%s@%s' % (xpub, self.rescan_since) ])
+                args.extend([ '--xpub', xpub ])
 
         for i in range(self.verbose):
             args.append('-v')

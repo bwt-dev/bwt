@@ -32,8 +32,8 @@ location, on the default ports and with cookie auth enabled, this should Just Wo
 ```js
 import BwtDaemon from 'bwt-daemon'
 
-let bwtd = await BwtDaemon({
-  xpubs: [ [ 'xpub66...', 'now' ] ],
+const bwtd = await BwtDaemon({
+  xpubs: [ 'xpub66...' ],
   electrum: true,
 })
 
@@ -43,17 +43,19 @@ console.log('bwt electrum server ready on', bwtd.electrum_addr)
 With some more advanced options:
 
 ```js
-let bwtd = await BwtDaemon({
+const bwtd = await BwtDaemon({
   // Network and Bitcoin Core RPC settings
   network: 'regtest',
   bitcoind_dir: '/home/satoshi/.bitcoin',
   bitcoind_url: 'http://127.0.0.1:9008/',
   bitcoind_wallet: 'bwt',
 
-  // Descriptors or xpubs to track as an array of (desc_or_xpub, rescan_since) tuples
-  // Use 'now' to look for new transactions only, or the unix timestamp to begin rescanning from.
-  descriptors: [ [ 'wpkh(tpub61.../0/*)', 'now' ] ],
-  xpubs: [ [ 'tpub66...', 'now' ] ],
+  // Descriptors and xpubs to track
+  descriptors: [ 'wpkh(tpub61.../0/*)' ],
+  xpubs: [ 'tpub66...' ],
+
+  // Rescan since timestamp. Accepts unix timestamps, date strings, Date objects, or 'now' to look for new transactions only
+  rescan_since: '2020-01-01',
 
   // Enable HTTP and Electrum servers
   http: true,

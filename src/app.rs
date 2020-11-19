@@ -40,6 +40,7 @@ impl App {
             &config.descriptors[..],
             &config.xpubs[..],
             &config.bare_xpubs[..],
+            config.rescan_since,
             config.network,
             config.gap_limit,
             config.initial_import_size,

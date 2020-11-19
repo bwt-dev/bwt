@@ -35,46 +35,47 @@ impl WalletWatcher {
     }
 
     pub fn from_config(
-        descs: &[(ExtendedDescriptor, RescanSince)],
-        xpubs: &[(XyzPubKey, RescanSince)],
-        bare_xpubs: &[(XyzPubKey, RescanSince)],
+        descs: &[ExtendedDescriptor],
+        xpubs: &[XyzPubKey],
+        bare_xpubs: &[XyzPubKey],
+        rescan_since: RescanSince,
         network: Network,
         gap_limit: u32,
         initial_import_size: u32,
     ) -> Result<Self> {
         let mut wallets = vec![];
-        for (desc, rescan) in descs {
+        for desc in descs {
             wallets.push(
                 Wallet::from_descriptor(
                     desc.clone(),
                     network,
                     gap_limit,
                     initial_import_size,
-                    *rescan,
+                    rescan_since,
                 )
                 .with_context(|| format!("invalid descriptor {}", desc))?,
             );
         }
-        for (xpub, rescan) in xpubs {
+        for xpub in xpubs {
             wallets.append(
                 &mut Wallet::from_xpub(
                     xpub.clone(),
                     network,
                     gap_limit,
                     initial_import_size,
-                    *rescan,
+                    rescan_since,
                 )
                 .with_context(|| format!("invalid xpub {}", xpub))?,
             );
         }
-        for (xpub, rescan) in bare_xpubs {
+        for xpub in bare_xpubs {
             wallets.push(
                 Wallet::from_bare_xpub(
                     xpub.clone(),
                     network,
                     gap_limit,
                     initial_import_size,
-                    *rescan,
+                    rescan_since,
                 )
                 .with_context(|| format!("invalid xpub {}", xpub))?,
             );

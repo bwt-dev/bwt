@@ -38,6 +38,8 @@ Breaking CLI changes:
 
 - Renamed `--http-server-addr` to `--http-addr` and `--electrum-rpc-addr` to `--electrum-addr`
 
+- The CLI now accepts a single `--rescan-since` timestamp instead of a separate one for each descriptor/xpub.
+
 ## 0.1.5 - 2020-10-05
 
 - Reproducible builds using Docker (#51)

@@ -7,7 +7,7 @@ const BwtDaemon = require('bwt-daemon')
     network: 'regtest',
     bitcoind_dir: '/tmp/bd1',
     bitcoind_wallet: 'bwt',
-    descriptors: [ [ my_desc, 'now' ] ],
+    descriptors: [ my_desc ],
     electrum: true,
     http: true,
     verbose: 2,

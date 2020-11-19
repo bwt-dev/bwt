@@ -10,7 +10,8 @@ fn main() -> Result<()> {
         bitcoind_dir: Some("/home/satoshi/.bitcoin".into()),
         bitcoind_wallet: Some("bwt".into()),
         electrum_addr: Some("127.0.0.1:0".parse().unwrap()),
-        descriptors: vec![(my_desc.parse().unwrap(), RescanSince::Timestamp(0))],
+        descriptors: vec![my_desc.parse().unwrap()],
+        rescan_since: RescanSince::Now,
         verbose: 2,
         ..Default::default()
     };

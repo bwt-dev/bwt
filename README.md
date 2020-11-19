@@ -136,9 +136,10 @@ You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
 
 You can also track output script descriptors using `--descriptor`. For example, `--descriptor 'wpkh(<xpub>/0/*)'`.
 
-Rescanning can be controlled with `--xpub <xpub>@<rescan>`. You can specify `<rescan>` with the wallet birthday formatted
-as `yyyy-mm-dd` to scan from that date onwards only, or use `now` to disable rescanning and watch for new transactions only (for newly created wallets).
-*Setting this can significantly speed up scanning and is highly recommended.*
+To speed up rescanning for historical transactions, you can provide the wallet creation date with `--rescan-since <timestmap>`.
+The timestamp can be a `YYYY-MM-DD` formatted string, or 'now' to disable rescanning and watch for new
+transactions only (for newly created wallets).
+*Setting this is highly recommended.*
 
 By default, the Electrum server will be bound on port `50001`/`60001`/`60401` (according to the network)
 and the HTTP server will be bound on port `3060`. This can be controlled with `--electrum-addr`
@@ -166,7 +167,8 @@ For example:
 NETWORK=regtest
 GAP_LIMIT=20
 XPUBS='<xpub1>;<xpub2>'
-DESCRIPTORS='pkh(<xpub>/0/*)@2020-01-01'
+DESCRIPTORS='pkh(<xpub>/0/*)'
+RESCAN_SINCE=2020-01-01
 ```
 
 Setting the environment variables directly is also supported.
@@ -187,7 +189,7 @@ This removes several large dependencies and disables the `track-spends` database
 
 You can use bwt with pruning, but:
 
-1. You will have to provide a rescan date (via `--xpub <xpub>@<rescan>`) that is within the range of non-pruned blocks, or use `none` to disable rescanning entirely.
+1. You will have to provide a rescan date (via `--rescan-since`) that is within the range of non-pruned blocks, or use `none` to disable rescanning entirely.
 
 2. Electrum needs to be run with `--skipmerklecheck` to tolerate missing SPV proofs for transactions in pruned blocks.
 

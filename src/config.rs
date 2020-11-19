@@ -127,37 +127,61 @@ pub struct Config {
     #[cfg_attr(feature = "cli", structopt(
         short = "d",
         long = "descriptor",
-        help = "Descriptors to track (scans for history from the genesis by default, use <desc>@<yyyy-mm-dd> or <desc>@<unix-epoch> to specify a rescan timestmap, or <desc>@none to disable rescan)",
+        help = "Add a descriptor to track",
         parse(try_from_str = parse_desc),
         env, hide_env_values(true),
         use_delimiter(true), value_delimiter(";"),
         display_order(20)
     ))]
     #[serde(default)]
-    pub descriptors: Vec<(ExtendedDescriptor, RescanSince)>,
+    pub descriptors: Vec<ExtendedDescriptor>,
 
-    #[cfg_attr(feature = "cli", structopt(
-        short = "x",
-        long = "xpub",
-        help = "xpubs to track (represented as two separate descriptors for the internal/external chains, supports <xpub>@<rescan-time>)",
-        parse(try_from_str = parse_xpub),
-        env, hide_env_values(true),
-        use_delimiter(true), value_delimiter(";"),
-        display_order(21)
-    ))]
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            short = "x",
+            long = "xpub",
+            help = "Add an extended public key to track (with separate internal/external chains)",
+            env,
+            hide_env_values(true),
+            use_delimiter(true),
+            value_delimiter(";"),
+            display_order(21)
+        )
+    )]
     #[serde(default)]
-    pub xpubs: Vec<(XyzPubKey, RescanSince)>,
+    pub xpubs: Vec<XyzPubKey>,
 
-    #[cfg_attr(feature = "cli", structopt(
-        short = "X",
-        long = "bare-xpub",
-        help = "Bare xpubs to track (like --xpub, but does not derive separate internal/external chains)",
-        parse(try_from_str = parse_xpub),
-        env, hide_env_values(true), use_delimiter(true),
-        display_order(22)
-    ))]
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            short = "X",
+            long = "bare-xpub",
+            help = "Add a bare extended public key to track (without separate internal/external chains)",
+            env,
+            hide_env_values(true),
+            use_delimiter(true),
+            display_order(22)
+        )
+    )]
     #[serde(default)]
-    pub bare_xpubs: Vec<(XyzPubKey, RescanSince)>,
+    pub bare_xpubs: Vec<XyzPubKey>,
+
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            short = "R",
+            long,
+            help = "Start date for wallet history rescan. Accepts YYYY-MM-DD formatted strings, unix timestamps, or 'now' to watch for new transactions only",
+            parse(try_from_str = parse_rescan),
+            default_value = "0",
+            env,
+            hide_env_values(true),
+            display_order(29)
+        )
+    )]
+    #[serde(default = "default_rescan_since")]
+    pub rescan_since: RescanSince,
 
     #[cfg_attr(
         feature = "cli",
@@ -452,34 +476,23 @@ fn apply_log_env(mut builder: LogBuilder) -> LogBuilder {
 }
 
 #[cfg(feature = "cli")]
-fn parse_desc(s: &str) -> Result<(ExtendedDescriptor, RescanSince)> {
+fn parse_desc(s: &str) -> Result<ExtendedDescriptor> {
     use crate::util::descriptor::DescriptorChecksum;
-    let mut parts = s.trim().splitn(2, '@');
-    let desc = ExtendedDescriptor::parse_with_checksum(parts.next().req()?)?;
-    let rescan = parse_rescan(parts.next())?;
-    Ok((desc, rescan))
+    Ok(ExtendedDescriptor::parse_with_checksum(s)?)
 }
 
 #[cfg(feature = "cli")]
-fn parse_xpub(s: &str) -> Result<(XyzPubKey, RescanSince)> {
-    let mut parts = s.trim().splitn(2, '@');
-    let xpub = parts.next().req()?.parse()?;
-    let rescan = parse_rescan(parts.next())?;
-    Ok((xpub, rescan))
-}
-
-#[cfg(feature = "cli")]
-fn parse_rescan(s: Option<&str>) -> Result<RescanSince> {
+fn parse_rescan(s: &str) -> Result<RescanSince> {
     use crate::error::Context;
     Ok(match s {
-        None | Some("all") => RescanSince::Timestamp(0),
-        Some("now") | Some("none") => RescanSince::Now,
-        Some(s) => {
+        "all" | "genesis" => RescanSince::Timestamp(0),
+        "now" | "none" => RescanSince::Now,
+        s => {
             // try as a unix timestamp first, then as a datetime string
             RescanSince::Timestamp(
                 s.parse::<u64>()
                     .or_else(|_| parse_yyyymmdd(s))
-                    .context("invalid rescan value")?,
+                    .context("invalid rescan-since value")?,
             )
         }
     })
@@ -566,6 +579,7 @@ defaultable!(Config,
   )
   @custom(
     network=Network::Bitcoin,
+    rescan_since=RescanSince::Timestamp(0),
     gap_limit=20,
     initial_import_size=350,
     poll_interval=time::Duration::from_secs(5),
@@ -576,6 +590,9 @@ defaultable!(Config,
 
 fn default_network() -> Network {
     Network::Bitcoin
+}
+fn default_rescan_since() -> RescanSince {
+    RescanSince::Timestamp(0)
 }
 fn default_gap_limit() -> u32 {
     20

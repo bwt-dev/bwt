@@ -40,6 +40,10 @@ function init(options) {
       delete options.progress
     }
 
+    if (options.rescan_since) {
+      options.rescan_since = parse_timestamp(options.rescan_since)
+    }
+
     // Convenience shortcuts
     if (options.electrum) {
       options.electrum_addr || (options.electrum_addr = '127.0.0.1:0')
@@ -97,3 +101,19 @@ class BwtDaemon {
 }
 
 module.exports = init.BwtDaemon = init
+
+// Utility
+
+function parse_timestamp(ts) {
+  // Pass 'now' as is
+  if (ts == 'now') return ts
+  // Date objects
+  if (ts.getTime) return ts.getTime()/1000|0
+  // Unix timestamp
+  if (!isNaN(ts)) return +ts
+  // Date string (e.g. YYYY-MM-DD)
+  const dt = new Date(ts)
+  if (!isNaN(dt.getTime())) return dt.getTime()/1000|0
+
+  throw new Error(`Invalid rescan since value: ${ts}`)
+}
