@@ -39,7 +39,7 @@ mod ffi {
             }
 
             let (progress_tx, progress_rx) = mpsc::channel();
-            spawn_recv_progress_thread(progress_rx, callback_fn.clone());
+            spawn_recv_progress_thread(progress_rx, callback_fn);
 
             notify(callback_fn, "booting", 0.0, 0, "");
             let app = App::boot(config, Some(progress_tx))?;
