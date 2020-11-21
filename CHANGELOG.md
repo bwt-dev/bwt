@@ -11,6 +11,9 @@
   are now identified by the descriptor checksum, addresses have descriptors associated with them,
   and a new `bip32_origins` field is available based on the descriptor origin information.
 
+- Alpha release of [`libbwt`](https://github.com/shesek/bwt/blob/master/doc/libbwt.md) (#64), a C FFI interface for managing the bwt servers,
+  and of [`nodejs-bwt-daemon`](https://github.com/shesek/bwt/tree/master/contrib/nodejs-bwt-daemon) (#65), a nodejs package that wraps it.
+
 - Support binding on ephemeral port (e.g. `--http-addr 127.0.0.1:0`) (#63)
 
 - Reduce the number of dependencies (#61)
