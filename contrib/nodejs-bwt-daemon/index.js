@@ -54,6 +54,11 @@ function init(options) {
       delete options.http
     }
 
+    // Delete nully options so that they get their default value
+    Object.entries(options)
+      .filter(([ _, val ]) => val == null)
+      .forEach(([ key, _ ]) => delete options[key])
+
     if (!options.electrum_addr && !options.http_addr) {
       throw new Error('None of the bwt services are enabled')
     }
