@@ -1,7 +1,9 @@
 # bwt-daemon
 
-A nodejs library for programmatically controlling the Bitcoin Wallet Tracker daemons
-using the `libbwt` ffi interface.
+A nodejs library for programmatically managing the Bitcoin Wallet Tracker Electrum RPC and HTTP API servers
+using the [`libbwt` FFI interface](https://github.com/shesek/bwt/blob/master/doc/libbwt.md).
+
+> ⚠️ WARNING: This is an alpha preview, released to gather developers' feedback. It is not ready for general use.
 
 ### Install
 
@@ -10,7 +12,7 @@ $ npm install bwt-daemon
 ```
 
 This will download the `libbwt` library for your platform.
-The currently supported platforms are linux-x64, macos-x64, windows-x64, linux-arm32v7 and linux-arm64v8.
+The currently supported platforms are Linux, Mac, Windows and ARMv7/8.
 
 The hash of the downloaded library is verified against the
 [`SHA256SUMS`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-bwt-daemon/SHA256SUMS)
@@ -26,8 +28,8 @@ This reduces the download size by ~1.6MB.
 
 ### Use
 
-Below is the minimally viable configuration. If bitcoind is running at the default
-location, on the default ports and with cookie auth enabled, this should Just Work™ \o/
+Below is a minimally viable configuration. If bitcoind is running locally on the default port, at the default datadir location
+and with cookie auth enabled (the default), this should Just Work™ \o/
 
 ```js
 import BwtDaemon from 'bwt-daemon'
@@ -74,7 +76,7 @@ const bwtd = await BwtDaemon({
 
 // Get the assigned address/port for the Electrum/HTTP servers
 console.log('bwt electrum server ready on', bwtd.electrum_addr)
-console.log('bwt http server ready on', bwtd.http_addr)
+console.log('bwt http server ready on', bwtd.http_url)
 
 // Shutdown
 bwtd.shutdown()
@@ -83,43 +85,11 @@ bwtd.shutdown()
 See [`example.js`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-bwt-daemon/example.js) for an even more complete
 example, including connecting to the HTTP API.
 
-### Options
+The full list of options is available in the [FFI documentation](https://github.com/shesek/bwt/blob/master/doc/libbwt.md#config-options).
+The nodejs wrapper also provides the following additional convenience options:
 
-#### Network and Bitcoin Core RPC
-- `network`
-- `bitcoind_dir`
-- `bitcoind_wallet`
-- `bitcoind_url`
-- `bitcoind_auth`
-- `bitcoind_cookie`
-
-#### Address tracking
-- `descriptors`
-- `xpubs`
-- `bare_xpubs`
-
-#### General settings
-- `verbose`
-- `gap_limit`
-- `initial_import_size`
-- `poll_interval`
-- `tx_broadcast_cmd`
-
-#### Electrum
-- `electrum`
-- `electrum_addr`
-- `electrum_skip_merkle`
-
-#### HTTP
-- `http`
-- `http_addr`
-- `http_cors`
-
-#### Web Hooks
-- `webhooks_urls`
-
-#### UNIX only
-- `unix_listener_path`
+- `electrum` - setting to `true` is an alias for `electrum_addr=127.0.0.1:0`
+- `http` - setting to `true` is an alias for `http_addr=127.0.0.1:0`
 
 ### License
 MIT

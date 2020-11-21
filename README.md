@@ -1240,6 +1240,8 @@ Tip: services like [webhook.site](https://webhook.site/) or [requestbin](http://
 
 ### Developer Resources
 
+Documentation for the C FFI interface is [available here](https://github.com/shesek/bwt/blob/master/doc/libbwt.md).
+
 Documentation for the public Rust API is [available on docs.rs](https://docs.rs/bwt).
 
 A yuml diagram showing how the big pieces interact together is [available here](https://yuml.me/edit/39229813).
