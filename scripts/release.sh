@@ -82,7 +82,7 @@ fi
 
 if [ -z "$SKIP_PUBLISH_NPM_DAEMON" ]; then
   echo Publishing bwt-daemon to npm...
-  npm publish dist/nodejs-bwt-daemon-$version.tgz
+  npm publish file:dist/nodejs-bwt-daemon-$version.tgz
 fi
 
 if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
