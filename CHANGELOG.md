@@ -43,6 +43,9 @@ Breaking CLI changes:
 
 - The CLI now accepts a single `--rescan-since` timestamp instead of a separate one for each descriptor/xpub.
 
+- The separator for environment variables with multiple options is now `;` instead of `,`.
+  For example: `DESCRIPTORS="wpkh(xpub../0/*);wpkh(xpub../1/*)"`
+
 ## 0.1.5 - 2020-10-05
 
 - Reproducible builds using Docker (#51)
