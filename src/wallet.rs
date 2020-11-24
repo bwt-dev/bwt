@@ -193,7 +193,7 @@ pub struct Wallet {
     checksum: Checksum,
     keys_info: Vec<DescKeyInfo>,
     network: Network,
-    rescan_policy: RescanSince,
+    rescan_since: RescanSince,
 
     gap_limit: u32,
     initial_import_size: u32,
@@ -208,7 +208,7 @@ impl Wallet {
         network: Network,
         gap_limit: u32,
         initial_import_size: u32,
-        rescan_policy: RescanSince,
+        rescan_since: RescanSince,
     ) -> Result<Self> {
         ensure!(
             descriptor::derive_address(&desc, 0, network).is_some(),
@@ -229,7 +229,7 @@ impl Wallet {
             gap_limit,
             // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
             initial_import_size: initial_import_size.max(gap_limit),
-            rescan_policy,
+            rescan_since,
             done_initial_import: false,
             max_funded_index: None,
             max_imported_index: None,
@@ -241,14 +241,14 @@ impl Wallet {
         network: Network,
         gap_limit: u32,
         initial_import_size: u32,
-        rescan_policy: RescanSince,
+        rescan_since: RescanSince,
     ) -> Result<Self> {
         Self::from_descriptor(
             xpub.as_descriptor([][..].into()),
             network,
             gap_limit,
             initial_import_size,
-            rescan_policy,
+            rescan_since,
         )
     }
 
@@ -257,7 +257,7 @@ impl Wallet {
         network: Network,
         gap_limit: u32,
         initial_import_size: u32,
-        rescan_policy: RescanSince,
+        rescan_since: RescanSince,
     ) -> Result<Vec<Self>> {
         Ok(vec![
             // external chain (receive)
@@ -266,7 +266,7 @@ impl Wallet {
                 network,
                 gap_limit,
                 initial_import_size,
-                rescan_policy,
+                rescan_since,
             )?,
             // internal chain (change)
             Self::from_descriptor(
@@ -274,7 +274,7 @@ impl Wallet {
                 network,
                 gap_limit,
                 initial_import_size,
-                rescan_policy,
+                rescan_since,
             )?,
         ])
     }
@@ -302,7 +302,7 @@ impl Wallet {
         rescan: bool,
     ) -> Vec<(Address, RescanSince, String)> {
         let rescan_since = if rescan {
-            self.rescan_policy
+            self.rescan_since
         } else {
             RescanSince::Now
         };
@@ -487,7 +487,7 @@ impl Serialize for Wallet {
         rgb.serialize_field("network", &self.network)?;
         rgb.serialize_field("is_ranged", &self.is_ranged)?;
         rgb.serialize_field("bip32_origins", &bip32_origins)?;
-        rgb.serialize_field("rescan_policy", &self.rescan_policy)?;
+        rgb.serialize_field("rescan_since", &self.rescan_since)?;
         rgb.serialize_field("done_initial_import", &self.done_initial_import)?;
         rgb.serialize_field("max_funded_index", &self.max_funded_index)?;
         rgb.serialize_field("max_imported_index", &self.max_imported_index)?;
