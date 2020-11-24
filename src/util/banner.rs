@@ -216,7 +216,9 @@ fn format_metric(num: f64, space: &str, suf: &str) -> String {
     } else if num >= 1000f64 {
         format!("{:.1}{}K{}", num / 1000f64, space, suf)
     } else {
-        format!("{}{}{}", num, space, suf)
+        // Rounded to two digits, printed without trailing zeroes
+        let num_rounded = (num * 100.0).round() / 100.0;
+        format!("{}{}{}", num_rounded, space, suf)
     }
 }
 
