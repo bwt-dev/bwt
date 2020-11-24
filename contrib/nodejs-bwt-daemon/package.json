@@ -1,6 +1,6 @@
 {
   "name": "bwt-daemon",
-  "version": "0.0.0",
+  "version": "0.2.0",
   "author": "Nadav Ivgi",
   "description": "A library for programmatically controlling the Bitcoin Wallet Tracker daemons",
   "keywords": [

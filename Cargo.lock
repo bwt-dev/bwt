@@ -175,7 +175,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "bwt"
-version = "0.1.5"
+version = "0.2.0"
 dependencies = [
  "anyhow 1.0.34 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitcoin 0.25.2 (registry+https://github.com/rust-lang/crates.io-index)",
