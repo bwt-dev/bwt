@@ -11,7 +11,7 @@
   are now identified by the descriptor checksum, addresses have descriptors associated with them,
   and a new `bip32_origins` field is available based on the descriptor origin information.
 
-- Support for Electrum multi-signature wallets
+- Support for Electrum multi-signature wallets (#60)
 
   For a manual server setup, this requires using the `sortedmulti()` descriptor.
   For example, for a 2-of-3 wallet: `sortedmulti(2,xpub1...,xpub2...,xpub3...)`.
@@ -21,14 +21,14 @@
 - Alpha release of [`libbwt`](https://github.com/shesek/bwt/blob/master/doc/libbwt.md) (#64), a C FFI interface for managing the bwt servers,
   and of [`nodejs-bwt-daemon`](https://github.com/shesek/bwt/tree/master/contrib/nodejs-bwt-daemon) (#65), a nodejs package that wraps it.
 
+- Support non-wallet transactions in `blockchain.transaction.get` / `GET /tx/:txid/hex`
+  (requires txindex and no pruning)
+
+- Emit wallet rescan and blockchain sync progress updates (via mpsc, [ffi](#64) and the console)
+
 - Support binding on ephemeral port (e.g. `--http-addr 127.0.0.1:0`) (#63)
 
 - Reduce the number of dependencies (#61)
-
-- Support non-wallet transactions in `blockchain.transaction.get` / `GET /tx/:txid/hex`
-  (requires txindex and no pruning).
-
-- Emit wallet rescan and blockchain sync progress updates (via mpsc, [ffi](#64) and the console)
 
 - Shutdown cleanly, via `SIGINT`/`SIGTERM` for CLI or a custom signal for library users (#62, #66)
 
@@ -50,7 +50,7 @@ Breaking CLI changes:
 
 - The CLI now accepts a single `--rescan-since` timestamp instead of a separate one for each descriptor/xpub.
 
-- The separator for environment variables with multiple options is now `;` instead of `,`.
+- The separator for environment variables with multiple values is now `;` instead of `,`.
   For example: `DESCRIPTORS="wpkh(xpub../0/*);wpkh(xpub../1/*)"`
 
 ## 0.1.5 - 2020-10-05

@@ -11,7 +11,7 @@
 `bwt` is a lightweight wallet descriptor/xpub tracker and query engine for Bitcoin, implemented in Rust.
 
 🔸 Personal wallet indexer (EPS-like)<br>
-🔸 Output script descriptor based<br>
+🔸 Descriptor-based tracking<br>
 🔸 Electrum RPC server (also available as a plugin!)<br>
 🔸 Developer-friendly, modern HTTP REST API<br>
 🔸 Real-time updates with Server-Sent-Events or Web Hooks
@@ -60,7 +60,8 @@ The index is currently managed in-memory and does not get persisted (this is exp
 
 ## Setting up bwt
 
-Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficient. `txindex` is not required) and install bwt using one of the methods below.
+Get yourself a synced Bitcoin Core node (v0.19 is recommended, v0.17 is sufficient. `txindex` is not required, pruning [is supported](#pruning))
+and install bwt using one of the methods below.
 
 ### Installation
 
@@ -1286,8 +1287,7 @@ Are welcome!
 
 The only guideline is to use `cargo fmt`.
 
-You can check out [the list of enhancement issues](https://github.com/shesek/bwt/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement)
-for some ideas to work on (output script descriptors <3).
+You can check out [the list of enhancement issues](https://github.com/shesek/bwt/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement).
 
 ## Reproducible builds
 
