@@ -425,7 +425,6 @@ fn setup(
         .and(warp::path!("sync"))
         .and(sync_tx)
         .map(|sync_tx: SyncChanSender| {
-            info!("received sync notification");
             sync_tx.lock().unwrap().send(())?;
             Ok(reply::with_status("syncing queued", StatusCode::ACCEPTED))
         })

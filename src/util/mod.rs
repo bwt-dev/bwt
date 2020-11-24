@@ -98,7 +98,7 @@ pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sen
                     }
                 }
             }
-            info!(target: "bwt::real-time", "triggering real-time index sync");
+            debug!(target: "bwt::real-time", "triggering real-time index sync");
             if forward_tx.send(()).is_err() {
                 break 'outer;
             }
