@@ -138,16 +138,17 @@ pub struct GetMempoolInfoResult {
 // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/150
 
 #[derive(Clone, PartialEq, Eq, Copy, Debug, Serialize)]
+#[serde(into = "ImportMultiRescanSince")]
 pub enum RescanSince {
     Now,
     Timestamp(u64),
 }
 
-impl Into<ImportMultiRescanSince> for &RescanSince {
+impl Into<ImportMultiRescanSince> for RescanSince {
     fn into(self) -> ImportMultiRescanSince {
         match self {
             RescanSince::Now => ImportMultiRescanSince::Now,
-            RescanSince::Timestamp(t) => ImportMultiRescanSince::Timestamp(*t),
+            RescanSince::Timestamp(t) => ImportMultiRescanSince::Timestamp(t),
         }
     }
 }
