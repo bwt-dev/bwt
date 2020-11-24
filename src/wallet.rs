@@ -189,7 +189,7 @@ impl WalletWatcher {
 #[derive(Debug, Clone)]
 pub struct Wallet {
     desc: ExtendedDescriptor,
-    is_ranged: bool,
+    is_wildcard: bool,
     checksum: Checksum,
     keys_info: Vec<DescKeyInfo>,
     network: Network,
@@ -218,13 +218,13 @@ impl Wallet {
 
         let checksum = Checksum::from(&desc);
         let keys_info = DescKeyInfo::extract(&desc, network)?;
-        let is_ranged = keys_info.iter().any(|x| x.is_ranged);
+        let is_wildcard = keys_info.iter().any(|x| x.is_wildcard);
 
         Ok(Self {
             desc,
             checksum,
             keys_info,
-            is_ranged,
+            is_wildcard,
             network,
             gap_limit,
             // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
@@ -281,7 +281,7 @@ impl Wallet {
 
     /// Returns the maximum index that needs to be watched
     fn watch_index(&self) -> u32 {
-        if !self.is_ranged {
+        if !self.is_wildcard {
             return 0;
         }
 
@@ -326,7 +326,7 @@ impl Wallet {
     }
 
     pub fn get_next_index(&self) -> u32 {
-        if self.is_ranged {
+        if self.is_wildcard {
             self.max_funded_index
                 .map_or(0, |max_funded_index| max_funded_index + 1)
         } else {
@@ -335,7 +335,7 @@ impl Wallet {
     }
 
     pub fn is_valid_index(&self, index: u32) -> bool {
-        if self.is_ranged {
+        if self.is_wildcard {
             // non-hardended derivation only
             index & (1 << 31) == 0
         } else {
@@ -347,7 +347,7 @@ impl Wallet {
         // return None if this wallet has no history at all
         let max_funded_index = self.max_funded_index?;
 
-        Some(if self.is_ranged {
+        Some(if self.is_wildcard {
             (0..=max_funded_index)
                 .map(|derivation_index| self.derive_address(derivation_index))
                 .fold((0, 0), |(curr_gap, max_gap), address| {
@@ -368,7 +368,7 @@ impl Wallet {
         self.keys_info
             .iter()
             .map(|i| {
-                if i.is_ranged {
+                if i.is_wildcard {
                     i.bip32_origin.child(index.into())
                 } else {
                     i.bip32_origin.clone()
@@ -485,7 +485,7 @@ impl Serialize for Wallet {
 
         rgb.serialize_field("desc", &desc_str)?;
         rgb.serialize_field("network", &self.network)?;
-        rgb.serialize_field("is_ranged", &self.is_ranged)?;
+        rgb.serialize_field("is_wildcard", &self.is_wildcard)?;
         rgb.serialize_field("bip32_origins", &bip32_origins)?;
         rgb.serialize_field("rescan_since", &self.rescan_since)?;
         rgb.serialize_field("done_initial_import", &self.done_initial_import)?;
@@ -496,7 +496,7 @@ impl Serialize for Wallet {
             &self.desc.max_satisfaction_weight(*DESC_CTX),
         )?;
 
-        if self.is_ranged {
+        if self.is_wildcard {
             rgb.serialize_field("gap_limit", &self.gap_limit)?;
             rgb.serialize_field("initial_import_size", &self.initial_import_size)?;
         }

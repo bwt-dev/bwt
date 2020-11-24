@@ -37,7 +37,7 @@ pub fn derive_desc_str(desc: &ExtendedDescriptor, index: u32) -> String {
 #[derive(Debug, Clone)]
 pub struct DescKeyInfo {
     pub bip32_origin: Bip32Origin,
-    pub is_ranged: bool,
+    pub is_wildcard: bool,
 }
 
 impl From<&ExtendedDescriptor> for Checksum {
@@ -77,7 +77,7 @@ impl DescKeyInfo {
 
                 keys_info.push(DescKeyInfo {
                     bip32_origin,
-                    is_ranged: desc_xpub.is_wildcard,
+                    is_wildcard: desc_xpub.is_wildcard,
                 });
 
                 valid_networks = valid_networks && xpub_matches_network(&desc_xpub.xkey, network);
@@ -86,7 +86,7 @@ impl DescKeyInfo {
                 if let Some(bip32_origin) = &desc_single.origin {
                     keys_info.push(DescKeyInfo {
                         bip32_origin: bip32_origin.into(),
-                        is_ranged: false,
+                        is_wildcard: false,
                     });
                 }
             }

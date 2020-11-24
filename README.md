@@ -318,7 +318,7 @@ You can associate the wallets to their parent xpub using the `bip32_origins` fie
 
 - `desc` - the output script descriptor tracked by this wallet
 - `network` - the network this wallet belongs to (`bitcoin`, `testnet` or `regtest`)
-- `is_ranged` - a boolean indicating whether the descriptor is ranged
+- `is_wildcard` - a boolean indicating whether the descriptor includes wildcard keys (`xpub../*`)
 - `bip32_origins` - bip32 origin information for the keys contained in the descriptor
 - `gap_limit` - the gap limited configured for this wallet
 - `initial_import_size` - the gap limit used during the initial import
@@ -344,28 +344,28 @@ $ curl localhost:3060/wallets
   "xjm8w0el": {
     "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/*)#xjm8w0el",
     "network": "bitcoin",
-    "is_ranged": true,
+    "is_wildcard": true,
     "bip32_origins": [ "80e042a9/0" ],
     ...
   },
   "k38panl4": {
     "desc": "wsh(multi(2,xpub661MyMwAqRbcEuy9nKLTbGCi2NhqTWeQPT3gd2QdfmeaieDHLHiwTnSnw1GrP2xdaJwEDQJLasfw6LNK7hVADcCN9d1M1RtxitrR3CwvtjV/0/*,[16eabcf7/2]xpub684GUXwH4bY8Pf3fgSunTGz3hwJZhJzaNwgT55aWGWQM7KsiUFEXWLYPy1Q19gAEvc9LG5TN5PdmGPoyocmkkpKCCMV27ugL7XqHeHRwJzH/1/*))#k38panl4",
     "network": "bitcoin",
-    "is_ranged": true,
+    "is_wildcard": true,
     "bip32_origins": [ "367e5b47/0", "16eabcf7/2/1" ],
     ...
   },
   "cletf5fc": {
     "desc": "pkh(xpub661MyMwAqRbcEoHAdGB6AaGRhLmHVemxe6acQikhJgfV3sr1SmapjQv8ZfBwWa1YKmFbyR6ta96TKiCNTctvZix58hAR7mDtjdWK2E18PjR/0/*)#cletf5fc",
     "network": "bitcoin",
-    "is_ranged": true,
+    "is_wildcard": true,
     "bip32_origins": [ "7a32efaa/0" ],
     ...
   },
   "ftu25peq": {
     "desc": "pkh(xpub661MyMwAqRbcEoHAdGB6AaGRhLmHVemxe6acQikhJgfV3sr1SmapjQv8ZfBwWa1YKmFbyR6ta96TKiCNTctvZix58hAR7mDtjdWK2E18PjR/1/*)#ftu25peq",
     "network": "bitcoin",
-    "is_ranged": true,
+    "is_wildcard": true,
     "bip32_origins": [ "7a32efaa/1" ],
     ...
   }
@@ -393,7 +393,7 @@ $ curl localhost:3060/wallet/xjm8w0el
 {
   "desc": "wpkh(xpub661MyMwAqRbcEhsxS9g2qyYKSGA3seqWVNhmVhU27ddQx952PaZ6G4V26msGKrqYBjoBRwFyzaucPUkhw7DNaeMVUYJV1bqosxzVxToJdcy/0/*)#xjm8w0el",
   "network": "bitcoin",
-  "is_ranged": true,
+  "is_wildcard": true,
   "bip32_origins": [ "80e042a9/0" ],
   "rescan_policy": "now",
   "done_initial_import": true,
@@ -452,7 +452,7 @@ Issues a 307 redirection to the url of the next derivation index (`/wallet/:chec
 Note that the returned address is not marked as used until receiving funds; If you wish to skip it and generate a different
 address without receiving funds to it, you can specify an explicit derivation index instead.
 
-Non-ranged descriptors always return `0` as the next index.
+Non-wildcard descriptors always return `0` as their next index.
 
 Examples:
 ```
