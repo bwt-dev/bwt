@@ -43,11 +43,11 @@ log = "0.4.11"
 thiserror = "1.0.22"
 
 # http deps
-tokio = { version = "0.2.22", features = ["macros"], optional = true }
+tokio = { version = "0.2.23", features = ["macros"], optional = true }
 warp = { version = "0.2.5", optional = true }
 
 # webhooks deps
-reqwest = { version = "0.10.8", optional = true, features = ["json", "blocking"] }
+reqwest = { version = "0.10.9", optional = true, features = ["json", "blocking"] }
 
 # cli/extra deps
 structopt = { version = "0.3.20", optional = true }
