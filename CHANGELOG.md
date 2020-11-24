@@ -11,6 +11,13 @@
   are now identified by the descriptor checksum, addresses have descriptors associated with them,
   and a new `bip32_origins` field is available based on the descriptor origin information.
 
+- Support for Electrum multi-signature wallets
+
+  For a manual server setup, this requires using the `sortedmulti()` descriptor.
+  For example, for a 2-of-3 wallet: `sortedmulti(2,xpub1...,xpub2...,xpub3...)`.
+
+  With the Electrum plugin, this should Just Work™.
+
 - Alpha release of [`libbwt`](https://github.com/shesek/bwt/blob/master/doc/libbwt.md) (#64), a C FFI interface for managing the bwt servers,
   and of [`nodejs-bwt-daemon`](https://github.com/shesek/bwt/tree/master/contrib/nodejs-bwt-daemon) (#65), a nodejs package that wraps it.
 

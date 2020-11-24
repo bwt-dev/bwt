@@ -6,6 +6,7 @@ import os
 import re
 
 from electrum import constants
+from electrum.bip32 import BIP32Node
 from electrum.plugin import BasePlugin, hook
 from electrum.i18n import _
 from electrum.util import UserFacingException
@@ -74,8 +75,12 @@ class BwtPlugin(BasePlugin):
             args.extend([ '--unix-listener-path', self.socket_path ])
 
         for wallet in self.wallets:
-            for xpub in wallet.get_master_public_keys():
+            if wallet.m is None:
+                xpub = wallet.get_master_public_key()
                 args.extend([ '--xpub', xpub ])
+            else: # Multisig wallet
+                for desc in get_multisig_descriptors(wallet):
+                    args.extend([ '--descriptor', desc ])
 
         for i in range(self.verbose):
             args.append('-v')
@@ -198,6 +203,31 @@ def proc_logger(proc, log_handler):
         else:
             log_handler('INFO', 'bwt', line)
 
+DESCRIPTOR_MAP_SH = {
+    'p2sh': 'sh(%s)',
+    'p2wsh': 'wsh(%s)',
+    'p2wsh-p2sh': 'sh(wsh(%s))',
+}
+
+def get_multisig_descriptors(wallet):
+    descriptor_fmt = DESCRIPTOR_MAP_SH[wallet.txin_type]
+    if not descriptor_fmt:
+        _logger.warn('missing descriptor type for %s' % wallet.txin_type)
+        return ()
+
+    xpubs = [convert_to_std_xpub(xpub) for xpub in wallet.get_master_public_keys()]
+    def get_descriptor(child_index):
+        desc_keys = ['%s/%d/*' % (xpub, child_index) for xpub in xpubs]
+        return descriptor_fmt % 'sortedmulti(%d,%s)' % (wallet.m, ','.join(desc_keys))
+
+    # one for receive, one for change
+    return (get_descriptor(0), get_descriptor(1))
+
+# Convert SLIP32 ypubs/zpubs into standard BIP32 xpubs
+def convert_to_std_xpub(xpub):
+    return BIP32Node.from_xkey(xpub) \
+      ._replace(xtype='standard') \
+      .to_xpub()
 
 def get_network_name():
     if constants.net == constants.BitcoinMainnet:
