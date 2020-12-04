@@ -1,5 +1,5 @@
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::result::Result as StdResult;
 
 use bitcoin::{Address, Network};
@@ -11,16 +11,29 @@ use crate::store::MemoryStore;
 use crate::types::RescanSince;
 use crate::util::descriptor::{self, Checksum, DescKeyInfo, ExtendedDescriptor, DESC_CTX};
 use crate::util::xpub::{Bip32Origin, XyzPubKey};
+use crate::util::RpcApiExt;
 
 const LABEL_PREFIX: &str = "bwt";
 
 #[derive(Debug)]
 pub struct WalletWatcher {
+    network: Network,
+
+    /// Descriptor wallets
     wallets: HashMap<Checksum, Wallet>,
+
+    /// Standalone addresses pending import
+    pending_standalone_imports: Vec<AddressImport>,
 }
 
+type AddressImport = (Address, RescanSince);
+
 impl WalletWatcher {
-    pub fn new(wallets: Vec<Wallet>) -> Result<Self> {
+    pub fn new(
+        network: Network,
+        wallets: Vec<Wallet>,
+        addresses: Vec<AddressImport>,
+    ) -> Result<Self> {
         let num_wallets = wallets.len();
         let wallets = wallets
             .into_iter()
@@ -30,13 +43,27 @@ impl WalletWatcher {
             wallets.len() == num_wallets,
             "Descriptor checksum collision detected"
         );
-        Ok(Self { wallets })
+
+        for (address, _) in &addresses {
+            ensure!(
+                address.network == network,
+                "Invalid network for address {}",
+                address
+            );
+        }
+
+        Ok(Self {
+            network,
+            wallets,
+            pending_standalone_imports: addresses,
+        })
     }
 
     pub fn from_config(
         descs: &[ExtendedDescriptor],
         xpubs: &[XyzPubKey],
         bare_xpubs: &[XyzPubKey],
+        addresses: Vec<Address>,
         rescan_since: RescanSince,
         network: Network,
         gap_limit: u32,
@@ -56,6 +83,7 @@ impl WalletWatcher {
             );
         }
         for xpub in xpubs {
+            // each xpub results in two wallets
             wallets.append(
                 &mut Wallet::from_xpub(
                     xpub.clone(),
@@ -79,11 +107,18 @@ impl WalletWatcher {
                 .with_context(|| format!("invalid xpub {}", xpub))?,
             );
         }
-        if wallets.is_empty() {
-            error!("Please provide at least one wallet to track (via --descriptor, --xpub or --bare-xpub).");
-            bail!("No descriptors/xpubs provided");
+
+        let addresses = addresses
+            .into_iter()
+            .map(|address| (address, rescan_since))
+            .collect::<Vec<_>>();
+
+        if wallets.is_empty() && addresses.is_empty() {
+            error!("Please provide at least one descriptors/xpubs/addresses to track (via --descriptor, --xpub, --bare-xpub or --address).");
+            bail!("No descriptors/xpubs/addresses provided");
         }
-        Self::new(wallets)
+
+        Self::new(network, wallets, addresses)
     }
 
     pub fn wallets(&self) -> &HashMap<Checksum, Wallet> {
@@ -112,8 +147,10 @@ impl WalletWatcher {
     // check previous imports and update max_imported_index
     pub fn check_imports(&mut self, rpc: &RpcClient) -> Result<()> {
         debug!("checking previous imports");
-        let labels: Vec<String> = rpc.call("listlabels", &[]).map_err(labels_error)?;
+
+        // Lookup descriptor wallet imports and update their max imported index
         let mut imported_indexes: HashMap<Checksum, u32> = HashMap::new();
+        let labels = rpc.list_labels().map_err(labels_error)?;
         for label in labels {
             if let Some(KeyOrigin::Descriptor(checksum, index)) = KeyOrigin::from_label(&label) {
                 if self.wallets.contains_key(&checksum) {
@@ -124,7 +161,6 @@ impl WalletWatcher {
                 }
             }
         }
-
         for (checksum, max_imported_index) in imported_indexes {
             trace!(
                 "wallet {} was imported up to index {}",
@@ -134,11 +170,25 @@ impl WalletWatcher {
             let wallet = self.wallets.get_mut(&checksum).unwrap();
             wallet.max_imported_index = Some(max_imported_index);
 
-            // if anything was imported at all, assume we've finished the initial sync. this might
+            // if anything was imported at all, assume the initial sync was completed. this might
             // not hold true if bwt shuts down while syncing, but this only means that we'll use
             // the smaller gap_limit instead of the initial_import_size, which is acceptable.
             wallet.done_initial_import = true;
         }
+
+        // Lookup previously imported standalone addresses and remove them from the pending import queue
+        let standalones = rpc
+            .get_addresses_by_label(KeyOrigin::standalone_label())?
+            .into_iter()
+            .map(|(k, _)| k)
+            .collect::<HashSet<_>>();
+        trace!(
+            "found {} previously imported standalone addresses",
+            standalones.len()
+        );
+        self.pending_standalone_imports
+            .retain(|(address, _)| !standalones.contains(address));
+
         Ok(())
     }
 
@@ -167,6 +217,16 @@ impl WalletWatcher {
             }
         }
 
+        if !self.pending_standalone_imports.is_empty() {
+            let label = KeyOrigin::standalone_label();
+            import_reqs.extend(
+                self.pending_standalone_imports
+                    .iter()
+                    .cloned()
+                    .map(|(address, rescan)| (address, rescan, label.into())),
+            );
+        }
+
         let has_imports = !import_reqs.is_empty();
 
         if has_imports {
@@ -176,13 +236,30 @@ impl WalletWatcher {
             );
             batch_import(rpc, import_reqs)?;
             debug!("done importing batch");
-        }
 
-        for (wallet, imported_index) in pending_updates {
-            wallet.max_imported_index = Some(imported_index);
+            for (wallet, imported_index) in pending_updates {
+                wallet.max_imported_index = Some(imported_index);
+            }
+
+            // we don't need to keep standalone addresses around once they get imported
+            self.pending_standalone_imports.clear();
         }
 
         Ok(has_imports)
+    }
+
+    /// Add an address to be tracked
+    ///
+    /// The address will be added to the list of pending imports and will get imported on the next sync run.
+    pub fn track_address(&mut self, address: Address, rescan_since: RescanSince) -> Result<()> {
+        ensure!(
+            address.network == self.network,
+            "Invalid network for address {}",
+            address
+        );
+        self.pending_standalone_imports
+            .push((address, rescan_since));
+        Ok(())
     }
 }
 
@@ -456,6 +533,10 @@ impl KeyOrigin {
             KeyOrigin::Standalone => true,
             KeyOrigin::Descriptor(..) => false,
         }
+    }
+
+    pub fn standalone_label() -> &'static str {
+        LABEL_PREFIX
     }
 }
 

@@ -1,13 +1,14 @@
-use std::{net, path, time};
+use std::{fs, io, net, path, time};
 
-use bitcoin::Network;
+use bitcoin::{Address, Network};
 use bitcoincore_rpc::Auth as RpcAuth;
 
-use crate::error::{OptionExt, Result};
+use crate::error::{Context, OptionExt, Result};
 use crate::query::QueryConfig;
 use crate::types::RescanSince;
 use crate::util::descriptor::ExtendedDescriptor;
 use crate::util::xpub::XyzPubKey;
+use crate::util::BoolThen;
 
 #[cfg(feature = "pretty_env_logger")]
 use {log::Level, pretty_env_logger::env_logger::Builder as LogBuilder};
@@ -100,7 +101,7 @@ pub struct Config {
     #[cfg_attr(
         feature = "cli",
         structopt(
-            short = "a",
+            short = "T",
             long,
             help = "Credentials for accessing the bitcoind RPC server (as <username>:<password>, used instead of the cookie file)",
             alias = "bitcoind-cred",
@@ -161,11 +162,42 @@ pub struct Config {
             env,
             hide_env_values(true),
             use_delimiter(true),
+            value_delimiter(";"),
             display_order(22)
         )
     )]
     #[serde(default)]
     pub bare_xpubs: Vec<XyzPubKey>,
+
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            short = "a",
+            long,
+            help = "Addresses to track",
+            env,
+            hide_env_values(true),
+            use_delimiter(true),
+            value_delimiter(";"),
+            display_order(23)
+        )
+    )]
+    #[serde(default)]
+    pub addresses: Vec<Address>,
+
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            short = "A",
+            long,
+            help = "File with addresses to track",
+            env,
+            hide_env_values(true),
+            display_order(24)
+        )
+    )]
+    #[serde(default)]
+    pub addresses_file: Option<path::PathBuf>,
 
     #[cfg_attr(
         feature = "cli",
@@ -213,14 +245,6 @@ pub struct Config {
     #[serde(default = "default_initial_import_size")]
     pub initial_import_size: u32,
 
-    //// TODO
-    //#[structopt(
-    //short,
-    //long,
-    //help = "addresses to track (address:yyyy-mm-dd)",
-    //parse(try_from_str = "parse_address")
-    //)]
-    //addresses: Vec<(String, RescanSince)>,
     #[cfg(feature = "electrum")]
     #[cfg_attr(
         feature = "cli",
@@ -384,6 +408,27 @@ impl Config {
             .or_err("no valid authentication found for bitcoind rpc, specify user/pass or a cookie file")?)
     }
 
+    pub fn addresses(&self) -> Result<Vec<Address>> {
+        let mut addresses = self.addresses.clone();
+
+        if let Some(addresses_file) = &self.addresses_file {
+            let file = fs::File::open(addresses_file).context("failed opening addresses file")?;
+            let reader = io::BufReader::new(file);
+
+            addresses.append(
+                &mut io::BufRead::lines(reader)
+                    .filter_map(|l| {
+                        let l = l.ok()?;
+                        let l = l.trim();
+                        (!l.is_empty()).do_then(|| l.parse())
+                    })
+                    .collect::<std::result::Result<Vec<_>, _>>()?,
+            );
+        }
+
+        Ok(addresses)
+    }
+
     #[cfg(feature = "electrum")]
     pub fn electrum_addr(&self) -> Option<net::SocketAddr> {
         self.electrum_addr.clone().or_else(|| {
@@ -483,7 +528,6 @@ fn parse_desc(s: &str) -> Result<ExtendedDescriptor> {
 
 #[cfg(feature = "cli")]
 fn parse_rescan(s: &str) -> Result<RescanSince> {
-    use crate::error::Context;
     Ok(match s {
         "all" | "genesis" => RescanSince::Timestamp(0),
         "now" | "none" => RescanSince::Now,
@@ -568,7 +612,8 @@ impl From<&Config> for QueryConfig {
 // Create a Default implementation
 defaultable!(Config,
   @default(
-    verbose, timestamp, descriptors, xpubs, bare_xpubs, broadcast_cmd, startup_banner,
+    verbose, timestamp, broadcast_cmd, startup_banner,
+    descriptors, xpubs, bare_xpubs, addresses, addresses_file,
     bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie,
     #[cfg(feature = "electrum")] electrum_addr,
     #[cfg(feature = "electrum")] electrum_skip_merkle,

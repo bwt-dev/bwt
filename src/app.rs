@@ -40,6 +40,7 @@ impl App {
             &config.descriptors[..],
             &config.xpubs[..],
             &config.bare_xpubs[..],
+            config.addresses()?,
             config.rescan_since,
             config.network,
             config.gap_limit,

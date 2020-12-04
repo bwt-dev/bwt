@@ -4,7 +4,7 @@ use std::{fmt, thread, time};
 
 use serde::Serialize;
 
-use bitcoin::{BlockHash, OutPoint, Txid};
+use bitcoin::{Address, BlockHash, OutPoint, Txid};
 use bitcoincore_rpc::json::{
     GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
 };
@@ -12,7 +12,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::Result;
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
-use crate::types::{BlockId, InPoint, ScriptHash, TxStatus};
+use crate::types::{BlockId, InPoint, RescanSince, ScriptHash, TxStatus};
 use crate::util::bitcoincore_ext::{Progress, RpcApiExt};
 use crate::wallet::{KeyOrigin, WalletWatcher};
 
@@ -319,6 +319,10 @@ impl Indexer {
             .flatten()
             .chain(self.tip.clone().map(IndexChange::ChainTip).into_iter())
             .collect()
+    }
+
+    pub fn track_address(&mut self, address: Address, rescan_since: RescanSince) -> Result<()> {
+        self.watcher.track_address(address, rescan_since)
     }
 }
 

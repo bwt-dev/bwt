@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Support for tracking standalone addresses (#14)
+
+Breaking CLI changes:
+
+- The `-a` CLI option was changed to mean `--address` instead of `--bitcoind-auth`
+   (which is now available as `-T`).
+
 ## 0.2.0 - 2020-11-24
 
 - Descriptor based tracking! ✨🎉 (#1)

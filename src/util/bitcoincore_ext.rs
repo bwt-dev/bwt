@@ -1,15 +1,32 @@
 use serde::{de, Serialize};
+use std::collections::HashMap;
 use std::fmt::{self, Formatter};
 use std::{sync::mpsc, thread, time};
 
+use bitcoin::Address;
 use bitcoincore_rpc::json::{self, ImportMultiRescanSince, ScanningDetails};
-use bitcoincore_rpc::{Client, Result as RpcResult, RpcApi};
+use bitcoincore_rpc::{self as rpc, Client, Result as RpcResult, RpcApi};
 
 const WAIT_INTERVAL: time::Duration = time::Duration::from_secs(7);
 
 // Extensions for rust-bitcoincore-rpc
 
 pub trait RpcApiExt: RpcApi {
+    fn list_labels(&self) -> RpcResult<Vec<String>> {
+        self.call("listlabels", &[])
+    }
+
+    fn get_addresses_by_label(&self, label: &str) -> RpcResult<HashMap<Address, AddressEntry>> {
+        match self.call("getaddressesbylabel", &[json!(label)]) {
+            Ok(x) => Ok(x),
+            // "No addresses with label ..."
+            Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(e))) if e.code == -11 => {
+                Ok(HashMap::new())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     // Only supports the fields we're interested in (so not currently upstremable)
     fn get_block_stats(&self, blockhash: &bitcoin::BlockHash) -> RpcResult<GetBlockStatsResult> {
         let fields = (
@@ -107,6 +124,11 @@ impl RpcApiExt for Client {}
 pub enum Progress {
     Sync { progress_n: f32, tip: u64 },
     Scan { progress_n: f32, eta: u64 },
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddressEntry {
+    pub purpose: json::GetAddressInfoResultLabelPurpose,
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
