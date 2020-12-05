@@ -10,8 +10,10 @@ use crate::util::descriptor::ExtendedDescriptor;
 use crate::util::xpub::XyzPubKey;
 use crate::util::BoolThen;
 
+#[cfg(any(feature = "pretty_env_logger", feature = "android_logger"))]
+use log::Level;
 #[cfg(feature = "pretty_env_logger")]
-use {log::Level, pretty_env_logger::env_logger::Builder as LogBuilder};
+use pretty_env_logger::env_logger::Builder as LogBuilder;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -459,52 +461,74 @@ impl Config {
         })
     }
 
+    #[cfg(all(not(feature = "pretty_env_logger"), not(feature = "android_logger")))]
+    pub fn setup_logger(&self) {}
+
+    #[cfg(any(feature = "pretty_env_logger", feature = "android_logger"))]
     pub fn setup_logger(&self) {
         #[cfg(feature = "pretty_env_logger")]
-        apply_log_env(if self.timestamp {
+        let mut builder = apply_log_env(if self.timestamp {
             pretty_env_logger::formatted_timed_builder()
         } else {
             pretty_env_logger::formatted_builder()
-        })
-        .filter_module(
-            "bwt",
-            match self.verbose {
-                0 => Level::Info,
-                1 => Level::Debug,
-                _ => Level::Trace,
-            }
-            .to_level_filter(),
-        )
-        .filter_module(
-            "bitcoincore_rpc",
-            match self.verbose {
-                0 | 1 => Level::Warn,
-                2 => Level::Debug,
-                _ => Level::Trace,
-            }
-            .to_level_filter(),
-        )
-        .filter_module(
-            "warp",
-            match self.verbose {
-                0 | 1 => Level::Warn,
-                2 => Level::Info,
-                3 => Level::Debug,
-                _ => Level::Trace,
-            }
-            .to_level_filter(),
-        )
-        .filter_module("hyper", Level::Warn.to_level_filter())
-        .filter_level(
-            match self.verbose {
-                0 | 1 => Level::Warn,
-                2 | 3 => Level::Info,
-                4 => Level::Debug,
-                _ => Level::Trace,
-            }
-            .to_level_filter(),
-        )
-        .init();
+        });
+
+        #[cfg(feature = "android_logger")]
+        let mut builder = android_logger::FilterBuilder::from_env("RUST_LOG");
+
+        builder
+            .filter_module(
+                "bwt",
+                match self.verbose {
+                    0 => Level::Info,
+                    1 => Level::Debug,
+                    _ => Level::Trace,
+                }
+                .to_level_filter(),
+            )
+            .filter_module(
+                "bitcoincore_rpc",
+                match self.verbose {
+                    0 | 1 => Level::Warn,
+                    2 => Level::Debug,
+                    _ => Level::Trace,
+                }
+                .to_level_filter(),
+            )
+            .filter_module(
+                "warp",
+                match self.verbose {
+                    0 | 1 => Level::Warn,
+                    2 => Level::Info,
+                    3 => Level::Debug,
+                    _ => Level::Trace,
+                }
+                .to_level_filter(),
+            )
+            .filter_module("hyper", Level::Warn.to_level_filter())
+            .filter_level(
+                match self.verbose {
+                    0 | 1 => Level::Warn,
+                    2 | 3 => Level::Info,
+                    4 => Level::Debug,
+                    _ => Level::Trace,
+                }
+                .to_level_filter(),
+            );
+
+        #[cfg(feature = "pretty_env_logger")]
+        builder.init();
+
+        #[cfg(feature = "android_logger")]
+        android_logger::init_once(
+            android_logger::Config::default()
+                .with_min_level(match self.verbose {
+                    0 => Level::Info,
+                    1 => Level::Debug,
+                    _ => Level::Trace,
+                })
+                .with_filter(builder.build()),
+        );
     }
 }
 

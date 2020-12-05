@@ -11,6 +11,9 @@ extern crate bitcoin_hashes;
 #[macro_use]
 extern crate serde;
 
+#[cfg(all(feature = "pretty_env_logger", feature = "android_logger"))]
+compile_error!("the pretty_env_logger and android_logger features are mutually exclusive");
+
 #[macro_use]
 pub mod util;
 
