@@ -20,7 +20,7 @@ http = [ "warp", "tokio" ]
 webhooks = [ "reqwest" ]
 track-spends = []
 ffi = []
-android = [ "android_logger" ]
+android = [ "jni", "android_logger" ]
 
 [lib]
 crate-type = [ "lib", "cdylib" ]
@@ -50,7 +50,8 @@ warp = { version = "0.2.5", optional = true }
 # webhooks deps
 reqwest = { version = "0.10.9", optional = true, features = ["json", "blocking"] }
 
-# android deps
+# jni/android deps
+jni = { version = "0.18.0", optional = true }
 android_logger = { version = "0.9.1", optional = true }
 
 # cli/extra deps

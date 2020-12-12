@@ -1,22 +1,24 @@
+use std::sync::{mpsc, Once};
+use std::thread;
+
+use crate::util::bitcoincore_ext::Progress;
+use crate::{App, Config, Result};
+
+#[repr(C)]
+pub struct ShutdownHandler(mpsc::SyncSender<()>);
+
+static INIT_LOGGER: Once = Once::new();
+
 #[cfg(feature = "ffi")]
 mod ffi {
+    use super::*;
     use std::ffi::{CStr, CString};
     use std::os::raw::c_char;
-    use std::sync::{mpsc, Once};
-    use std::thread;
-
-    use crate::util::bitcoincore_ext::Progress;
-    use crate::{App, Config, Result};
 
     const OK: i32 = 0;
     const ERR: i32 = -1;
 
     type Callback = extern "C" fn(*const c_char, f32, u32, *const c_char);
-
-    #[repr(C)]
-    pub struct ShutdownHandler(mpsc::SyncSender<()>);
-
-    static INIT_LOGGER: Once = Once::new();
 
     /// Start bwt. Accepts the config as a json string, a callback function
     /// to receive status updates, and a pointer for the shutdown handler.
@@ -111,5 +113,132 @@ mod ffi {
                 Err(mpsc::RecvError) => break,
             }
         })
+    }
+}
+
+#[cfg(feature = "jni")]
+mod jni {
+    use super::*;
+    use ::jni::objects::{GlobalRef, JClass, JObject, JString};
+    use ::jni::sys::{jfloat, jint, jlong};
+    use ::jni::{JNIEnv, JavaVM};
+
+    #[no_mangle]
+    pub extern "system" fn Java_dev_bwt_daemon_NativeBwtDaemon_start(
+        env: JNIEnv,
+        _: JClass,
+        json_config: JString,
+        callback: JObject,
+    ) -> jlong {
+        let json_config: String = env.get_string(json_config).unwrap().into();
+
+        let jvm = env.get_java_vm().unwrap();
+        let callback_g = env.new_global_ref(callback).unwrap();
+
+        let start = || -> Result<_> {
+            let config: Config = serde_json::from_str(&json_config)?;
+            if config.verbose > 0 {
+                // The verbosity level cannot be changed once enabled.
+                INIT_LOGGER.call_once(|| config.setup_logger());
+            }
+
+            let (progress_tx, progress_rx) = mpsc::channel();
+            spawn_recv_progress_thread(progress_rx, jvm, callback_g);
+
+            env.call_method(callback, "onBooting", "()V", &[]).unwrap();
+            let app = App::boot(config, Some(progress_tx))?;
+
+            #[cfg(feature = "electrum")]
+            if let Some(addr) = app.electrum_addr() {
+                let addr = env.new_string(addr.to_string()).unwrap().into_inner();
+                env.call_method(
+                    callback,
+                    "onElectrumReady",
+                    "(Ljava/lang/String;)V",
+                    &[addr.into()],
+                )
+                .unwrap();
+            }
+            #[cfg(feature = "http")]
+            if let Some(addr) = app.http_addr() {
+                let addr = env.new_string(addr.to_string()).unwrap().into_inner();
+                env.call_method(
+                    callback,
+                    "onHttpReady",
+                    "(Ljava/lang/String;)V",
+                    &[addr.into()],
+                )
+                .unwrap();
+            }
+
+            info!("start background sync");
+            let shutdown_tx = app.sync_background();
+
+            info!("started background sync");
+            Ok(ShutdownHandler(shutdown_tx))
+        };
+
+        match start() {
+            Ok(shutdown_handler) => Box::into_raw(Box::new(shutdown_handler)) as jlong,
+            Err(e) => {
+                warn!("{:?}", e);
+                env.throw_new("dev/bwt/daemon/BwtException", &e.to_string())
+                    .unwrap();
+                0 as jlong
+            }
+        }
+    }
+
+    #[no_mangle]
+    pub unsafe extern "system" fn Java_dev_bwt_daemon_NativeBwtDaemon_shutdown(
+        _env: JNIEnv,
+        _: JClass,
+        shutdown_ptr: jlong,
+    ) {
+        // Take ownership and drop it. This will disconnect the mpsc channel and shutdown the app.
+        Box::from_raw(shutdown_ptr as *mut ShutdownHandler);
+    }
+
+    fn spawn_recv_progress_thread(
+        progress_rx: mpsc::Receiver<Progress>,
+        jvm: JavaVM,
+        callback: GlobalRef,
+    ) -> thread::JoinHandle<()> {
+        let (tx, rx) = mpsc::sync_channel(1);
+        let handle = thread::spawn(move || {
+            tx.send(()).unwrap();
+            let env = jvm.attach_current_thread().unwrap();
+            loop {
+                match progress_rx.recv() {
+                    Ok(Progress::Sync { progress_n, tip }) => {
+                        let progress_n = progress_n as jfloat;
+                        let tip = tip as jint;
+                        env.call_method(
+                            &callback,
+                            "onSyncProgress",
+                            "(FI)V",
+                            &[progress_n.into(), tip.into()],
+                        )
+                        .unwrap();
+                    }
+                    Ok(Progress::Scan { progress_n, eta }) => {
+                        let progress_n = progress_n as jfloat;
+                        let eta = eta as jint;
+                        env.call_method(
+                            &callback,
+                            "onScanProgress",
+                            "(FI)V",
+                            &[progress_n.into(), eta.into()],
+                        )
+                        .unwrap();
+                    }
+                    Err(mpsc::RecvError) => break,
+                }
+            }
+        });
+        // wait for the thread to start
+        rx.recv().unwrap();
+
+        handle
     }
 }

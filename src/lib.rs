@@ -21,11 +21,13 @@ pub mod app;
 pub mod config;
 pub mod error;
 pub mod indexer;
-pub mod interface;
 pub mod query;
 pub mod store;
 pub mod types;
 pub mod wallet;
+
+#[cfg(any(feature = "ffi", feature = "jni"))]
+pub mod interface;
 
 #[cfg(unix)]
 pub mod listener;
