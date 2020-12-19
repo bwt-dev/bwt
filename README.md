@@ -1296,6 +1296,8 @@ The builds can be reproduced in a Docker container environment as follows:
 ```
 $ git clone https://github.com/shesek/bwt && cd bwt
 
+$ git checkout <tag>
+
 # Linux, Windows & ARMv7/v8
 $ docker build -t bwt-builder -f scripts/builder.Dockerfile .
 $ docker run -it -v `pwd`:/usr/src/bwt bwt-builder
