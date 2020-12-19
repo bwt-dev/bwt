@@ -201,6 +201,23 @@ mod jni {
         Box::from_raw(shutdown_ptr as *mut ShutdownHandler);
     }
 
+    #[no_mangle]
+    pub extern "system" fn Java_dev_bwt_daemon_NativeBwtDaemon_testRpc(
+        env: JNIEnv,
+        _: JClass,
+        json_config: JString,
+    ) {
+        let json_config: String = env.get_string(json_config).unwrap().into();
+
+        let test = || App::test_rpc(&serde_json::from_str(&json_config)?);
+
+        if let Err(e) = test() {
+            warn!("test rpc failed: {:?}", e);
+            env.throw_new("dev/bwt/daemon/BwtException", &e.to_string())
+                .unwrap();
+        }
+    }
+
     fn spawn_recv_progress_thread(
         progress_rx: mpsc::Receiver<Progress>,
         jvm: JavaVM,

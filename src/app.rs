@@ -166,6 +166,12 @@ impl App {
         Some(self.http.as_ref()?.addr())
     }
 
+    pub fn test_rpc(config: &Config) -> Result<()> {
+        let rpc = RpcClient::new(config.bitcoind_url(), config.bitcoind_auth()?)?;
+        rpc.get_wallet_info()?;
+        Ok(())
+    }
+
     // Pipe the shutdown receiver `rx` to trigger `sync_tx`. This is needed to start the next
     // sync loop run immediately, which will then process the shutdown signal itself. Without
     // this, the shutdown signal will only be noticed after a delay.
