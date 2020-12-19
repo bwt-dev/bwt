@@ -4,7 +4,7 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc::{channel, sync_channel, Receiver, Sender, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
-use std::thread;
+use std::{thread, time};
 
 use bitcoin::Txid;
 use bitcoin_hashes::hex::ToHex;
@@ -620,6 +620,9 @@ impl Drop for ElectrumServer {
             handle.join().unwrap();
         }
         trace!(target: LT, "RPC server is stopped");
+        // Initiate one final connection to the Electrum server to make the acceptor thread notice the channel is closed and shut down.
+        // A hack, to be replaced with concurrent multi-channel signal processing (which cannot easily be done with the std lib)
+        TcpStream::connect_timeout(&self.addr, time::Duration::from_millis(200)).ok();
     }
 }
 
