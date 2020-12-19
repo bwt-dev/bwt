@@ -6,4 +6,5 @@ public interface CallbackNotifier {
     void onScanProgress(float progress, int eta);
     void onElectrumReady(String addr);
     void onHttpReady(String addr);
+    void onReady(long shutdownPtr);
 }

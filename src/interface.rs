@@ -129,7 +129,7 @@ mod jni {
         _: JClass,
         json_config: JString,
         callback: JObject,
-    ) -> jlong {
+    ) {
         let json_config: String = env.get_string(json_config).unwrap().into();
 
         let jvm = env.get_java_vm().unwrap();
@@ -171,21 +171,23 @@ mod jni {
                 .unwrap();
             }
 
-            info!("start background sync");
-            let shutdown_tx = app.sync_background();
+            let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
+            let shutdown_handler = ShutdownHandler(shutdown_tx);
+            let shutdown_ptr = Box::into_raw(Box::new(shutdown_handler)) as jlong;
 
-            info!("started background sync");
-            Ok(ShutdownHandler(shutdown_tx))
+            env.call_method(callback, "onReady", "(J)V", &[shutdown_ptr.into()])
+                .unwrap();
+
+            info!("start background sync");
+            app.sync(Some(shutdown_rx));
+
+            Ok(())
         };
 
-        match start() {
-            Ok(shutdown_handler) => Box::into_raw(Box::new(shutdown_handler)) as jlong,
-            Err(e) => {
-                warn!("{:?}", e);
-                env.throw_new("dev/bwt/daemon/BwtException", &e.to_string())
-                    .unwrap();
-                0 as jlong
-            }
+        if let Err(e) = start() {
+            warn!("{:?}", e);
+            env.throw_new("dev/bwt/daemon/BwtException", &e.to_string())
+                .unwrap();
         }
     }
 

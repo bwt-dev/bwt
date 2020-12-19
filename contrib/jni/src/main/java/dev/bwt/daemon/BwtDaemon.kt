@@ -5,65 +5,68 @@ import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.lang.annotation.Native
+import java.text.SimpleDateFormat
+import java.util.*
 
 class BwtDaemon(
-    private var shutdownPtr: Long?,
-    val electrumAddr: String?,
-    val httpAddr: String?
+    var config: BwtConfig,
 ) {
-    companion object {
-        suspend fun init(
-            config: BwtConfig,
-            callback: ProgressNotifier? = null
-        ): BwtDaemon = withContext(
-            Dispatchers.IO
-        ) {
-            initBlocking(config, callback)
-        }
+    var shutdownPtr: Long? = null;
+    var electrumAddr: String? = null;
+    var httpAddr: String? = null;
 
-        fun initBlocking(config: BwtConfig, callback: ProgressNotifier? = null): BwtDaemon {
-            val jsonConfig = Gson().toJson(config)
-            var electrumAddr: String? = null
-            var httpAddr: String? = null
+    fun start(callback: ProgressNotifier? = null) {
+        val jsonConfig = Gson().toJson(config)
+        NativeBwtDaemon.start(jsonConfig, object : CallbackNotifier {
+            override fun onBooting() {
+                Log.d("bwt", "booting")
+                callback?.onBooting()
+            }
 
-            val shutdownPtr =
-                NativeBwtDaemon.start(jsonConfig, object : CallbackNotifier {
-                    override fun onBooting() {
-                        Log.d("bwt", "booting")
-                    }
-                    override fun onSyncProgress(progress: Float, tip: Int) {
-                        Log.d("bwt", "sync progress ${progress * 100}%")
-                        callback?.onSyncProgress(progress, tip)
-                    }
-                    override fun onScanProgress(progress: Float, eta: Int) {
-                        Log.d("bwt", "scan progress ${progress * 100}%")
-                        callback?.onScanProgress(progress, eta)
-                    }
-                    override fun onElectrumReady(addr: String) {
-                        Log.d("bwt", "electrum ready on $addr")
-                        electrumAddr = addr
-                    }
-                    override fun onHttpReady(addr: String) {
-                        Log.d("bwt", "http ready on $addr")
-                        httpAddr = addr
-                    }
-                })
+            override fun onSyncProgress(progress: Float, tipUnix: Int) {
+                val tipDate = Date(tipUnix.toLong() * 1000)
+                Log.d("bwt", "sync progress ${progress * 100}%")
+                callback?.onSyncProgress(progress, tipDate)
+            }
 
-            Log.i("bwt", "all ready")
+            override fun onScanProgress(progress: Float, eta: Int) {
+                Log.d("bwt", "scan progress ${progress * 100}%")
+                callback?.onScanProgress(progress, eta)
+            }
 
-            return BwtDaemon(shutdownPtr, electrumAddr, httpAddr)
-        }
+            override fun onElectrumReady(addr: String) {
+                Log.d("bwt", "electrum ready on $addr")
+                electrumAddr = addr
+            }
+
+            override fun onHttpReady(addr: String) {
+                Log.d("bwt", "http ready on $addr")
+                httpAddr = addr
+            }
+
+            override fun onReady(shutdownPtr_: Long) {
+                Log.d("bwt", "services ready, starting background sync")
+                shutdownPtr = shutdownPtr_
+                callback?.onReady(this@BwtDaemon)
+            }
+        })
     }
 
     fun shutdown() {
-        NativeBwtDaemon.shutdown(this.shutdownPtr!!)
-        this.shutdownPtr = null
+        Log.d("bwt-daemon","shutdown $shutdownPtr")
+        if (shutdownPtr != null) {
+            NativeBwtDaemon.shutdown(shutdownPtr!!)
+            shutdownPtr = null
+        }
     }
 }
 
 interface ProgressNotifier {
-    fun onSyncProgress(progress: Float, tip: Int);
-    fun onScanProgress(progress: Float, eta: Int);
+    fun onBooting() {};
+    fun onSyncProgress(progress: Float, tipUnix: Date) {};
+    fun onScanProgress(progress: Float, eta: Int) {};
+    fun onReady(bwt: BwtDaemon) {};
 }
 
 data class BwtConfig(
