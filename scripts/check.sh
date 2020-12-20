@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# All default features + FFI
+cargo check --features ffi
+
 # All combos that include at least `cli` and one pf `http`/`electrum`
 feature_combos="CH CE CEH CET CHT CHW CEW CEHT CEHW CETW CHTW CEHTW"
 
