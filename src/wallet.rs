@@ -62,7 +62,6 @@ impl WalletWatcher {
     pub fn from_config(
         descs: &[ExtendedDescriptor],
         xpubs: &[XyzPubKey],
-        bare_xpubs: &[XyzPubKey],
         addresses: Vec<Address>,
         rescan_since: RescanSince,
         network: Network,
@@ -95,18 +94,6 @@ impl WalletWatcher {
                 .with_context(|| format!("invalid xpub {}", xpub))?,
             );
         }
-        for xpub in bare_xpubs {
-            wallets.push(
-                Wallet::from_bare_xpub(
-                    xpub.clone(),
-                    network,
-                    gap_limit,
-                    initial_import_size,
-                    rescan_since,
-                )
-                .with_context(|| format!("invalid xpub {}", xpub))?,
-            );
-        }
 
         let addresses = addresses
             .into_iter()
@@ -114,7 +101,7 @@ impl WalletWatcher {
             .collect::<Vec<_>>();
 
         if wallets.is_empty() && addresses.is_empty() {
-            error!("Please provide at least one descriptors/xpubs/addresses to track (via --descriptor, --xpub, --bare-xpub or --address).");
+            error!("Please provide at least one descriptors/xpubs/addresses to track (via --descriptor, --xpub or --address).");
             bail!("No descriptors/xpubs/addresses provided");
         }
 
@@ -311,22 +298,6 @@ impl Wallet {
             max_funded_index: None,
             max_imported_index: None,
         })
-    }
-
-    pub fn from_bare_xpub(
-        xpub: XyzPubKey,
-        network: Network,
-        gap_limit: u32,
-        initial_import_size: u32,
-        rescan_since: RescanSince,
-    ) -> Result<Self> {
-        Self::from_descriptor(
-            xpub.as_descriptor([][..].into()),
-            network,
-            gap_limit,
-            initial_import_size,
-            rescan_since,
-        )
     }
 
     pub fn from_xpub(

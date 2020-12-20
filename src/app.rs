@@ -39,7 +39,6 @@ impl App {
         let watcher = WalletWatcher::from_config(
             &config.descriptors[..],
             &config.xpubs[..],
-            &config.bare_xpubs[..],
             config.addresses()?,
             config.rescan_since,
             config.network,

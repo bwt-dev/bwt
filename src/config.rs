@@ -158,22 +158,6 @@ pub struct Config {
     #[cfg_attr(
         feature = "cli",
         structopt(
-            short = "X",
-            long = "bare-xpub",
-            help = "Add a bare extended public key to track (without separate internal/external chains)",
-            env,
-            hide_env_values(true),
-            use_delimiter(true),
-            value_delimiter(";"),
-            display_order(22)
-        )
-    )]
-    #[serde(default)]
-    pub bare_xpubs: Vec<XyzPubKey>,
-
-    #[cfg_attr(
-        feature = "cli",
-        structopt(
             short = "a",
             long,
             help = "Addresses to track",
@@ -637,7 +621,7 @@ impl From<&Config> for QueryConfig {
 defaultable!(Config,
   @default(
     verbose, timestamp, broadcast_cmd, startup_banner,
-    descriptors, xpubs, bare_xpubs, addresses, addresses_file,
+    descriptors, xpubs, addresses, addresses_file,
     bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie,
     #[cfg(feature = "electrum")] electrum_addr,
     #[cfg(feature = "electrum")] electrum_skip_merkle,
