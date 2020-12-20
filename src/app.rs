@@ -36,15 +36,7 @@ impl App {
     pub fn boot(config: Config, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<Self> {
         debug!("{:?}", config);
 
-        let watcher = WalletWatcher::from_config(
-            &config.descriptors[..],
-            &config.xpubs[..],
-            config.addresses()?,
-            config.rescan_since,
-            config.network,
-            config.gap_limit,
-            config.initial_import_size,
-        )?;
+        let watcher = WalletWatcher::from_config(&config)?;
 
         let rpc = Arc::new(RpcClient::new(
             config.bitcoind_url(),

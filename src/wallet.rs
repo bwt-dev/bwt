@@ -12,6 +12,7 @@ use crate::types::RescanSince;
 use crate::util::descriptor::{self, Checksum, DescKeyInfo, ExtendedDescriptor, DESC_CTX};
 use crate::util::xpub::{Bip32Origin, XyzPubKey};
 use crate::util::RpcApiExt;
+use crate::Config;
 
 const LABEL_PREFIX: &str = "bwt";
 
@@ -59,45 +60,38 @@ impl WalletWatcher {
         })
     }
 
-    pub fn from_config(
-        descs: &[ExtendedDescriptor],
-        xpubs: &[XyzPubKey],
-        addresses: Vec<Address>,
-        rescan_since: RescanSince,
-        network: Network,
-        gap_limit: u32,
-        initial_import_size: u32,
-    ) -> Result<Self> {
+    pub fn from_config(config: &Config) -> Result<Self> {
         let mut wallets = vec![];
-        for desc in descs {
+        for desc in &config.descriptors {
             wallets.push(
                 Wallet::from_descriptor(
                     desc.clone(),
-                    network,
-                    gap_limit,
-                    initial_import_size,
-                    rescan_since,
+                    config.network,
+                    config.gap_limit,
+                    config.initial_import_size,
+                    config.rescan_since,
                 )
                 .with_context(|| format!("invalid descriptor {}", desc))?,
             );
         }
-        for xpub in xpubs {
+        for xpub in &config.xpubs {
             // each xpub results in two wallets
             wallets.append(
                 &mut Wallet::from_xpub(
                     xpub.clone(),
-                    network,
-                    gap_limit,
-                    initial_import_size,
-                    rescan_since,
+                    config.network,
+                    config.gap_limit,
+                    config.initial_import_size,
+                    config.rescan_since,
                 )
                 .with_context(|| format!("invalid xpub {}", xpub))?,
             );
         }
 
-        let addresses = addresses
+        let addresses = config
+            .addresses()?
             .into_iter()
-            .map(|address| (address, rescan_since))
+            .map(|address| (address, config.rescan_since))
             .collect::<Vec<_>>();
 
         if wallets.is_empty() && addresses.is_empty() {
@@ -105,7 +99,7 @@ impl WalletWatcher {
             bail!("No descriptors/xpubs/addresses provided");
         }
 
-        Self::new(network, wallets, addresses)
+        Self::new(config.network, wallets, addresses)
     }
 
     pub fn wallets(&self) -> &HashMap<Checksum, Wallet> {
