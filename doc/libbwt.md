@@ -95,7 +95,7 @@ Should be called with the shutdown handler written to `shutdown_out`.
 
 ## Config Options
 
-All options are optional, except for `descriptors`/`xpubs` (of which there must be at least one).
+All options are optional, except for `descriptors`/`xpubs`/`addresses` (of which there must be at least one).
 
 If bitcoind is running locally on the default port, at the default datadir location and with cookie auth enabled (the default), connecting to it should Just Work™, no configuration needed.
 
@@ -110,6 +110,8 @@ If bitcoind is running locally on the default port, at the default datadir locat
 #### Address tracking
 - `descriptors` - an array of descriptors to track
 - `xpubs` - an array of xpubs to track (SLIP32 ypubs/zpubs are supported too)
+- `addresses` - an array of addresses to track
+- `addresses_file` - path to file with addresses (one per line)
 - `rescan_since` - the unix timestamp to begin rescanning from, or 'now' to track new transactions only (scans from genesis by default)
 - `gap_limit` - the [gap limit](https://github.com/shesek/bwt#gap-limit) for address import (defaults to 20)
 - `initial_import_size` - the chunk size to use during the initial import (defaults to 350)
