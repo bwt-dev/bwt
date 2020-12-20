@@ -94,7 +94,7 @@ impl WalletWatcher {
             .map(|address| (address, config.rescan_since))
             .collect::<Vec<_>>();
 
-        if wallets.is_empty() && addresses.is_empty() {
+        if config.require_addresses && wallets.is_empty() && addresses.is_empty() {
             error!("Please provide at least one descriptors/xpubs/addresses to track (via --descriptor, --xpub or --address).");
             bail!("No descriptors/xpubs/addresses provided");
         }

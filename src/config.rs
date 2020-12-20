@@ -349,6 +349,11 @@ pub struct Config {
         )
     )]
     pub webhook_urls: Option<Vec<String>>,
+
+    // Not exposed as a CLI option, always set to true for CLI use
+    #[cfg_attr(feature = "cli", structopt(skip = true))]
+    #[serde(default = "default_true")]
+    pub require_addresses: bool,
 }
 
 impl Config {
@@ -636,6 +641,7 @@ defaultable!(Config,
     gap_limit=20,
     initial_import_size=350,
     poll_interval=time::Duration::from_secs(5),
+    require_addresses=true,
   )
 );
 
@@ -655,4 +661,7 @@ fn default_initial_import_size() -> u32 {
 }
 fn default_poll_interval() -> time::Duration {
     time::Duration::from_secs(5)
+}
+fn default_true() -> bool {
+    true
 }
