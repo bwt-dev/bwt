@@ -272,9 +272,9 @@ fn big_numbers(s: &str) -> (String, String, String) {
         lines.0.push_str(char_lines.0);
         lines.1.push_str(char_lines.1);
         lines.2.push_str(char_lines.2);
-        lines.0.push_str(" ");
-        lines.1.push_str(" ");
-        lines.2.push_str(" ");
+        lines.0.push(' ');
+        lines.1.push(' ');
+        lines.2.push(' ');
     }
     lines
 }
