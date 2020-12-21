@@ -430,7 +430,7 @@ fn spawn_send_progress_thread(
 ) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         // allow some time for the indexer to start the first set of imports
-        thread::sleep(time::Duration::from_secs(2));
+        thread::sleep(time::Duration::from_millis(250));
 
         if let Err(e) = rpc.wait_wallet_scan(progress_tx) {
             warn!("getwalletinfo failed: {:?}", e);

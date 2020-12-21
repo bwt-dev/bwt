@@ -7,7 +7,8 @@ use bitcoin::Address;
 use bitcoincore_rpc::json::{self, ImportMultiRescanSince, ScanningDetails};
 use bitcoincore_rpc::{self as rpc, Client, Result as RpcResult, RpcApi};
 
-const WAIT_INTERVAL: time::Duration = time::Duration::from_secs(7);
+const WAIT_SYNC_INTERVAL: time::Duration = time::Duration::from_secs(5);
+const WAIT_SCAN_INTERVAL: time::Duration = time::Duration::from_millis(1500);
 
 // Extensions for rust-bitcoincore-rpc
 
@@ -74,7 +75,7 @@ pub trait RpcApiExt: RpcApi {
                     break info;
                 }
             }
-            thread::sleep(WAIT_INTERVAL);
+            thread::sleep(WAIT_SYNC_INTERVAL);
         })
     }
 
@@ -82,6 +83,8 @@ pub trait RpcApiExt: RpcApi {
         &self,
         progress_tx: Option<mpsc::Sender<Progress>>,
     ) -> RpcResult<json::GetWalletInfoResult> {
+        let start = time::Instant::now();
+        let mut was_scanning = false;
         Ok(loop {
             let info = self.get_wallet_info()?;
             match info.scanning {
@@ -90,8 +93,15 @@ pub trait RpcApiExt: RpcApi {
                     warn!("This is needed for bwt to wait for scanning to finish before starting up. Starting bwt while the node is scanning may lead to unexpected results. Continuing anyway...");
                     break info;
                 }
-                Some(ScanningDetails::NotScanning(_)) => break info,
+                Some(ScanningDetails::NotScanning(_)) => {
+                    // wait_wallet_scan() could be called before scanning actually started,
+                    // give it a few seconds to start up before giving up
+                    if was_scanning || start.elapsed().as_secs() > 3 {
+                        break info;
+                    }
+                }
                 Some(ScanningDetails::Scanning { progress, duration }) => {
+                    was_scanning = true;
                     let duration = duration as u64;
                     let progress_n = progress as f32;
                     let eta = if progress_n > 0.0 {
@@ -113,7 +123,7 @@ pub trait RpcApiExt: RpcApi {
                     }
                 }
             };
-            thread::sleep(WAIT_INTERVAL);
+            thread::sleep(WAIT_SCAN_INTERVAL);
         })
     }
 }
