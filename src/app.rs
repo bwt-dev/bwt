@@ -1,5 +1,5 @@
 use std::sync::{mpsc, Arc, RwLock};
-use std::{net, thread};
+use std::{net, thread, time};
 
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
@@ -216,8 +216,10 @@ fn load_wallet(rpc: &RpcClient, name: &str) -> Result<()> {
 
 // wait for bitcoind to sync and finish rescanning
 fn wait_bitcoind(rpc: &RpcClient, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<()> {
-    let bcinfo = rpc.wait_blockchain_sync(progress_tx.clone())?;
-    let walletinfo = rpc.wait_wallet_scan(progress_tx)?;
+    const INTERVAL: time::Duration = time::Duration::from_secs(7);
+
+    let bcinfo = rpc.wait_blockchain_sync(progress_tx.clone(), INTERVAL)?;
+    let walletinfo = rpc.wait_wallet_scan(progress_tx, INTERVAL, false)?;
 
     let netinfo = rpc.get_network_info()?;
     info!(

@@ -428,11 +428,14 @@ fn spawn_send_progress_thread(
     rpc: Arc<RpcClient>,
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> thread::JoinHandle<()> {
+    const DELAY: time::Duration = time::Duration::from_millis(250);
+    const INTERVAL: time::Duration = time::Duration::from_millis(1500);
+
     thread::spawn(move || {
         // allow some time for the indexer to start the first set of imports
-        thread::sleep(time::Duration::from_millis(250));
+        thread::sleep(DELAY);
 
-        if let Err(e) = rpc.wait_wallet_scan(progress_tx) {
+        if let Err(e) = rpc.wait_wallet_scan(progress_tx, INTERVAL, true) {
             warn!("getwalletinfo failed: {:?}", e);
         }
     })

@@ -7,9 +7,6 @@ use bitcoin::Address;
 use bitcoincore_rpc::json::{self, ImportMultiRescanSince, ScanningDetails};
 use bitcoincore_rpc::{self as rpc, Client, Result as RpcResult, RpcApi};
 
-const WAIT_SYNC_INTERVAL: time::Duration = time::Duration::from_secs(5);
-const WAIT_SCAN_INTERVAL: time::Duration = time::Duration::from_millis(1500);
-
 // Extensions for rust-bitcoincore-rpc
 
 pub trait RpcApiExt: RpcApi {
@@ -51,6 +48,7 @@ pub trait RpcApiExt: RpcApi {
     fn wait_blockchain_sync(
         &self,
         progress_tx: Option<mpsc::Sender<Progress>>,
+        interval: time::Duration,
     ) -> RpcResult<json::GetBlockchainInfoResult> {
         Ok(loop {
             let info = self.get_blockchain_info()?;
@@ -75,16 +73,17 @@ pub trait RpcApiExt: RpcApi {
                     break info;
                 }
             }
-            thread::sleep(WAIT_SYNC_INTERVAL);
+            thread::sleep(interval);
         })
     }
 
     fn wait_wallet_scan(
         &self,
         progress_tx: Option<mpsc::Sender<Progress>>,
+        interval: time::Duration,
+        mut wait_for_scanning: bool,
     ) -> RpcResult<json::GetWalletInfoResult> {
         let start = time::Instant::now();
-        let mut was_scanning = false;
         Ok(loop {
             let info = self.get_wallet_info()?;
             match info.scanning {
@@ -96,12 +95,12 @@ pub trait RpcApiExt: RpcApi {
                 Some(ScanningDetails::NotScanning(_)) => {
                     // wait_wallet_scan() could be called before scanning actually started,
                     // give it a few seconds to start up before giving up
-                    if was_scanning || start.elapsed().as_secs() > 3 {
+                    if !wait_for_scanning || start.elapsed().as_secs() > 3 {
                         break info;
                     }
                 }
                 Some(ScanningDetails::Scanning { progress, duration }) => {
-                    was_scanning = true;
+                    wait_for_scanning = false;
                     let duration = duration as u64;
                     let progress_n = progress as f32;
                     let eta = if progress_n > 0.0 {
@@ -123,7 +122,7 @@ pub trait RpcApiExt: RpcApi {
                     }
                 }
             };
-            thread::sleep(WAIT_SCAN_INTERVAL);
+            thread::sleep(interval);
         })
     }
 }
