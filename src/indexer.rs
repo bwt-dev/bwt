@@ -61,7 +61,7 @@ impl Indexer {
 
         shutdown_progress_thread.send(()).unwrap();
 
-        self.sync_mempool(/*force_refresh=*/ true)?;
+        self.sync_mempool(/*force_refresh=*/ true);
 
         let stats = self.store.stats();
         info!(
@@ -101,7 +101,7 @@ impl Indexer {
 
         let synced_tip = self.sync_transactions(&mut changelog)?;
         let tip_updated = self.tip != Some(synced_tip);
-        self.sync_mempool(/*force_refresh=*/ tip_updated)?;
+        self.sync_mempool(/*force_refresh=*/ tip_updated);
         self.watcher.do_imports(&self.rpc, /*rescan=*/ false)?;
 
         let mut changelog = changelog.into_vec();
@@ -290,19 +290,19 @@ impl Indexer {
 
     /// Update missing/outdated mempool entries for unconfirmed mempool transactions (or all mempool
     /// entries when force_refresh is set, during the initial sync or following a chain tip update)
-    fn sync_mempool(&mut self, force_refresh: bool) -> Result<()> {
+    fn sync_mempool(&mut self, force_refresh: bool) {
         let mempool = self.store.mempool_mut();
 
         for (txid, opt_entry) in mempool.iter_mut() {
             if force_refresh || opt_entry.is_none() {
-                let rpc_entry = self.rpc.get_mempool_entry(txid)?;
-                *opt_entry = Some(rpc_entry.into());
+                match self.rpc.get_mempool_entry(txid) {
+                    Ok(rpc_entry) => *opt_entry = Some(rpc_entry.into()),
+                    Err(e) => debug!("failed fetching mempool entry for {}: {}", txid, e),
+                }
             }
         }
 
         // TODO use batch rpc
-
-        Ok(())
     }
 
     /// Get historical events that happened at or after `min_block_height`, including unconfirmed,
