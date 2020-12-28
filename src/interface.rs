@@ -1,8 +1,10 @@
 use std::sync::{mpsc, Once};
 use std::thread;
 
+use anyhow::{Context, Error, Result};
+
 use crate::util::bitcoincore_ext::Progress;
-use crate::{App, Config, Result};
+use crate::{App, Config};
 
 #[repr(C)]
 pub struct ShutdownHandler(mpsc::SyncSender<()>);
@@ -34,7 +36,7 @@ mod ffi {
         let json_config = unsafe { CStr::from_ptr(json_config) }.to_str().unwrap();
 
         let start = || -> Result<_> {
-            let config: Config = serde_json::from_str(json_config)?;
+            let config: Config = serde_json::from_str(json_config).context("Invalid config")?;
             if config.verbose > 0 {
                 // The verbosity level cannot be changed once enabled.
                 INIT_LOGGER.call_once(|| config.setup_logger());
@@ -136,7 +138,7 @@ mod jni {
         let callback_g = env.new_global_ref(callback).unwrap();
 
         let start = || -> Result<_> {
-            let config: Config = serde_json::from_str(&json_config)?;
+            let config: Config = serde_json::from_str(&json_config).context("Invalid config")?;
             if config.verbose > 0 {
                 // The verbosity level cannot be changed once enabled.
                 INIT_LOGGER.call_once(|| config.setup_logger());
@@ -186,7 +188,7 @@ mod jni {
 
         if let Err(e) = start() {
             warn!("{:?}", e);
-            env.throw_new("dev/bwt/daemon/BwtException", &e.to_string())
+            env.throw_new("dev/bwt/daemon/BwtException", &fmt_error(&e))
                 .unwrap();
         }
     }
@@ -260,4 +262,9 @@ mod jni {
 
         handle
     }
+}
+
+fn fmt_error(e: &Error) -> String {
+    let causes: Vec<String> = e.chain().map(|cause| cause.to_string()).collect();
+    causes.join(": ")
 }
