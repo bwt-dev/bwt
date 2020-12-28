@@ -225,7 +225,7 @@ fn wait_bitcoind(rpc: &RpcClient, progress_tx: Option<mpsc::Sender<Progress>>) -
     const INTERVAL: time::Duration = time::Duration::from_secs(7);
 
     let bcinfo = rpc.wait_blockchain_sync(progress_tx.clone(), INTERVAL)?;
-    let walletinfo = rpc.wait_wallet_scan(progress_tx, INTERVAL, false)?;
+    let walletinfo = rpc.wait_wallet_scan(progress_tx, None, INTERVAL)?;
 
     let netinfo = rpc.get_network_info()?;
     info!(

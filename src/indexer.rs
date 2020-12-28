@@ -52,12 +52,14 @@ impl Indexer {
         let mut changelog = Changelog::new(false);
         let mut synced_tip;
 
-        spawn_send_progress_thread(self.rpc.clone(), progress_tx);
+        let shutdown_progress_thread = spawn_send_progress_thread(self.rpc.clone(), progress_tx);
 
         while {
             synced_tip = self.sync_transactions(&mut changelog)?;
             self.watcher.do_imports(&self.rpc, /*rescan=*/ true)?
         } { /* do while */ }
+
+        shutdown_progress_thread.send(()).unwrap();
 
         self.sync_mempool(/*force_refresh=*/ true)?;
 
@@ -427,16 +429,23 @@ impl fmt::Display for IndexChange {
 fn spawn_send_progress_thread(
     rpc: Arc<RpcClient>,
     progress_tx: Option<mpsc::Sender<Progress>>,
-) -> thread::JoinHandle<()> {
+) -> mpsc::SyncSender<()> {
     const DELAY: time::Duration = time::Duration::from_millis(250);
     const INTERVAL: time::Duration = time::Duration::from_millis(1500);
+
+    let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
 
     thread::spawn(move || {
         // allow some time for the indexer to start the first set of imports
         thread::sleep(DELAY);
 
-        if let Err(e) = rpc.wait_wallet_scan(progress_tx, INTERVAL, true) {
+        if shutdown_rx.try_recv() != Err(mpsc::TryRecvError::Empty) {
+            return;
+        }
+        if let Err(e) = rpc.wait_wallet_scan(progress_tx, Some(shutdown_rx), INTERVAL) {
             warn!("getwalletinfo failed: {:?}", e);
         }
-    })
+    });
+
+    shutdown_tx
 }

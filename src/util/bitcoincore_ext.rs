@@ -87,12 +87,21 @@ pub trait RpcApiExt: RpcApi {
     fn wait_wallet_scan(
         &self,
         progress_tx: Option<mpsc::Sender<Progress>>,
+        shutdown_rx: Option<mpsc::Receiver<()>>,
         interval: time::Duration,
-        mut wait_for_scanning: bool,
     ) -> RpcResult<json::GetWalletInfoResult> {
-        let start = time::Instant::now();
+        // Stop if the shutdown signal was received or if the channel was disconnected
+        let should_shutdown = || {
+            shutdown_rx
+                .as_ref()
+                .map_or(false, |rx| rx.try_recv() != Err(mpsc::TryRecvError::Empty))
+        };
+
         Ok(loop {
             let info = self.get_wallet_info()?;
+            if should_shutdown() {
+                break info;
+            }
             match info.scanning {
                 None => {
                     warn!("Your bitcoin node does not report the `scanning` status in `getwalletinfo`. It is recommended to upgrade to Bitcoin Core v0.19+ to enable this.");
@@ -109,36 +118,39 @@ pub trait RpcApiExt: RpcApi {
                             break info;
                         }
                     }
-                    // wait_wallet_scan() could be called before scanning actually started,
-                    // give it a few seconds to start up before giving up
-                    if !wait_for_scanning || start.elapsed().as_secs() > 3 {
+                    // Stop as soon as scanning is completed if no explicit shutdown_rx was given,
+                    // or continue until the shutdown signal is received if it was.
+                    if shutdown_rx.is_none() {
                         break info;
                     }
                 }
-                Some(ScanningDetails::Scanning { progress, duration }) => {
-                    wait_for_scanning = false;
-                    let duration = duration as u64;
-                    let progress_n = progress as f32;
+                Some(ScanningDetails::Scanning {
+                    progress: progress_n,
+                    duration,
+                }) => {
                     let eta = if progress_n > 0.0 {
-                        (duration as f32 / progress_n) as u64 - duration
+                        (duration as f32 / progress_n) as u64 - duration as u64
                     } else {
                         0
                     };
-
-                    info!(target: "bwt",
-                        "waiting for bitcoind to finish scanning [done {:.1}%, running for {}m, eta {}m]",
-                        progress_n * 100.0, duration / 60, eta / 60
-                    );
 
                     if let Some(ref progress_tx) = progress_tx {
                         let progress = Progress::Scan { progress_n, eta };
                         if progress_tx.send(progress).is_err() {
                             break info;
                         }
+                    } else {
+                        info!(target: "bwt",
+                            "waiting for bitcoind to finish scanning [done {:.1}%, running for {}m, eta {}m]",
+                            progress_n * 100.0, duration / 60, eta / 60
+                        );
                     }
                 }
-            };
+            }
             thread::sleep(interval);
+            if should_shutdown() {
+                break info;
+            }
         })
     }
 }
