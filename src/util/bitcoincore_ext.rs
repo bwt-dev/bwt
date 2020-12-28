@@ -56,6 +56,13 @@ pub trait RpcApiExt: RpcApi {
             if info.blocks == info.headers
                 && (!info.initial_block_download || info.chain == "regtest")
             {
+                if let Some(ref progress_tx) = progress_tx {
+                    let progress = Progress::Sync {
+                        progress_n: 1.0,
+                        tip: info.median_time,
+                    };
+                    progress_tx.send(progress).ok();
+                }
                 break info;
             }
 
@@ -93,6 +100,15 @@ pub trait RpcApiExt: RpcApi {
                     break info;
                 }
                 Some(ScanningDetails::NotScanning(_)) => {
+                    if let Some(ref progress_tx) = progress_tx {
+                        let progress = Progress::Scan {
+                            progress_n: 1.0,
+                            eta: 0,
+                        };
+                        if progress_tx.send(progress).is_err() {
+                            break info;
+                        }
+                    }
                     // wait_wallet_scan() could be called before scanning actually started,
                     // give it a few seconds to start up before giving up
                     if !wait_for_scanning || start.elapsed().as_secs() > 3 {
