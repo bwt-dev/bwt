@@ -178,20 +178,20 @@ impl WalletWatcher {
         let mut pending_updates = vec![];
 
         for (checksum, wallet) in self.wallets.iter_mut() {
-            let watch_index = wallet.watch_index();
-            if wallet.max_imported_index.map_or(true, |i| watch_index > i) {
+            if wallet.needs_imports() {
                 let start_index = wallet
                     .max_imported_index
                     .map_or(0, |max_imported| max_imported + 1);
+                let end_index = wallet.import_index();
 
                 debug!(
                     "importing {} range {}-{} with rescan={}",
-                    checksum, start_index, watch_index, rescan,
+                    checksum, start_index, end_index, rescan,
                 );
 
-                import_reqs.append(&mut wallet.make_imports(start_index, watch_index, rescan));
+                import_reqs.append(&mut wallet.make_imports(start_index, end_index, rescan));
 
-                pending_updates.push((wallet, watch_index));
+                pending_updates.push((wallet, end_index));
             } else if !wallet.done_initial_import {
                 trace!("done initial import for {}", checksum,);
                 wallet.done_initial_import = true;
@@ -321,8 +321,19 @@ impl Wallet {
         ])
     }
 
-    /// Returns the maximum index that needs to be watched
-    fn watch_index(&self) -> u32 {
+    fn needs_imports(&self) -> bool {
+        if !self.is_wildcard {
+            return self.max_imported_index.is_some();
+        }
+
+        self.max_imported_index.map_or(true, |imported| {
+            self.max_funded_index
+                .map_or(false, |funded| imported - funded < self.gap_limit)
+        })
+    }
+
+    /// Returns the maximum index that needs to be imported
+    fn import_index(&self) -> u32 {
         if !self.is_wildcard {
             return 0;
         }
