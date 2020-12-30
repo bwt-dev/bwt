@@ -34,7 +34,7 @@ pub struct App {
 
 impl App {
     pub fn boot(config: Config, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<Self> {
-        debug!("{:?}", config);
+        debug!("{}", scrub_config(&config));
 
         let watcher = WalletWatcher::from_config(&config)?;
 
@@ -166,12 +166,6 @@ impl App {
         Some(self.http.as_ref()?.addr())
     }
 
-    pub fn test_rpc(config: &Config) -> Result<()> {
-        let rpc = RpcClient::new(config.bitcoind_url(), config.bitcoind_auth()?)?;
-        rpc.get_wallet_info()?;
-        Ok(())
-    }
-
     // Pipe the shutdown receiver `rx` to trigger `sync_tx`. This is needed to start the next
     // sync loop run immediately, which will then process the shutdown signal itself. Without
     // this, the shutdown signal will only be noticed after a delay.
@@ -209,6 +203,12 @@ impl App {
     fn default_shutdown_signal(&self) -> Option<mpsc::Receiver<()>> {
         None
     }
+
+    pub fn test_rpc(config: &Config) -> Result<()> {
+        let rpc = RpcClient::new(config.bitcoind_url(), config.bitcoind_auth()?)?;
+        rpc.get_wallet_info()?;
+        Ok(())
+    }
 }
 
 // Load the specified wallet, ignore "wallet is already loaded" errors
@@ -242,4 +242,12 @@ fn wait_bitcoind(rpc: &RpcClient, progress_tx: Option<mpsc::Sender<Progress>>) -
     trace!("{:?}", walletinfo);
 
     Ok(())
+}
+
+fn scrub_config(config: &Config) -> String {
+    let mut s = format!("{:?}", config);
+    if let Some(auth) = config.bitcoind_auth.as_deref() {
+        s = s.replace(auth, "**SCRUBBED**")
+    }
+    s
 }

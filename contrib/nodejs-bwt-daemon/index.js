@@ -22,7 +22,7 @@ function start_bwt(options, progress_cb, done) {
       , progress_cb_ffi = ffi.Callback('void', [ 'string', 'float', 'uint32', 'string' ], progress_cb)
       , shutdown_ptrptr = ref.alloc(shutdownPtrPtr)
 
-  debug('starting with %O', options);
+  debug('starting with %O', { ...options, bitcoind_auth: '**SCRUBBED**' });
   libbwt.bwt_start.async(opt_json, progress_cb_ffi, shutdown_ptrptr, function(err, code) {
     if (err) return done(err)
     if (code != OK) return done(new Error(`bwt failed with code ${code}`))
