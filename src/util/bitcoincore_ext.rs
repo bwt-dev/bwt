@@ -66,11 +66,6 @@ pub trait RpcApiExt: RpcApi {
                 break info;
             }
 
-            info!(target: "bwt",
-                "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%]",
-                info.blocks, info.headers, info.verification_progress * 100.0
-            );
-
             if let Some(ref progress_tx) = progress_tx {
                 let progress = Progress::Sync {
                     progress_n: info.verification_progress as f32,
@@ -79,6 +74,11 @@ pub trait RpcApiExt: RpcApi {
                 if progress_tx.send(progress).is_err() {
                     break info;
                 }
+            } else {
+                info!(target: "bwt",
+                    "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%]",
+                    info.blocks, info.headers, info.verification_progress * 100.0
+                );
             }
             thread::sleep(interval);
         })
