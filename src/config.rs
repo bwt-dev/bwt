@@ -354,6 +354,11 @@ pub struct Config {
     #[cfg_attr(feature = "cli", structopt(skip = true))]
     #[serde(default = "default_true")]
     pub require_addresses: bool,
+
+    // Not exposed as a CLI option, always set to true for CLI use
+    #[cfg_attr(feature = "cli", structopt(skip = true))]
+    #[serde(default = "default_true")]
+    pub setup_logger: bool,
 }
 
 impl Config {
@@ -455,6 +460,10 @@ impl Config {
 
     #[cfg(any(feature = "pretty_env_logger", feature = "android_logger"))]
     pub fn setup_logger(&self) {
+        if !self.setup_logger {
+            return;
+        }
+
         #[cfg(feature = "pretty_env_logger")]
         let mut builder = apply_log_env(if self.timestamp {
             pretty_env_logger::formatted_timed_builder()
@@ -642,6 +651,7 @@ defaultable!(Config,
     initial_import_size=350,
     poll_interval=time::Duration::from_secs(5),
     require_addresses=true,
+    setup_logger=true,
   )
 );
 

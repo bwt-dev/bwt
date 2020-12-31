@@ -37,10 +37,8 @@ mod ffi {
 
         let start = || -> Result<_> {
             let config: Config = serde_json::from_str(json_config).context("Invalid config")?;
-            if config.verbose > 0 {
-                // The verbosity level cannot be changed once enabled.
-                INIT_LOGGER.call_once(|| config.setup_logger());
-            }
+            // The verbosity level cannot be changed once enabled.
+            INIT_LOGGER.call_once(|| config.setup_logger());
 
             let (progress_tx, progress_rx) = mpsc::channel();
             spawn_recv_progress_thread(progress_rx, callback_fn);
@@ -139,10 +137,8 @@ mod jni {
 
         let start = || -> Result<_> {
             let config: Config = serde_json::from_str(&json_config).context("Invalid config")?;
-            if config.verbose > 0 {
-                // The verbosity level cannot be changed once enabled.
-                INIT_LOGGER.call_once(|| config.setup_logger());
-            }
+            // The verbosity level cannot be changed once enabled.
+            INIT_LOGGER.call_once(|| config.setup_logger());
 
             let (progress_tx, progress_rx) = mpsc::channel();
             spawn_recv_progress_thread(progress_rx, jvm, callback_g);

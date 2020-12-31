@@ -120,6 +120,8 @@ If bitcoind is running locally on the default port, at the default datadir locat
 - `poll_interval` - interval for polling new blocks/transactions from bitcoind in seconds (defaults to 5)
 - `tx_broadcast_cmd` - [custom command](https://github.com/shesek/bwt#scriptable-transaction-broadcast) for broadcasting transactions
 - `verbose` - verbosity level for stderr log messages (0-4, defaults to 0)
+- `require_addresses` - when disabled, the daemon will start even without any configured wallet addresses (defaults to true)
+- `setup_logger` - initialize logging via `pretty_env_logger` or `android_logger` (defaults to true)
 
 #### Electrum
 - `electrum_addr` - bind address for electrum server (off by default)
