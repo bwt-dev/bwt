@@ -8,5 +8,5 @@ RUN apt-get update && apt-get install -y pkg-config make zip \
 
 WORKDIR /usr/src/bwt
 VOLUME /usr/src/bwt
-ENV TARGETS=x86_64-linux,x86_64-win,arm32v7,arm64v8
+ENV TARGETS=x86_64-linux,x86_64-win,arm32v7-linux,arm64v8-linux
 ENTRYPOINT [ "/usr/src/bwt/scripts/build.sh" ]

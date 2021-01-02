@@ -1,8 +1,8 @@
 #!/bin/bash
 set -xeo pipefail
 
-# `x86_64-osx` is also available, but requires osxcross installed (see builder-os.Dockerfile)
-TARGETS=${TARGETS:-x86_64-linux,x86_64-win,arm32v7,arm64v8}
+# `x86_64-osx` is also available, but requires osxcross installed (see builder-osx.Dockerfile)
+TARGETS=${TARGETS:-x86_64-linux,x86_64-win,arm32v7-linux,arm64v8-linux}
 
 build() {
   name=$1; target=$2; features=$3; filename=$4
@@ -65,8 +65,8 @@ version=`cat Cargo.toml | egrep '^version =' | cut -d'"' -f2`
 for cfg in x86_64-linux,x86_64-unknown-linux-gnu \
            x86_64-osx,x86_64-apple-darwin \
            x86_64-win,x86_64-pc-windows-gnu \
-           arm32v7,armv7-unknown-linux-gnueabihf \
-           arm64v8,aarch64-unknown-linux-gnu; do
+           arm32v7-linux,armv7-unknown-linux-gnueabihf \
+           arm64v8-linux,aarch64-unknown-linux-gnu; do
   IFS=',' read platform target <<< $cfg
   if [[ $TARGETS != *"$platform"* ]]; then continue; fi
 
@@ -82,7 +82,7 @@ for cfg in x86_64-linux,x86_64-unknown-linux-gnu \
 done
 
 echo Building electrum plugin
-for platform in x86_64-linux x86_64-win x86_64-osx arm32v7 arm64v8; do
+for platform in x86_64-linux x86_64-win x86_64-osx arm32v7-linux arm64v8-linux; do
   if [[ $TARGETS != *"$platform"* ]]; then continue; fi
 
   name=bwt-$version-electrum_plugin-$platform

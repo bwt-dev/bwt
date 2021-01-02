@@ -70,8 +70,8 @@ jobs:
 
     - <<: *build
       name: arm32v7
-      before_script: export TARGETS=arm32v7
+      before_script: export TARGETS=arm32v7-linux
 
     - <<: *build
       name: arm64v8
-      before_script: export TARGETS=arm64v8
+      before_script: export TARGETS=arm64v8-linux

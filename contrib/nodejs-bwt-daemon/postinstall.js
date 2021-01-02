@@ -82,8 +82,8 @@ function getPlatform() {
     'x64-darwin': 'x86_64-osx'
   , 'x64-win32': 'x86_64-win'
   , 'x64-linux': 'x86_64-linux'
-  , 'arm-linux': 'arm32v7'
-  , 'arm64-linux': 'arm64v8'
+  , 'arm-linux': 'arm32v7-linux'
+  , 'arm64-linux': 'arm64v8-linux'
   }[`${arch}-${process.platform}`]
   if (!platform) throw new Error(`Unsuppported platform: ${arch}-${process.platform}`)
 
