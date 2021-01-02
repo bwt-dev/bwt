@@ -68,10 +68,10 @@ if [ -z "$SKIP_GIT" ]; then
   git add Cargo.{toml,lock} CHANGELOG.md SHA256SUMS.asc README.md contrib/nodejs-bwt-daemon
   git commit -S -m v$version
   git tag --sign -m "$changelog" v$version
-  git branch -f stable HEAD
+  git branch -f latest HEAD
 
   echo Pushing to github...
-  git push gh master stable
+  git push gh master latest
   git push gh --tags
 fi
 

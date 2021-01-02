@@ -54,7 +54,7 @@ jobs:
         echo '-----BEGIN SHA256SUM-----' &&
         (cd dist && sha256sum *) &&
         echo
-      # XXX if: branch in (master, dev, stable) OR tag IS present
+      # XXX if: branch in (master, dev, latest) OR tag IS present
 
       name: linux
       before_script: export TARGETS=x86_64-linux
