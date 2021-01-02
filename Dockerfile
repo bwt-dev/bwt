@@ -1,4 +1,4 @@
-FROM rust:1.46-slim as builder
+FROM rust:1.49-slim as builder
 RUN apt-get update && apt-get install -y pkg-config libssl-dev
 WORKDIR /usr/src/bwt
 COPY . .
