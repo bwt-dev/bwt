@@ -1299,11 +1299,11 @@ $ git clone https://github.com/shesek/bwt && cd bwt
 $ git checkout <tag>
 
 # Linux, Windows & ARMv7/v8
-$ docker build -t bwt-builder -f scripts/builder.Dockerfile .
+$ docker build -t bwt-builder - < scripts/builder.Dockerfile
 $ docker run -it -v `pwd`:/usr/src/bwt bwt-builder
 
 # Mac OSX (cross-compiled via osxcross)
-$ docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
+$ docker build -t bwt-builder-osx - < scripts/builder-osx.Dockerfile
 $ docker run -it -v `pwd`:/usr/src/bwt bwt-builder-osx
 
 # NodeJS package (requires building all platforms first)

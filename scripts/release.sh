@@ -44,10 +44,10 @@ if [ -z "$SKIP_BUILD" ]; then
   rm -rf dist/*
 
   if [ -z "$BUILD_HOST" ]; then
-    docker build -t bwt-builder -f scripts/builder.Dockerfile .
+    docker build -t bwt-builder - < scripts/builder.Dockerfile
     docker_run bwt-builder
     if [ -z "$SKIP_OSX" ]; then
-      docker build -t bwt-builder-osx -f scripts/builder-osx.Dockerfile .
+      docker build -t bwt-builder-osx - < scripts/builder-osx.Dockerfile
       docker_run bwt-builder-osx
     fi
     docker_run -w /usr/src/bwt/contrib/nodejs-bwt-daemon $node_image npm run dist -- $version ../../dist
