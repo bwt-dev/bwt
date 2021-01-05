@@ -62,7 +62,7 @@ jobs:
 
     - <<: *build
       name: windows
-      before_script: export TARGETS=x86_64-win
+      before_script: export TARGETS=x86_64-windows
 
     - <<: *build
       name: osx

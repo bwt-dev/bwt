@@ -80,7 +80,7 @@ function getPlatform() {
   const arch = process.env.npm_config_arch || require('os').arch()
   const platform = {
     'x64-darwin': 'x86_64-osx'
-  , 'x64-win32': 'x86_64-win'
+  , 'x64-win32': 'x86_64-windows'
   , 'x64-linux': 'x86_64-linux'
   , 'arm-linux': 'arm32v7-linux'
   , 'arm64-linux': 'arm64v8-linux'
