@@ -9,6 +9,12 @@ use bitcoincore_rpc::{self as rpc, Client, Result as RpcResult, RpcApi};
 
 // Extensions for rust-bitcoincore-rpc
 
+pub const RPC_MISC_ERROR: i32 = -1;
+pub const RPC_WALLET_ERROR: i32 = -4;
+pub const RPC_WALLET_INVALID_LABEL_NAME: i32 = -11;
+pub const RPC_IN_WARMUP: i32 = -28;
+pub const RPC_METHOD_NOT_FOUND: i32 = -32601;
+
 pub trait RpcApiExt: RpcApi {
     fn list_labels(&self) -> RpcResult<Vec<String>> {
         self.call("listlabels", &[])
@@ -18,7 +24,9 @@ pub trait RpcApiExt: RpcApi {
         match self.call("getaddressesbylabel", &[json!(label)]) {
             Ok(x) => Ok(x),
             // "No addresses with label ..."
-            Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(e))) if e.code == -11 => {
+            Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(e)))
+                if e.code == RPC_WALLET_INVALID_LABEL_NAME =>
+            {
                 Ok(HashMap::new())
             }
             Err(e) => Err(e),

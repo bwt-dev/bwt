@@ -518,9 +518,9 @@ impl KeyOrigin {
 
 // show a specialzied error message for unsupported `listlabels` (added in Bitcoin Core 0.17.0)
 fn labels_error(error: rpc::Error) -> bitcoincore_rpc::Error {
+    use crate::util::bitcoincore_ext::RPC_METHOD_NOT_FOUND;
     if let rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)) = error {
-        // Method not found
-        if e.code == -32601 {
+        if e.code == RPC_METHOD_NOT_FOUND {
             warn!("Your bitcoind node appears to be too old to support the labels API, which bwt relies on. \
                   Please upgrade your node. v0.19.0 is highly recommended, v0.17.0 is sufficient.");
         }

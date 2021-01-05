@@ -48,9 +48,10 @@ impl BwtError {
 }
 impl From<rpc::Error> for BwtError {
     fn from(err: rpc::Error) -> Self {
+        use crate::util::bitcoincore_ext::RPC_MISC_ERROR;
         if let rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(e)) = err {
             match (e.code, e.message.as_str()) {
-                (-1, "Block not available (pruned data)") => BwtError::PrunedBlocks,
+                (RPC_MISC_ERROR, "Block not available (pruned data)") => BwtError::PrunedBlocks,
                 _ => BwtError::Rpc(e),
             }
         } else {

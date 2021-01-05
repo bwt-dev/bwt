@@ -213,9 +213,15 @@ impl App {
 
 // Load the specified wallet, ignore "wallet is already loaded" errors
 fn load_wallet(rpc: &RpcClient, name: &str) -> Result<()> {
+    use crate::util::bitcoincore_ext::RPC_WALLET_ERROR;
+    const MSG_ALREADY_LOADED_SUFF: &str = "Duplicate -wallet filename specified.";
     match rpc.load_wallet(name) {
         Ok(_) => Ok(()),
-        Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e))) if e.code == -4 => Ok(()),
+        Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
+            if e.code == RPC_WALLET_ERROR && e.message.ends_with(MSG_ALREADY_LOADED_SUFF) =>
+        {
+            Ok(())
+        }
         Err(e) => bail!(e),
     }
 }
