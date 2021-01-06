@@ -103,7 +103,7 @@ pub struct Config {
     #[cfg_attr(
         feature = "cli",
         structopt(
-            short = "T",
+            short = "a",
             long,
             help = "Credentials for accessing the bitcoind RPC server (as <username>:<password>, used instead of the cookie file)",
             alias = "bitcoind-cred",
@@ -158,7 +158,7 @@ pub struct Config {
     #[cfg_attr(
         feature = "cli",
         structopt(
-            short = "a",
+            short = "A",
             long,
             help = "Addresses to track",
             env,
@@ -174,7 +174,7 @@ pub struct Config {
     #[cfg_attr(
         feature = "cli",
         structopt(
-            short = "A",
+            short = "f",
             long,
             help = "File with addresses to track",
             env,
@@ -205,7 +205,7 @@ pub struct Config {
     #[cfg_attr(
         feature = "cli",
         structopt(
-            short = "f",
+            short = "F",
             long,
             help = "Force rescanning for historical transactions, even if the addresses were already previously imported",
             display_order(29)

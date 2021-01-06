@@ -26,9 +26,6 @@
 
 Breaking CLI changes:
 
-- The `-a` CLI option was changed to mean `--address` instead of `--bitcoind-auth`
-   (which is now available as `-T`).
-
 - The `--bare-xpub` option was removed. Use a descriptor instead.
 
 ## 0.2.0 - 2020-11-24
