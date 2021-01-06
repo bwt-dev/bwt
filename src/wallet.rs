@@ -192,15 +192,9 @@ impl WalletWatcher {
                 import_reqs.append(&mut wallet.make_imports(start_index, end_index, rescan));
 
                 pending_updates.push((wallet, end_index));
-            } else {
-                if !wallet.done_initial_import {
-                    trace!("completed initial import for {}", checksum);
-                    wallet.done_initial_import = true;
-                }
-                if wallet.force_rescan {
-                    trace!("completed forced rescan for {}", checksum);
-                    wallet.force_rescan = false;
-                }
+            } else if !wallet.done_initial_import {
+                trace!("completed initial import for {}", checksum);
+                wallet.done_initial_import = true;
             }
         }
 
@@ -226,6 +220,9 @@ impl WalletWatcher {
 
             for (wallet, imported_index) in pending_updates {
                 wallet.max_imported_index = Some(imported_index);
+
+                // the force_rescan flag applies to the first import batch only
+                wallet.force_rescan = false;
             }
 
             // we don't need to keep standalone addresses around once they get imported
@@ -372,6 +369,8 @@ impl Wallet {
 
         self.max_funded_index
             .map_or(chunk_size - 1, |max| max + chunk_size)
+            // the current max_imported_index may be larger in force_rescan mode
+            .max(self.max_imported_index.unwrap_or(0))
     }
 
     fn make_imports(
