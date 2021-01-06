@@ -59,34 +59,42 @@ pub trait RpcApiExt: RpcApi {
         interval: time::Duration,
     ) -> RpcResult<json::GetBlockchainInfoResult> {
         Ok(loop {
-            let info = self.get_blockchain_info()?;
+            match self.get_blockchain_info() {
+                Ok(info) => {
+                    if info.blocks == info.headers
+                        && (!info.initial_block_download || info.chain == "regtest")
+                    {
+                        if let Some(ref progress_tx) = progress_tx {
+                            let progress = Progress::Sync {
+                                progress_n: 1.0,
+                                tip: info.median_time,
+                            };
+                            progress_tx.send(progress).ok();
+                        }
+                        break info;
+                    }
 
-            if info.blocks == info.headers
-                && (!info.initial_block_download || info.chain == "regtest")
-            {
-                if let Some(ref progress_tx) = progress_tx {
-                    let progress = Progress::Sync {
-                        progress_n: 1.0,
-                        tip: info.median_time,
-                    };
-                    progress_tx.send(progress).ok();
+                    if let Some(ref progress_tx) = progress_tx {
+                        let progress = Progress::Sync {
+                            progress_n: info.verification_progress as f32,
+                            tip: info.median_time,
+                        };
+                        if progress_tx.send(progress).is_err() {
+                            break info;
+                        }
+                    } else {
+                        info!(target: "bwt",
+                            "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%]",
+                            info.blocks, info.headers, info.verification_progress * 100.0
+                        );
+                    }
                 }
-                break info;
-            }
-
-            if let Some(ref progress_tx) = progress_tx {
-                let progress = Progress::Sync {
-                    progress_n: info.verification_progress as f32,
-                    tip: info.median_time,
-                };
-                if progress_tx.send(progress).is_err() {
-                    break info;
+                Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
+                    if e.code == RPC_IN_WARMUP =>
+                {
+                    info!("waiting for bitcoind to warm up: {}", e.message);
                 }
-            } else {
-                info!(target: "bwt",
-                    "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%]",
-                    info.blocks, info.headers, info.verification_progress * 100.0
-                );
+                Err(e) => return Err(e),
             }
             thread::sleep(interval);
         })
