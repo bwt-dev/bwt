@@ -115,6 +115,7 @@ If bitcoind is running locally on the default port, at the default datadir locat
 - `rescan_since` - the unix timestamp to begin rescanning from, or 'now' to track new transactions only (scans from genesis by default)
 - `gap_limit` - the [gap limit](https://github.com/shesek/bwt#gap-limit) for address import (defaults to 20)
 - `initial_import_size` - the chunk size to use during the initial import (defaults to 350)
+- `force_rescan` - force rescanning for historical transactions, even if the addresses were already previously imported (defaults to false)
 
 #### General settings
 - `poll_interval` - interval for polling new blocks/transactions from bitcoind in seconds (defaults to 5)

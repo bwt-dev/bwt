@@ -70,6 +70,7 @@ impl WalletWatcher {
                     config.gap_limit,
                     config.initial_import_size,
                     config.rescan_since,
+                    config.force_rescan,
                 )
                 .with_context(|| format!("invalid descriptor {}", desc))?,
             );
@@ -83,6 +84,7 @@ impl WalletWatcher {
                     config.gap_limit,
                     config.initial_import_size,
                     config.rescan_since,
+                    config.force_rescan,
                 )
                 .with_context(|| format!("invalid xpub {}", xpub))?,
             );
@@ -179,10 +181,8 @@ impl WalletWatcher {
 
         for (checksum, wallet) in self.wallets.iter_mut() {
             if wallet.needs_imports() {
-                let start_index = wallet
-                    .max_imported_index
-                    .map_or(0, |max_imported| max_imported + 1);
-                let end_index = wallet.import_index();
+                let start_index = wallet.import_start_index();
+                let end_index = wallet.import_end_index();
 
                 debug!(
                     "importing {} range {}-{} with rescan={}",
@@ -192,9 +192,15 @@ impl WalletWatcher {
                 import_reqs.append(&mut wallet.make_imports(start_index, end_index, rescan));
 
                 pending_updates.push((wallet, end_index));
-            } else if !wallet.done_initial_import {
-                trace!("done initial import for {}", checksum,);
-                wallet.done_initial_import = true;
+            } else {
+                if !wallet.done_initial_import {
+                    trace!("completed initial import for {}", checksum);
+                    wallet.done_initial_import = true;
+                }
+                if wallet.force_rescan {
+                    trace!("completed forced rescan for {}", checksum);
+                    wallet.force_rescan = false;
+                }
             }
         }
 
@@ -252,9 +258,10 @@ pub struct Wallet {
     keys_info: Vec<DescKeyInfo>,
     network: Network,
     rescan_since: RescanSince,
-
+    force_rescan: bool,
     gap_limit: u32,
     initial_import_size: u32,
+
     max_funded_index: Option<u32>,
     max_imported_index: Option<u32>,
     done_initial_import: bool,
@@ -267,6 +274,7 @@ impl Wallet {
         gap_limit: u32,
         initial_import_size: u32,
         rescan_since: RescanSince,
+        force_rescan: bool,
     ) -> Result<Self> {
         ensure!(
             descriptor::derive_address(&desc, 0, network).is_some(),
@@ -288,6 +296,7 @@ impl Wallet {
             // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
             initial_import_size: initial_import_size.max(gap_limit),
             rescan_since,
+            force_rescan,
             done_initial_import: false,
             max_funded_index: None,
             max_imported_index: None,
@@ -300,6 +309,7 @@ impl Wallet {
         gap_limit: u32,
         initial_import_size: u32,
         rescan_since: RescanSince,
+        force_rescan: bool,
     ) -> Result<Vec<Self>> {
         Ok(vec![
             // external chain (receive)
@@ -309,6 +319,7 @@ impl Wallet {
                 gap_limit,
                 initial_import_size,
                 rescan_since,
+                force_rescan,
             )?,
             // internal chain (change)
             Self::from_descriptor(
@@ -317,11 +328,16 @@ impl Wallet {
                 gap_limit,
                 initial_import_size,
                 rescan_since,
+                force_rescan,
             )?,
         ])
     }
 
     fn needs_imports(&self) -> bool {
+        if self.force_rescan {
+            return true;
+        }
+
         if !self.is_wildcard {
             return self.max_imported_index.is_some();
         }
@@ -332,8 +348,18 @@ impl Wallet {
         })
     }
 
-    /// Returns the maximum index that needs to be imported
-    fn import_index(&self) -> u32 {
+    /// Returns the start index to be imported
+    fn import_start_index(&self) -> u32 {
+        if self.force_rescan {
+            return 0;
+        }
+
+        self.max_imported_index
+            .map_or(0, |max_imported| max_imported + 1)
+    }
+
+    /// Returns the maximum index to be imported
+    fn import_end_index(&self) -> u32 {
         if !self.is_wildcard {
             return 0;
         }

@@ -195,11 +195,24 @@ pub struct Config {
             default_value = "0",
             env,
             hide_env_values(true),
-            display_order(29)
+            display_order(28)
         )
     )]
     #[serde(default = "default_rescan_since")]
     pub rescan_since: RescanSince,
+
+    // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            short = "f",
+            long,
+            help = "Force rescanning for historical transactions, even if the addresses were already previously imported",
+            display_order(29)
+        )
+    )]
+    #[serde(default)]
+    pub force_rescan: bool,
 
     #[cfg_attr(
         feature = "cli",
@@ -635,7 +648,7 @@ impl From<&Config> for QueryConfig {
 defaultable!(Config,
   @default(
     verbose, timestamp, broadcast_cmd, startup_banner,
-    descriptors, xpubs, addresses, addresses_file,
+    descriptors, xpubs, addresses, addresses_file, force_rescan,
     bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie,
     #[cfg(feature = "electrum")] electrum_addr,
     #[cfg(feature = "electrum")] electrum_skip_merkle,
