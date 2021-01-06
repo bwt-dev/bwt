@@ -4,6 +4,26 @@
 
 - Support for tracking standalone addresses (#14)
 
+- JNI bindings for `libbwt` (#73)
+
+- Gracefully wait for bitcoind to warm-up (dec6d46)
+
+- Support for `android_logger` (74b2b2f)
+
+- New config options: `force_rescan` (9e7ccbe) and `require_addresses` (162790d)
+
+- Scrub bitcoin authentication from logs (c31def7)
+
+- Improved syncing/scanning progress updates (faba3f, 6e282fd, fdd46f3, 5ba2a0b)
+
+- Indexer: Fix excessive importing/rescanning (a20ae79)
+
+- Indexer: Fix handling of missing mempool entries (e9b7511)
+
+- Electrum: Fix TCP listener not shutting down on shutdown signal (5bd639a)
+
+- Docker/CI: Update to Rust v1.49 (5bd639a)
+
 Breaking CLI changes:
 
 - The `-a` CLI option was changed to mean `--address` instead of `--bitcoind-auth`
