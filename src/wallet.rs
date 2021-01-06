@@ -339,7 +339,7 @@ impl Wallet {
         }
 
         if !self.is_wildcard {
-            return self.max_imported_index.is_some();
+            return self.max_imported_index.is_none();
         }
 
         self.max_imported_index.map_or(true, |imported| {
