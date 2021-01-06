@@ -185,12 +185,13 @@ pub struct Config {
     #[serde(default)]
     pub addresses_file: Option<path::PathBuf>,
 
+    // defaults to scanning from genesis for structopt/cli use, or to 'now' for direct library use
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "R",
             long,
-            help = "Start date for wallet history rescan. Accepts YYYY-MM-DD formatted strings, unix timestamps, or 'now' to watch for new transactions only",
+            help = "Start date for wallet history rescan. Accepts YYYY-MM-DD formatted strings, unix timestamps, or 'now' to watch for new transactions only. Defaults to rescanning from genesis.",
             parse(try_from_str = parse_rescan),
             default_value = "0",
             env,
@@ -659,7 +660,7 @@ defaultable!(Config,
   )
   @custom(
     network=Network::Bitcoin,
-    rescan_since=RescanSince::Timestamp(0),
+    rescan_since=RescanSince::Now,
     gap_limit=20,
     initial_import_size=350,
     poll_interval=time::Duration::from_secs(5),
@@ -674,7 +675,7 @@ fn default_network() -> Network {
     Network::Bitcoin
 }
 fn default_rescan_since() -> RescanSince {
-    RescanSince::Timestamp(0)
+    RescanSince::Now
 }
 fn default_gap_limit() -> u32 {
     20

@@ -211,6 +211,7 @@ pub struct GetMempoolInfoResult {
 
 // Wrap rust-bitcoincore-rpc's RescanSince to enable deserialization
 // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/150
+// XXX The PR does not include null handling
 
 #[derive(Clone, PartialEq, Eq, Copy, Debug, Serialize)]
 #[serde(into = "ImportMultiRescanSince")]
@@ -238,7 +239,7 @@ impl<'de> serde::Deserialize<'de> for RescanSince {
             type Value = RescanSince;
 
             fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
-                write!(formatter, "unix timestamp or 'now'")
+                write!(formatter, "unix timestamp or 'now'/null")
             }
 
             fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
@@ -255,11 +256,16 @@ impl<'de> serde::Deserialize<'de> for RescanSince {
                 if value == "now" {
                     Ok(RescanSince::Now)
                 } else {
-                    Err(de::Error::custom(format!(
-                        "invalid str '{}', expecting 'now' or unix timestamp",
-                        value
-                    )))
+                    Err(de::Error::invalid_value(de::Unexpected::Str(value), &self))
                 }
+            }
+
+            // handle nulls
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(RescanSince::Now)
             }
         }
         deserializer.deserialize_any(Visitor)
