@@ -26,8 +26,8 @@ pub mod store;
 pub mod types;
 pub mod wallet;
 
-#[cfg(any(feature = "ffi", feature = "jni"))]
-pub mod interface;
+#[cfg(feature = "ffi")]
+pub mod ffi;
 
 #[cfg(unix)]
 pub mod listener;
