@@ -504,7 +504,7 @@ impl ElectrumServer {
     fn start_acceptor(addr: SocketAddr) -> (SocketAddr, Channel<Option<(TcpStream, SocketAddr)>>) {
         let listener = TcpListener::bind(addr)
             .with_context(|| format!("bind({}) failed", addr))
-            .unwrap();
+            .unwrap(); // TODO don't panic
         let bound_addr = listener.local_addr().unwrap();
         info!(
             target: LT,

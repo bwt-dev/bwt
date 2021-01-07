@@ -1,5 +1,5 @@
 use std::sync::{mpsc, Once};
-use std::thread;
+use std::{any, panic, thread};
 
 use anyhow::{Context, Error, Result};
 
@@ -64,11 +64,13 @@ mod ffi {
 
             Ok(())
         };
-        let start_unwind = || -> Result<()> { std::panic::catch_unwind(start).unwrap() };
 
-        if let Err(e) = start_unwind() {
+        if let Err(e) = panic::catch_unwind(start)
+            .map_err(fmt_panic)
+            .and_then(|r| r.map_err(fmt_error))
+        {
             warn!("{:?}", e);
-            notify(notify_fn, "error", 0.0, 0, &fmt_error(&e));
+            notify(notify_fn, "error", 0.0, 0, &e);
             ERR
         } else {
             OK
@@ -190,7 +192,7 @@ mod jni {
 
         if let Err(e) = start() {
             warn!("{:?}", e);
-            env.throw_new("dev/bwt/daemon/BwtException", &fmt_error(&e))
+            env.throw_new("dev/bwt/daemon/BwtException", &fmt_error(e))
                 .unwrap();
         }
     }
@@ -266,7 +268,20 @@ mod jni {
     }
 }
 
-fn fmt_error(e: &Error) -> String {
+fn fmt_error(e: Error) -> String {
     let causes: Vec<String> = e.chain().map(|cause| cause.to_string()).collect();
     causes.join(": ")
+}
+
+fn fmt_panic(err: Box<dyn any::Any + Send + 'static>) -> String {
+    format!(
+        "panic: {}",
+        if let Some(&s) = err.downcast_ref::<&str>() {
+            s.to_owned()
+        } else if let Some(s) = err.downcast_ref::<String>() {
+            s.to_owned()
+        } else {
+            "unknown panic".to_owned()
+        }
+    )
 }
