@@ -184,7 +184,6 @@ mod jni {
             env.call_method(callback, "onReady", "(J)V", &[shutdown_ptr.into()])
                 .unwrap();
 
-            info!("start background sync");
             app.sync(Some(shutdown_rx));
 
             Ok(())

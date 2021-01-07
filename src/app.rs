@@ -99,6 +99,7 @@ impl App {
 
     /// Start a sync loop blocking the current thread
     pub fn sync(&self, shutdown_rx: Option<mpsc::Receiver<()>>) {
+        debug!("starting sync loop");
         let shutdown_rx = shutdown_rx
             .map(|rx| self.pipe_shutdown(rx))
             .or_else(|| self.default_shutdown_signal());
@@ -128,7 +129,7 @@ impl App {
                         .map(|webhook| webhook.send_updates(&updates));
                 }
                 Ok(_) => (), // no updates
-                Err(e) => warn!("error while updating index: {:#?}", e),
+                Err(e) => warn!("error while updating index: {:?}", e),
             }
 
             // wait for poll_interval seconds, or until we receive a sync notification message,
@@ -239,12 +240,11 @@ fn init_bitcoind(
 
     let netinfo = rpc.get_network_info()?;
     info!(
-        "bwt v{} connected to {} on {}, protocolversion={}, bestblock={}",
+        "bwt v{} connected to {} on {} at height {}",
         crate::BWT_VERSION,
         netinfo.subversion,
         bcinfo.chain,
-        netinfo.protocol_version,
-        bcinfo.best_block_hash
+        bcinfo.headers
     );
 
     trace!("{:?}", netinfo);

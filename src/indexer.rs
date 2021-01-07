@@ -46,7 +46,7 @@ impl Indexer {
     pub fn initial_sync(&mut self, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<()> {
         let timer = time::Instant::now();
 
-        info!("starting initial sync");
+        debug!("starting initial sync");
         self.watcher.check_imports(&self.rpc)?;
 
         let mut changelog = Changelog::new(false);
