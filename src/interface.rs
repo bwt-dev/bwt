@@ -20,7 +20,8 @@ mod ffi {
     const OK: i32 = 0;
     const ERR: i32 = -1;
 
-    type Callback = extern "C" fn(*const c_char, f32, u32, *const c_char);
+    type NotifyCallback = extern "C" fn(*const c_char, f32, u32, *const c_char);
+    type ReadyCallback = extern "C" fn(*const ShutdownHandler);
 
     /// Start bwt. Accepts the config as a json string, a callback function
     /// to receive status updates, and a pointer for the shutdown handler.
@@ -30,48 +31,47 @@ mod ffi {
     #[no_mangle]
     pub extern "C" fn bwt_start(
         json_config: *const c_char,
-        callback_fn: Callback,
-        shutdown_out: *mut *const ShutdownHandler,
+        notify_fn: NotifyCallback,
+        ready_fn: ReadyCallback,
     ) -> i32 {
         let json_config = unsafe { CStr::from_ptr(json_config) }.to_str().unwrap();
 
-        let start = || -> Result<_> {
+        let start = || -> Result<()> {
             let config: Config = serde_json::from_str(json_config).context("Invalid config")?;
             // The verbosity level cannot be changed once enabled.
             INIT_LOGGER.call_once(|| config.setup_logger());
 
             let (progress_tx, progress_rx) = mpsc::channel();
-            spawn_recv_progress_thread(progress_rx, callback_fn);
+            spawn_recv_progress_thread(progress_rx, notify_fn);
 
-            notify(callback_fn, "booting", 0.0, 0, "");
+            notify(notify_fn, "booting", 0.0, 0, "");
             let app = App::boot(config, Some(progress_tx))?;
 
             #[cfg(feature = "electrum")]
             if let Some(addr) = app.electrum_addr() {
-                notify(callback_fn, "ready:electrum", 1.0, 0, &addr.to_string());
+                notify(notify_fn, "ready:electrum", 1.0, 0, &addr.to_string());
             }
             #[cfg(feature = "http")]
             if let Some(addr) = app.http_addr() {
-                notify(callback_fn, "ready:http", 1.0, 0, &addr.to_string());
+                notify(notify_fn, "ready:http", 1.0, 0, &addr.to_string());
             }
 
-            notify(callback_fn, "ready", 1.0, 0, "");
+            let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
+            let shutdown_ptr = Box::into_raw(Box::new(ShutdownHandler(shutdown_tx)));
+            ready_fn(shutdown_ptr);
 
-            let shutdown_tx = app.sync_background();
+            app.sync(Some(shutdown_rx));
 
-            Ok(ShutdownHandler(shutdown_tx))
+            Ok(())
         };
+        let start_unwind = || -> Result<()> { std::panic::catch_unwind(start).unwrap() };
 
-        match start() {
-            Ok(shutdown_handler) => unsafe {
-                *shutdown_out = Box::into_raw(Box::new(shutdown_handler));
-                OK
-            },
-            Err(e) => {
-                warn!("{:?}", e);
-                notify(callback_fn, "error", 0.0, 0, &e.to_string());
-                ERR
-            }
+        if let Err(e) = start_unwind() {
+            warn!("{:?}", e);
+            notify(notify_fn, "error", 0.0, 0, &fmt_error(&e));
+            ERR
+        } else {
+            OK
         }
     }
 
@@ -85,10 +85,16 @@ mod ffi {
         OK
     }
 
-    fn notify(callback_fn: Callback, msg_type: &str, progress: f32, detail_n: u64, detail_s: &str) {
+    fn notify(
+        notify_fn: NotifyCallback,
+        msg_type: &str,
+        progress: f32,
+        detail_n: u64,
+        detail_s: &str,
+    ) {
         let msg_type = CString::new(msg_type).unwrap();
         let detail_s = CString::new(detail_s).unwrap();
-        callback_fn(
+        notify_fn(
             msg_type.as_ptr(),
             progress,
             detail_n as u32,
@@ -97,18 +103,18 @@ mod ffi {
         // drop CStrings
     }
 
-    // Spawn a thread to receive mpsc progress updates and forward them to the callback_fn
+    // Spawn a thread to receive mpsc progress updates and forward them to the notify_fn
     fn spawn_recv_progress_thread(
         progress_rx: mpsc::Receiver<Progress>,
-        callback_fn: Callback,
+        notify_fn: NotifyCallback,
     ) -> thread::JoinHandle<()> {
         thread::spawn(move || loop {
             match progress_rx.recv() {
                 Ok(Progress::Sync { progress_n, tip }) => {
-                    notify(callback_fn, "progress:sync", progress_n, tip, "")
+                    notify(notify_fn, "progress:sync", progress_n, tip, "")
                 }
                 Ok(Progress::Scan { progress_n, eta }) => {
-                    notify(callback_fn, "progress:scan", progress_n, eta, "")
+                    notify(notify_fn, "progress:scan", progress_n, eta, "")
                 }
                 Err(mpsc::RecvError) => break,
             }

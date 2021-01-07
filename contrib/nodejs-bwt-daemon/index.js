@@ -10,23 +10,23 @@ const LIB_PATH = process.env.BWT_LIB || path.join(__dirname, 'libbwt')
 const OK = 0
 
 const shutdownPtr = ref.refType('void')
-    , shutdownPtrPtr = ref.refType(shutdownPtr)
 
 const libbwt = ffi.Library(LIB_PATH, {
-  bwt_start: [ 'int', [ 'string', 'pointer', shutdownPtrPtr ] ]
+  bwt_start: [ 'int', [ 'string', 'pointer', 'pointer' ] ]
 , bwt_shutdown: [ 'int', [ shutdownPtr ] ]
 })
 
-function start_bwt(options, progress_cb, done) {
+function start_bwt(options, notify_cb, ready_cb, done) {
   const opt_json = JSON.stringify(options)
-      , progress_cb_ffi = ffi.Callback('void', [ 'string', 'float', 'uint32', 'string' ], progress_cb)
-      , shutdown_ptrptr = ref.alloc(shutdownPtrPtr)
+      , notify_cb_ffi = ffi.Callback('void', [ 'string', 'float', 'uint32', 'string' ], notify_cb)
+      , ready_cb_ffi = ffi.Callback('void', [ shutdownPtr ], ready_cb)
 
   debug('starting with %O', { ...options, bitcoind_auth: '**SCRUBBED**' });
-  libbwt.bwt_start.async(opt_json, progress_cb_ffi, shutdown_ptrptr, function(err, code) {
+  libbwt.bwt_start.async(opt_json, notify_cb_ffi, ready_cb_ffi, function(err, code) {
+    debug('stopped with', { err, code })
     if (err) return done(err)
     if (code != OK) return done(new Error(`bwt failed with code ${code}`))
-    done(null, shutdown_ptrptr.deref())
+    done(null)
   })
 }
 
@@ -65,7 +65,7 @@ function init(options) {
 
     const services = {}
 
-    function progress_cb(msg_type, progress, detail_n, detail_s) {
+    function notify_cb(msg_type, progress, detail_n, detail_s) {
       debug('%s %s %s', msg_type, progress, detail_n, detail_s)
       if (msg_type == 'error') {
         reject(new Error(detail_s))
@@ -75,15 +75,16 @@ function init(options) {
         opt_progress && opt_progress('sync', progress, { tip_time: detail_n })
       } else if (msg_type == 'progress:scan') {
         opt_progress && opt_progress('scan', progress, { eta: detail_n })
-      } else if (['booting', 'ready'].includes(msg_type)) {
+      } else if (msg_type == 'booting') {
         opt_progress && opt_progress(msg_type, progress, {})
       }
     }
 
-    start_bwt(options, progress_cb, (err, shutdown_ptr) => {
-      if (err) reject(err)
-      else resolve(new BwtDaemon(services, shutdown_ptr))
-    })
+    function ready_cb(shutdown_ptr) {
+      resolve(new BwtDaemon(services, shutdown_ptr))
+    }
+
+    start_bwt(options, notify_cb, ready_cb, err => err && reject(err))
   })
 }
 

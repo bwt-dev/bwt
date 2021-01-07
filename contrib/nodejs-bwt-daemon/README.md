@@ -86,8 +86,9 @@ See [`example.js`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-bwt-
 example, including connecting to the HTTP API.
 
 The full list of options is available in the [FFI documentation](https://github.com/shesek/bwt/blob/master/doc/libbwt.md#config-options).
-The nodejs wrapper also provides the following additional convenience options:
+The nodejs wrapper also provides the following additional options:
 
+- `progress` - callback for progress update notifications, invoked with `(type, progress, detail)` (optional)
 - `electrum` - setting to `true` is an alias for `electrum_addr=127.0.0.1:0`
 - `http` - setting to `true` is an alias for `http_addr=127.0.0.1:0`
 

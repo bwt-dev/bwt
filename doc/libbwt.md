@@ -29,12 +29,14 @@ The interface exposes two functions, for starting and stopping the bwt servers.
 Everything else happens through the Electrum/HTTP APIs.
 
 ```c
-typedef void (*bwt_callback)(const char* msg_type, float progress,
-                             uint32_t detail_n, const char* detail_s);
+typedef void (*bwt_notify_cb)(const char* msg_type, float progress,
+                                uint32_t detail_n, const char* detail_s);
+
+typedef void (*bwt_ready_cb)(void* shutdown_ptr);
 
 int32_t bwt_start(const char* json_config,
-                  bwt_callback callback,
-                  void** shutdown_out);
+                  bwt_notify_cb notify_cb,
+                  bwt_ready_cb ready_cb);
 
 int32_t bwt_shutdown(void* shutdown_ptr);
 ```
@@ -45,9 +47,7 @@ Both functions return `0` on success or `-1` on failure.
 
 Start the configured server(s).
 
-This will block the current thread until the initial indexing is completed and the API servers
-are ready, which may take awhile on the first run (depending on the `rescan_since` configuration).
-If you'd like this to happen in the background, call this function in a new thread.
+This will initialize the daemon and start the sync loop, blocking the current thread.
 
 `json_config` should be provided as a JSON-encoded string. The list of options is available [below](#config-options).
 Example minimal configuration:
@@ -64,8 +64,9 @@ Example minimal configuration:
 > You can configure `electrum_addr`/`http_addr` to `127.0.0.1:0` to bind on any available port.
 > The assigned port will be reported back via the `ready:X` notifications (see below).
 
-The `callback(msg_type, progress, detail_n, detail_s)` function will be called with progress updates and information
-about the running services, with the `progress` argument indicating the current progress as a float from 0 to 1.
+The `notify_cb(msg_type, progress, detail_n, detail_s)` function will be called with progress updates and information
+about the running services, with the `progress` argument indicating the current progress as a float from 0 to 1,
+as well as with errors.
 The meaning of the `detail_{n,s}` field varies for the different `msg_type`s, which are:
 
 - `booting` - Sent after the configuration is validated, right before booting up. `detail_{n,s}` are both empty.
@@ -76,22 +77,23 @@ The meaning of the `detail_{n,s}` field varies for the different `msg_type`s, wh
 - `ready:electrum` - The Electrum server is ready. `detail_s` contains the address the server is bound on,
   as an `<ip>:<port>` string (useful for ephemeral binding on port 0).
 - `ready:http` - The HTTP server is ready. `detail_s` contains the address the server is bound on.
-- `ready` - Everything is ready.
 - `error` - An error occurred during the initial indexing. `detail_s` contains the error message.
 
 > The `detail_s` argument will be deallocated after the callback is called. If you need to keep it around, make a copy of it.
 >
 > Note that `progress:X` notifications will be sent from a different thread.
 
-After the initial indexing is completed, a new thread will be spawned to sync new blocks/transactions in the background.
+Once the initial indexing is completed (may take a long time, depending on the `rescan_since` configuration)
+and the services are ready, the `ready_cb(shutdown_ptr)` function will be
+called with the shutdown handler (see `bwt_shutdown()`).
 
-A shutdown handler for stopping bwt will be written to `shutdown_out`.
+This function does not return until the daemon is stopped.
 
 ### `bwt_shutdown(shutdown_ptr)`
 
-Shutdown bwt's API server(s) and the background syncing thread.
+Shutdown the bwt daemon.
 
-Should be called with the shutdown handler written to `shutdown_out`.
+Should be called with the shutdown handler passed to `ready_cb()`.
 
 ## Config Options
 
