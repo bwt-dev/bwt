@@ -75,14 +75,18 @@ Available for download on [the releases page](https://github.com/shesek/bwt/rele
 The releases are signed by Nadav Ivgi (@shesek).
 The public key can be verified on [keybase](https://keybase.io/nadav),
 [github](https://api.github.com/users/shesek/gpg_keys),
-[twitter](https://twitter.com/shesek) and
-[HN](https://news.ycombinator.com/user?id=nadaviv).
+[twitter](https://twitter.com/shesek),
+[HN](https://news.ycombinator.com/user?id=nadaviv)
+and [this video presentation](https://youtu.be/SXJaN2T3M10?t=4) (bottom of slide).
 
 ```bash
+# Download (change x86_64-linux to your platform)
 $ wget https://github.com/shesek/bwt/releases/download/v0.2.0/bwt-0.2.0-x86_64-linux.tar.gz
 
-# Verify signature
+# Fetch public key
 $ gpg --keyserver keyserver.ubuntu.com --recv-keys FCF19B67866562F08A43AAD681F6104CD0F150FC
+
+# Verify signature
 $ wget -qO - https://github.com/shesek/bwt/releases/download/v0.2.0/SHA256SUMS.asc \
   | gpg --decrypt - | grep ' bwt-0.2.0-x86_64-linux.tar.gz$' | sha256sum -c -
 
@@ -177,7 +181,7 @@ Setting the environment variables directly is also supported.
 ### Electrum-only server
 
 If you're only interested in a standalone Electrum server, you may disable the HTTP API server
-by building bwt with `--no-default-features --features electrum`,
+by building bwt with `--no-default-features --features cli,electrum`,
 using the `shesek/bwt:electrum` docker image,
 or downloading the `electrum_only` pre-built binary.
 
