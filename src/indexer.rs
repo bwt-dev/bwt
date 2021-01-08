@@ -55,7 +55,7 @@ impl Indexer {
         let shutdown_progress_thread = spawn_send_progress_thread(self.rpc.clone(), progress_tx);
 
         while {
-            synced_tip = self.sync_transactions(&mut changelog)?;
+            synced_tip = self.sync_transactions(true, &mut changelog)?;
             self.watcher.do_imports(&self.rpc, /*rescan=*/ true)?
         } { /* do while */ }
 
@@ -99,7 +99,7 @@ impl Indexer {
             }
         }
 
-        let synced_tip = self.sync_transactions(&mut changelog)?;
+        let synced_tip = self.sync_transactions(false, &mut changelog)?;
         let tip_updated = self.tip != Some(synced_tip);
         self.sync_mempool(/*force_refresh=*/ tip_updated);
         self.watcher.do_imports(&self.rpc, /*rescan=*/ false)?;
@@ -125,7 +125,11 @@ impl Indexer {
         Ok(changelog)
     }
 
-    fn sync_transactions(&mut self, changelog: &mut Changelog) -> Result<BlockId> {
+    fn sync_transactions(
+        &mut self,
+        refresh_outgoing: bool,
+        changelog: &mut Changelog,
+    ) -> Result<BlockId> {
         let since_block = self.tip.as_ref().map(|tip| &tip.1);
         let tip_height = self.rpc.get_block_count()? as u32;
         let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
@@ -138,7 +142,7 @@ impl Indexer {
         // listsinceblock is not atomic and could provide inconsistent results.
         if result.lastblock != tip_hash {
             warn!("chain tip moved while reading listsinceblock, retrying...");
-            return self.sync_transactions(changelog);
+            return self.sync_transactions(refresh_outgoing, changelog);
         }
 
         for ltx in result.removed {
@@ -180,7 +184,7 @@ impl Indexer {
 
         for (txid, confirmations) in buffered_outgoing {
             let status = TxStatus::from_confirmations(confirmations, tip_height);
-            self.process_outgoing_tx(txid, status, changelog)
+            self.process_outgoing_tx(txid, status, refresh_outgoing, changelog)
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
         }
@@ -242,18 +246,18 @@ impl Indexer {
         &mut self,
         txid: Txid,
         status: TxStatus,
+        refresh: bool,
         changelog: &mut Changelog,
     ) -> Result<()> {
         trace!("processing outgoing tx txid={} status={:?}", txid, status);
 
-        if let Some(tx_entry) = self.store.get_tx_entry(&txid) {
-            // TODO keep a marker for processed transactions that had no spending inputs
-            if !tx_entry.spending.is_empty() {
-                // skip indexing spent inputs, but keep the status which might be more recent
-                self.upsert_tx(&txid, status, changelog);
-                trace!("skipping outgoing tx {}, already indexed", txid);
-                return Ok(());
-            }
+        let has_spends = |tx_entry: &TxEntry| !tx_entry.spending.is_empty();
+
+        if !refresh && self.store.get_tx_entry(&txid).map_or(false, has_spends) {
+            // skip indexing spent inputs, but keep the status which might be more recent
+            self.upsert_tx(&txid, status, changelog);
+            trace!("skipping outgoing tx {}, already indexed", txid);
+            return Ok(());
         }
 
         // TODO use batch rpc to fetch all buffered outgoing txs
@@ -282,7 +286,8 @@ impl Indexer {
 
         if !spending.is_empty() {
             self.upsert_tx(&txid, status, changelog);
-            self.store.index_tx_inputs_spending(&txid, spending);
+            self.store
+                .index_tx_inputs_spending(&txid, spending, refresh);
         }
 
         Ok(())

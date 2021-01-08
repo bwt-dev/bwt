@@ -185,13 +185,18 @@ impl MemoryStore {
     }
 
     // index the full set of spending inputs for this transaction
-    pub fn index_tx_inputs_spending(&mut self, txid: &Txid, spending: HashMap<u32, SpendingInfo>) {
+    pub fn index_tx_inputs_spending(
+        &mut self,
+        txid: &Txid,
+        spending: HashMap<u32, SpendingInfo>,
+        allow_overwrite: bool,
+    ) {
         trace!("index new tx inputs spends {}: {:?}", txid, spending);
 
         let (status, added_scripthashes) = {
             // the tx must already exists by now
             let tx_entry = self.transactions.get_mut(txid).unwrap();
-            assert!(tx_entry.spending.is_empty());
+            assert!(allow_overwrite || tx_entry.spending.is_empty());
             tx_entry.spending = spending;
             let scripthashes: Vec<_> = tx_entry.scripthashes().into_iter().cloned().collect();
             (tx_entry.status, scripthashes)
