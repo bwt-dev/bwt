@@ -4,7 +4,7 @@ use std::{net, thread, time};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::util::bitcoincore_ext::{Progress, RpcApiExt};
-use crate::util::{banner, debounce_sender};
+use crate::util::{banner, debounce_sender, on_oneshot_done};
 use crate::{Config, Indexer, Query, Result, WalletWatcher};
 
 #[cfg(feature = "electrum")]
@@ -101,14 +101,13 @@ impl App {
     pub fn sync(&self, shutdown_rx: Option<mpsc::Receiver<()>>) {
         debug!("starting sync loop");
         let shutdown_rx = shutdown_rx
-            .map(|rx| self.pipe_shutdown(rx))
+            .map(|rx| self.bind_shutdown(rx))
             .or_else(|| self.default_shutdown_signal());
 
         loop {
             if let Some(shutdown_rx) = &shutdown_rx {
-                match shutdown_rx.try_recv() {
-                    Err(mpsc::TryRecvError::Empty) => (),
-                    Ok(()) | Err(mpsc::TryRecvError::Disconnected) => break,
+                if shutdown_rx.try_recv() != Err(mpsc::TryRecvError::Empty) {
+                    break;
                 }
             }
 
@@ -163,18 +162,14 @@ impl App {
         Some(self.http.as_ref()?.addr())
     }
 
-    // Pipe the shutdown receiver `rx` to trigger `sync_tx`. This is needed to start the next
+    // Bind the shutdown receiver to also trigger `sync_tx`. This is needed to start the next
     // sync loop run immediately, which will then process the shutdown signal itself. Without
     // this, the shutdown signal will only be noticed after a delay.
-    fn pipe_shutdown(&self, rx: mpsc::Receiver<()>) -> mpsc::Receiver<()> {
+    fn bind_shutdown(&self, shutdown_rx: mpsc::Receiver<()>) -> mpsc::Receiver<()> {
         let sync_tx = self.sync_chan.0.clone();
-        let (c_tx, c_rx) = mpsc::sync_channel(1);
-        thread::spawn(move || {
-            rx.recv().ok();
-            c_tx.send(()).unwrap();
+        on_oneshot_done(shutdown_rx, move || {
             sync_tx.send(()).unwrap();
-        });
-        c_rx
+        })
     }
 
     #[cfg(all(unix, feature = "signal-hook"))]

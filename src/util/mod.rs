@@ -120,6 +120,22 @@ pub fn block_on_future<F: std::future::Future>(future: F) -> F::Output {
     rt.block_on(future)
 }
 
+/// Wait for the oneshot receiver `source_tx` to either receive or a message or to disconnect,
+/// then trigger `f`. Returns a new receiver that mimics the source one.
+pub fn on_oneshot_done<T: Send + 'static, F: Fn() + Send + 'static>(
+    source_rx: mpsc::Receiver<T>,
+    f: F,
+) -> mpsc::Receiver<T> {
+    let (tx, rx) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        if let Ok(v) = source_rx.recv() {
+            tx.send(v).ok();
+        }
+        f();
+    });
+    rx
+}
+
 pub trait BoolThen {
     // Similar to https://doc.rust-lang.org/std/primitive.bool.html#method.then (nightly only)
     fn do_then<T>(self, f: impl FnOnce() -> T) -> Option<T>;
