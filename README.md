@@ -330,7 +330,6 @@ You can associate the wallets to their parent xpub using the `bip32_origins` fie
 - `rescan_policy` - how far back rescanning should take place
 - `max_funded_index` - the maximum derivation index that is known to have history
 - `max_imported_index` - the maximum derivation index imported into bitcoind
-- `done_initial_import` - a boolean indicating whether we're done importing addresses for this wallet
 - `satisfaction_weight` - an upper bound on the weight of a satisfying witness to the transaction (also see [here](https://docs.rs/miniscript/3.0.0/miniscript/descriptor/enum.Descriptor.html#method.max_satisfaction_weight))
 
 See [`GET /wallet/:checksum`](#get-walletchecksum) for an example.
@@ -401,7 +400,6 @@ $ curl localhost:3060/wallet/xjm8w0el
   "is_wildcard": true,
   "bip32_origins": [ "80e042a9/0" ],
   "rescan_policy": "now",
-  "done_initial_import": true,
   "max_funded_index": null,
   "max_imported_index": 19,
   "gap_limit": 20,

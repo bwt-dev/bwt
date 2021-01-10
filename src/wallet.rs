@@ -152,13 +152,6 @@ impl WalletWatcher {
             );
             let wallet = self.wallets.get_mut(&checksum).unwrap();
             wallet.max_imported_index = Some(max_imported_index);
-
-            if !self.force_rescan {
-                // if anything was imported at all, assume the initial sync was completed. this might
-                // not hold true if bwt shuts down while syncing, but this only means that we'll use
-                // the smaller gap_limit instead of the initial_import_size, which is acceptable.
-                wallet.done_initial_import = true;
-            }
         }
 
         // Lookup previously imported standalone addresses and remove them from the pending import queue
@@ -186,7 +179,7 @@ impl WalletWatcher {
         for (checksum, wallet) in self.wallets.iter_mut() {
             if self.force_rescan || wallet.needs_imports() {
                 let start_index = iif!(self.force_rescan, 0, wallet.import_start_index());
-                let end_index = wallet.import_end_index();
+                let end_index = wallet.import_end_index(rescan);
 
                 debug!(
                     "importing {} range {}-{} with rescan={}",
@@ -196,9 +189,6 @@ impl WalletWatcher {
                 import_reqs.append(&mut wallet.make_imports(start_index, end_index, rescan));
 
                 pending_updates.push((wallet, end_index));
-            } else if !wallet.done_initial_import {
-                trace!("completed initial import for {}", checksum);
-                wallet.done_initial_import = true;
             }
         }
 
@@ -263,7 +253,6 @@ pub struct Wallet {
 
     max_funded_index: Option<u32>,
     max_imported_index: Option<u32>,
-    done_initial_import: bool,
 }
 
 impl Wallet {
@@ -294,7 +283,6 @@ impl Wallet {
             // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
             initial_import_size: initial_import_size.max(gap_limit),
             rescan_since,
-            done_initial_import: false,
             max_funded_index: None,
             max_imported_index: None,
         })
@@ -345,17 +333,13 @@ impl Wallet {
     }
 
     /// Returns the maximum index to be imported
-    fn import_end_index(&self) -> u32 {
+    fn import_end_index(&self, is_rescan: bool) -> u32 {
         if !self.is_wildcard {
             return 0;
         }
 
         // use larger chunk size during the initial rescan
-        let chunk_size = if self.done_initial_import {
-            self.gap_limit
-        } else {
-            self.initial_import_size
-        };
+        let chunk_size = iif!(is_rescan, self.initial_import_size, self.gap_limit);
 
         self.max_funded_index
             .map_or(chunk_size - 1, |max| max + chunk_size)
@@ -560,7 +544,6 @@ impl Serialize for Wallet {
         rgb.serialize_field("is_wildcard", &self.is_wildcard)?;
         rgb.serialize_field("bip32_origins", &bip32_origins)?;
         rgb.serialize_field("rescan_since", &self.rescan_since)?;
-        rgb.serialize_field("done_initial_import", &self.done_initial_import)?;
         rgb.serialize_field("max_funded_index", &self.max_funded_index)?;
         rgb.serialize_field("max_imported_index", &self.max_imported_index)?;
         rgb.serialize_field(
