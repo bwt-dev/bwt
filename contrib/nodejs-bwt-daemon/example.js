@@ -12,7 +12,7 @@ const BwtDaemon = require('bwt-daemon')
     http: true,
     verbose: 2,
     progress: (type, progress, detail) => console.log('bwt progress %s %f%%', type, progress*100, detail),
-  })
+  }).start()
 
   console.log('bwt running', bwtd.electrum_addr, bwtd.http_addr)
 
@@ -26,3 +26,4 @@ const BwtDaemon = require('bwt-daemon')
 
   setTimeout(_ => bwtd.shutdown(), 5000)
 })()
+.catch(console.error)

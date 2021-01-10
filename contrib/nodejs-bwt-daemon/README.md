@@ -28,7 +28,7 @@ This reduces the download size by ~1.6MB.
 
 ### Use
 
-Below is a minimally viable configuration. If bitcoind is running locally on the default port, at the default datadir location
+Below is a minimally viable setup. If bitcoind is running locally on the default port, at the default datadir location
 and with cookie auth enabled (the default), this should Just Work™ \o/
 
 ```js
@@ -37,7 +37,7 @@ import BwtDaemon from 'bwt-daemon'
 const bwtd = await BwtDaemon({
   xpubs: [ 'xpub66...' ],
   electrum: true,
-})
+}).start()
 
 console.log('bwt electrum server ready on', bwtd.electrum_addr)
 ```
@@ -72,7 +72,7 @@ const bwtd = await BwtDaemon({
 
   // Progress notifications for history scanning (a full rescan from genesis can take 20-30 minutes)
   progress: (type, progress, detail) => console.log('bwt %s progress %f%%', type, progress*100, detail),
-})
+}).start()
 
 // Get the assigned address/port for the Electrum/HTTP servers
 console.log('bwt electrum server ready on', bwtd.electrum_addr)
