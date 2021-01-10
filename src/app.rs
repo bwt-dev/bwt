@@ -236,14 +236,17 @@ fn init_bitcoind(
     config: &Config,
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> Result<()> {
-    const INTERVAL: time::Duration = time::Duration::from_secs(7);
+    const INTERVAL_SLOW: time::Duration = time::Duration::from_secs(6);
+    const INTERVAL_FAST: time::Duration = time::Duration::from_millis(1500);
+    // use the fast interval if we're reporting progress to a channel, or the slow one if its only for CLI
+    let interval = iif!(progress_tx.is_some(), INTERVAL_FAST, INTERVAL_SLOW);
 
-    let bcinfo = rpc.wait_blockchain_sync(progress_tx.clone(), INTERVAL)?;
+    let bcinfo = rpc.wait_blockchain_sync(progress_tx.clone(), interval)?;
 
     if let Some(bitcoind_wallet) = &config.bitcoind_wallet {
         load_wallet(&rpc, bitcoind_wallet)?;
     }
-    let walletinfo = rpc.wait_wallet_scan(progress_tx, None, INTERVAL)?;
+    let walletinfo = rpc.wait_wallet_scan(progress_tx, None, interval)?;
 
     let netinfo = rpc.get_network_info()?;
     info!(

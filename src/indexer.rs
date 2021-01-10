@@ -436,7 +436,10 @@ fn spawn_send_progress_thread(
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> mpsc::SyncSender<()> {
     const DELAY: time::Duration = time::Duration::from_millis(250);
-    const INTERVAL: time::Duration = time::Duration::from_millis(1500);
+    const INTERVAL_SLOW: time::Duration = time::Duration::from_secs(6);
+    const INTERVAL_FAST: time::Duration = time::Duration::from_millis(1500);
+    // use the fast interval if we're reporting progress to a channel, or the slow one if its only for CLI
+    let interval = iif!(progress_tx.is_some(), INTERVAL_FAST, INTERVAL_SLOW);
 
     let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
 
@@ -447,7 +450,7 @@ fn spawn_send_progress_thread(
         if shutdown_rx.try_recv() != Err(mpsc::TryRecvError::Empty) {
             return;
         }
-        if let Err(e) = rpc.wait_wallet_scan(progress_tx, Some(shutdown_rx), INTERVAL) {
+        if let Err(e) = rpc.wait_wallet_scan(progress_tx, Some(shutdown_rx), interval) {
             debug!("progress thread aborted: {:?}", e);
         }
     });
