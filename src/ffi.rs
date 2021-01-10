@@ -67,14 +67,12 @@ pub extern "C" fn bwt_start(
         Ok(())
     };
 
-    if let Err(e) = panic::catch_unwind(start)
-        .map_err(fmt_panic)
-        .and_then(|r| r.map_err(fmt_error))
-    {
+    if let Err(e) = try_run(start) {
         warn!("{}", e);
         notify(notify_fn, "error", 0.0, 0, &e);
         ERR
     } else {
+        debug!("daemon stopped successfully");
         OK
     }
 }
@@ -105,6 +103,20 @@ fn notify(notify_fn: NotifyCallback, msg_type: &str, progress: f32, detail_n: u6
         detail_s.as_ptr(),
     );
     // drop CStrings
+}
+
+// Run the closure, handling panics and errors, and formatting them to a string
+fn try_run<F>(f: F) -> std::result::Result<(), String>
+where
+    F: FnOnce() -> Result<()> + panic::UnwindSafe,
+{
+    match panic::catch_unwind(f) {
+        Err(panic) => Err(fmt_panic(panic)),
+        // Consider user-initiated cancellations (via `bwt_shutdown`) as successful termination
+        Ok(Err(e)) if matches!(e.downcast_ref::<BwtError>(), Some(BwtError::Canceled)) => Ok(()),
+        Ok(Err(e)) => Err(fmt_error(e)),
+        Ok(Ok(())) => Ok(()),
+    }
 }
 
 // Spawn a thread to receive mpsc progress updates and forward them to the notify_fn
@@ -140,20 +152,17 @@ fn make_shutdown_channel(
     (shutdown_tx, shutdown_rx)
 }
 
-fn fmt_error(e: Error) -> String {
-    let causes: Vec<String> = e.chain().map(|cause| cause.to_string()).collect();
+fn fmt_error(err: Error) -> String {
+    let causes: Vec<String> = err.chain().map(|cause| cause.to_string()).collect();
     causes.join(": ")
 }
 
 fn fmt_panic(err: Box<dyn any::Any + Send + 'static>) -> String {
-    format!(
-        "panic: {}",
-        if let Some(s) = err.downcast_ref::<&str>() {
-            s
-        } else if let Some(s) = err.downcast_ref::<String>() {
-            s
-        } else {
-            "unknown panic"
-        }
-    )
+    if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else if let Some(s) = err.downcast_ref::<String>() {
+        s.to_string()
+    } else {
+        "unknown panic".to_string()
+    }
 }
