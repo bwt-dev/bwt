@@ -59,7 +59,7 @@ impl Indexer {
             self.watcher.do_imports(&self.rpc, /*rescan=*/ true)?
         } { /* do while */ }
 
-        shutdown_progress_thread.send(()).unwrap();
+        shutdown_progress_thread.send(()).ok();
 
         self.sync_mempool(/*force_refresh=*/ true);
 
@@ -448,7 +448,7 @@ fn spawn_send_progress_thread(
             return;
         }
         if let Err(e) = rpc.wait_wallet_scan(progress_tx, Some(shutdown_rx), INTERVAL) {
-            warn!("getwalletinfo failed: {:?}", e);
+            debug!("progress thread aborted: {:?}", e);
         }
     });
 

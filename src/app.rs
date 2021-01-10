@@ -3,9 +3,10 @@ use std::{net, thread, time};
 
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
+use crate::error::{BwtError, Result};
 use crate::util::bitcoincore_ext::{Progress, RpcApiExt};
 use crate::util::{banner, debounce_sender, on_oneshot_done};
-use crate::{Config, Indexer, Query, Result, WalletWatcher};
+use crate::{Config, Indexer, Query, WalletWatcher};
 
 #[cfg(feature = "electrum")]
 use crate::electrum::ElectrumServer;
@@ -33,6 +34,10 @@ pub struct App {
 }
 
 impl App {
+    /// Start up bwt, run the initial sync and start the configured service(s)
+    ///
+    /// To abort during initialization, disconnect the progress_tx channel.
+    /// To shutdown after initialization was completed, drop the App.
     pub fn boot(config: Config, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<Self> {
         debug!("{}", scrub_config(&config));
 
@@ -52,7 +57,13 @@ impl App {
         }
 
         // do an initial sync without keeping track of updates
-        indexer.write().unwrap().initial_sync(progress_tx)?;
+        indexer.write().unwrap().initial_sync(progress_tx.clone())?;
+
+        if let Some(progress_tx) = progress_tx {
+            if progress_tx.send(Progress::Done).is_err() {
+                bail!(BwtError::Canceled);
+            }
+        }
 
         let (sync_tx, sync_rx) = mpsc::channel();
         // debounce sync message rate to avoid excessive indexing when bitcoind catches up
@@ -131,8 +142,8 @@ impl App {
                 Err(e) => warn!("error while updating index: {:?}", e),
             }
 
-            // wait for poll_interval seconds, or until we receive a sync notification message,
-            // or until the shutdown signal is emitted
+            // wait for poll_interval seconds or until we receive a sync notification message
+            // (which can also get triggered through the shutdown signal)
             self.sync_chan
                 .1
                 .recv_timeout(self.config.poll_interval)
@@ -218,7 +229,8 @@ fn load_wallet(rpc: &RpcClient, name: &str) -> Result<()> {
     }
 }
 
-// wait for bitcoind to sync and finish rescanning
+// Initialize bitcoind and wait for it to finish syncing and rescanning
+// Aborted if the progress channel gets disconnected.
 fn init_bitcoind(
     rpc: &RpcClient,
     config: &Config,

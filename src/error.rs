@@ -24,6 +24,9 @@ pub enum BwtError {
     #[error("Blocks unavailable due to pruning")]
     PrunedBlocks,
 
+    #[error("The operation was canceled")]
+    Canceled,
+
     #[error("Custom broadcast command failed with {0}")]
     BroadcastCmdFailed(std::process::ExitStatus),
 

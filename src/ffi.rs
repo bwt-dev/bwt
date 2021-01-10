@@ -108,7 +108,7 @@ fn spawn_recv_progress_thread(
             Ok(Progress::Scan { progress_n, eta }) => {
                 notify(notify_fn, "progress:scan", progress_n, eta, "")
             }
-            Err(mpsc::RecvError) => break,
+            Ok(Progress::Done) | Err(mpsc::RecvError) => break,
         }
     })
 }

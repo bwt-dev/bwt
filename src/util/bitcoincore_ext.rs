@@ -7,6 +7,8 @@ use bitcoin::Address;
 use bitcoincore_rpc::json::{self, ImportMultiRescanSince, ScanningDetails};
 use bitcoincore_rpc::{self as rpc, Client, Result as RpcResult, RpcApi};
 
+use crate::error::{BwtError, Result};
+
 // Extensions for rust-bitcoincore-rpc
 
 pub const RPC_MISC_ERROR: i32 = -1;
@@ -57,7 +59,7 @@ pub trait RpcApiExt: RpcApi {
         &self,
         progress_tx: Option<mpsc::Sender<Progress>>,
         interval: time::Duration,
-    ) -> RpcResult<json::GetBlockchainInfoResult> {
+    ) -> Result<json::GetBlockchainInfoResult> {
         Ok(loop {
             match self.get_blockchain_info() {
                 Ok(info) => {
@@ -69,7 +71,7 @@ pub trait RpcApiExt: RpcApi {
                                 progress_n: 1.0,
                                 tip: info.median_time,
                             };
-                            progress_tx.send(progress).ok();
+                            ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
                         }
                         break info;
                     }
@@ -79,9 +81,7 @@ pub trait RpcApiExt: RpcApi {
                             progress_n: info.verification_progress as f32,
                             tip: info.median_time,
                         };
-                        if progress_tx.send(progress).is_err() {
-                            break info;
-                        }
+                        ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
                     } else {
                         info!(target: "bwt",
                             "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%]",
@@ -94,7 +94,7 @@ pub trait RpcApiExt: RpcApi {
                 {
                     info!("waiting for bitcoind to warm up: {}", e.message);
                 }
-                Err(e) => return Err(e),
+                Err(e) => bail!(e),
             }
             thread::sleep(interval);
         })
@@ -105,7 +105,7 @@ pub trait RpcApiExt: RpcApi {
         progress_tx: Option<mpsc::Sender<Progress>>,
         shutdown_rx: Option<mpsc::Receiver<()>>,
         interval: time::Duration,
-    ) -> RpcResult<json::GetWalletInfoResult> {
+    ) -> Result<json::GetWalletInfoResult> {
         // Stop if the shutdown signal was received or if the channel was disconnected
         let should_shutdown = || {
             shutdown_rx
@@ -130,13 +130,11 @@ pub trait RpcApiExt: RpcApi {
                             progress_n: 1.0,
                             eta: 0,
                         };
-                        if progress_tx.send(progress).is_err() {
-                            break info;
-                        }
+                        ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
                     }
                     // Stop as soon as scanning is completed if no explicit shutdown_rx was given,
                     // or continue until the shutdown signal is received if it was.
-                    if shutdown_rx.is_none() {
+                    if shutdown_rx.is_none() || should_shutdown() {
                         break info;
                     }
                 }
@@ -152,9 +150,7 @@ pub trait RpcApiExt: RpcApi {
 
                     if let Some(ref progress_tx) = progress_tx {
                         let progress = Progress::Scan { progress_n, eta };
-                        if progress_tx.send(progress).is_err() {
-                            break info;
-                        }
+                        ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
                     } else {
                         info!(target: "bwt",
                             "waiting for bitcoind to finish scanning [done {:.1}%, running for {}m, eta {}m]",
@@ -177,6 +173,7 @@ impl RpcApiExt for Client {}
 pub enum Progress {
     Sync { progress_n: f32, tip: u64 },
     Scan { progress_n: f32, eta: u64 },
+    Done,
 }
 
 #[derive(Debug, Deserialize)]
