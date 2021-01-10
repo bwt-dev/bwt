@@ -4,7 +4,7 @@ use std::{net, thread, time};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::error::{BwtError, Result};
-use crate::util::bitcoincore_ext::{Progress, RpcApiExt};
+use crate::util::bitcoincore_wait::Progress;
 use crate::util::{banner, debounce_sender, on_oneshot_done};
 use crate::{Config, Indexer, Query, WalletWatcher};
 
@@ -236,17 +236,19 @@ fn init_bitcoind(
     config: &Config,
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> Result<()> {
+    use crate::util::bitcoincore_wait::{wait_blockchain_sync, wait_wallet_scan};
+
     const INTERVAL_SLOW: time::Duration = time::Duration::from_secs(6);
     const INTERVAL_FAST: time::Duration = time::Duration::from_millis(1500);
     // use the fast interval if we're reporting progress to a channel, or the slow one if its only for CLI
     let interval = iif!(progress_tx.is_some(), INTERVAL_FAST, INTERVAL_SLOW);
 
-    let bcinfo = rpc.wait_blockchain_sync(progress_tx.clone(), interval)?;
+    let bcinfo = wait_blockchain_sync(rpc, progress_tx.clone(), interval)?;
 
     if let Some(bitcoind_wallet) = &config.bitcoind_wallet {
         load_wallet(&rpc, bitcoind_wallet)?;
     }
-    let walletinfo = rpc.wait_wallet_scan(progress_tx, None, interval)?;
+    let walletinfo = wait_wallet_scan(rpc, progress_tx, None, interval)?;
 
     let netinfo = rpc.get_network_info()?;
     info!(

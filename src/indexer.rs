@@ -13,7 +13,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use crate::error::Result;
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
 use crate::types::{BlockId, InPoint, RescanSince, ScriptHash, TxStatus};
-use crate::util::bitcoincore_ext::{Progress, RpcApiExt};
+use crate::util::bitcoincore_wait::Progress;
 use crate::wallet::{KeyOrigin, WalletWatcher};
 
 pub struct Indexer {
@@ -435,6 +435,8 @@ fn spawn_send_progress_thread(
     rpc: Arc<RpcClient>,
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> mpsc::SyncSender<()> {
+    use crate::util::bitcoincore_wait::wait_wallet_scan;
+
     const DELAY: time::Duration = time::Duration::from_millis(250);
     const INTERVAL_SLOW: time::Duration = time::Duration::from_secs(6);
     const INTERVAL_FAST: time::Duration = time::Duration::from_millis(1500);
@@ -450,7 +452,7 @@ fn spawn_send_progress_thread(
         if shutdown_rx.try_recv() != Err(mpsc::TryRecvError::Empty) {
             return;
         }
-        if let Err(e) = rpc.wait_wallet_scan(progress_tx, Some(shutdown_rx), interval) {
+        if let Err(e) = wait_wallet_scan(&rpc, progress_tx, Some(shutdown_rx), interval) {
             debug!("progress thread aborted: {:?}", e);
         }
     });

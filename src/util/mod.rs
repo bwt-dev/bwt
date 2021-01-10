@@ -11,6 +11,7 @@ mod macros;
 
 pub mod banner;
 pub mod bitcoincore_ext;
+pub mod bitcoincore_wait;
 pub mod descriptor;
 pub mod xpub;
 

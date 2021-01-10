@@ -5,7 +5,7 @@ use std::{any, panic, thread};
 
 use crate::error::{BwtError, Context, Error, Result};
 
-use crate::util::{bitcoincore_ext::Progress, on_oneshot_done};
+use crate::util::{bitcoincore_wait::Progress, on_oneshot_done};
 use crate::{App, Config};
 
 const OK: i32 = 0;
