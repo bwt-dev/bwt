@@ -107,15 +107,15 @@ pub trait RpcApiExt: RpcApi {
         interval: time::Duration,
     ) -> Result<json::GetWalletInfoResult> {
         // Stop if the shutdown signal was received or if the channel was disconnected
-        let should_shutdown = || {
+        let should_stop = || {
             shutdown_rx
                 .as_ref()
                 .map_or(false, |rx| rx.try_recv() != Err(mpsc::TryRecvError::Empty))
         };
 
-        Ok(loop {
+        let info = loop {
             let info = self.get_wallet_info()?;
-            if should_shutdown() {
+            if should_stop() {
                 break info;
             }
             match info.scanning {
@@ -125,16 +125,10 @@ pub trait RpcApiExt: RpcApi {
                     break info;
                 }
                 Some(ScanningDetails::NotScanning(_)) => {
-                    if let Some(ref progress_tx) = progress_tx {
-                        let progress = Progress::Scan {
-                            progress_n: 1.0,
-                            eta: 0,
-                        };
-                        ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
-                    }
                     // Stop as soon as scanning is completed if no explicit shutdown_rx was given,
-                    // or continue until the shutdown signal is received if it was.
-                    if shutdown_rx.is_none() || should_shutdown() {
+                    // or continue until the shutdown signal is received if it was. There might be
+                    // additional rounds of import.
+                    if shutdown_rx.is_none() || should_stop() {
                         break info;
                     }
                 }
@@ -160,10 +154,20 @@ pub trait RpcApiExt: RpcApi {
                 }
             }
             thread::sleep(interval);
-            if should_shutdown() {
+            if should_stop() {
                 break info;
             }
-        })
+        };
+
+        if let Some(progress_tx) = progress_tx {
+            let progress = Progress::Scan {
+                progress_n: 1.0,
+                eta: 0,
+            };
+            ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
+        }
+
+        Ok(info)
     }
 }
 
