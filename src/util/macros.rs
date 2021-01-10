@@ -1,3 +1,14 @@
+// Syntactic sugar for a one-liner lazily-evaluated if expression
+macro_rules! iif {
+    ($cond:expr, $then:expr, $else:expr) => {
+        if $cond {
+            $then
+        } else {
+            $else
+        }
+    };
+}
+
 // Implements the Display and Serialize traits to format the struct as string
 macro_rules! impl_string_serializer {
     ($name:ident, $var:ident, $expr:expr) => {

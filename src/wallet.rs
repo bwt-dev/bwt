@@ -19,12 +19,12 @@ const LABEL_PREFIX: &str = "bwt";
 #[derive(Debug)]
 pub struct WalletWatcher {
     network: Network,
-
     /// Descriptor wallets
     wallets: HashMap<Checksum, Wallet>,
-
     /// Standalone addresses pending import
-    pending_standalone_imports: Vec<AddressImport>,
+    pending_standalone: Vec<AddressImport>,
+    /// Force rescan on the first run
+    force_rescan: bool,
 }
 
 type AddressImport = (Address, RescanSince);
@@ -34,6 +34,7 @@ impl WalletWatcher {
         network: Network,
         wallets: Vec<Wallet>,
         addresses: Vec<AddressImport>,
+        force_rescan: bool,
     ) -> Result<Self> {
         let num_wallets = wallets.len();
         let wallets = wallets
@@ -56,7 +57,8 @@ impl WalletWatcher {
         Ok(Self {
             network,
             wallets,
-            pending_standalone_imports: addresses,
+            pending_standalone: addresses,
+            force_rescan,
         })
     }
 
@@ -70,7 +72,6 @@ impl WalletWatcher {
                     config.gap_limit,
                     config.initial_import_size,
                     config.rescan_since,
-                    config.force_rescan,
                 )
                 .with_context(|| format!("invalid descriptor {}", desc))?,
             );
@@ -84,7 +85,6 @@ impl WalletWatcher {
                     config.gap_limit,
                     config.initial_import_size,
                     config.rescan_since,
-                    config.force_rescan,
                 )
                 .with_context(|| format!("invalid xpub {}", xpub))?,
             );
@@ -101,7 +101,7 @@ impl WalletWatcher {
             bail!("No descriptors/xpubs/addresses provided");
         }
 
-        Self::new(config.network, wallets, addresses)
+        Self::new(config.network, wallets, addresses, config.force_rescan)
     }
 
     pub fn wallets(&self) -> &HashMap<Checksum, Wallet> {
@@ -127,11 +127,11 @@ impl WalletWatcher {
         }
     }
 
-    // check previous imports and update max_imported_index
+    /// Check previous imports and update our state
     pub fn check_imports(&mut self, rpc: &RpcClient) -> Result<()> {
         debug!("checking previous imports");
 
-        // Lookup descriptor wallet imports and update their max imported index
+        // Lookup descriptor wallet imports and update their max_imported_index
         let mut imported_indexes: HashMap<Checksum, u32> = HashMap::new();
         let labels = rpc.list_labels().map_err(labels_error)?;
         for label in labels {
@@ -153,24 +153,28 @@ impl WalletWatcher {
             let wallet = self.wallets.get_mut(&checksum).unwrap();
             wallet.max_imported_index = Some(max_imported_index);
 
-            // if anything was imported at all, assume the initial sync was completed. this might
-            // not hold true if bwt shuts down while syncing, but this only means that we'll use
-            // the smaller gap_limit instead of the initial_import_size, which is acceptable.
-            wallet.done_initial_import = true;
+            if !self.force_rescan {
+                // if anything was imported at all, assume the initial sync was completed. this might
+                // not hold true if bwt shuts down while syncing, but this only means that we'll use
+                // the smaller gap_limit instead of the initial_import_size, which is acceptable.
+                wallet.done_initial_import = true;
+            }
         }
 
         // Lookup previously imported standalone addresses and remove them from the pending import queue
-        let standalones = rpc
-            .get_addresses_by_label(KeyOrigin::standalone_label())?
-            .into_iter()
-            .map(|(k, _)| k)
-            .collect::<HashSet<_>>();
-        trace!(
-            "found {} previously imported standalone addresses",
-            standalones.len()
-        );
-        self.pending_standalone_imports
-            .retain(|(address, _)| !standalones.contains(address));
+        if !self.force_rescan {
+            let standalones = rpc
+                .get_addresses_by_label(KeyOrigin::standalone_label())?
+                .into_iter()
+                .map(|(k, _)| k)
+                .collect::<HashSet<_>>();
+            trace!(
+                "found {} previously imported standalone addresses",
+                standalones.len()
+            );
+            self.pending_standalone
+                .retain(|(address, _)| !standalones.contains(address));
+        }
 
         Ok(())
     }
@@ -180,8 +184,8 @@ impl WalletWatcher {
         let mut pending_updates = vec![];
 
         for (checksum, wallet) in self.wallets.iter_mut() {
-            if wallet.needs_imports() {
-                let start_index = wallet.import_start_index();
+            if self.force_rescan || wallet.needs_imports() {
+                let start_index = iif!(self.force_rescan, 0, wallet.import_start_index());
                 let end_index = wallet.import_end_index();
 
                 debug!(
@@ -198,10 +202,10 @@ impl WalletWatcher {
             }
         }
 
-        if !self.pending_standalone_imports.is_empty() {
+        if !self.pending_standalone.is_empty() {
             let label = KeyOrigin::standalone_label();
             import_reqs.extend(
-                self.pending_standalone_imports
+                self.pending_standalone
                     .iter()
                     .cloned()
                     .map(|(address, rescan)| (address, rescan, label.into())),
@@ -220,13 +224,13 @@ impl WalletWatcher {
 
             for (wallet, imported_index) in pending_updates {
                 wallet.max_imported_index = Some(imported_index);
-
-                // the force_rescan flag applies to the first import batch only
-                wallet.force_rescan = false;
             }
 
+            // the force_rescan flag applies to the first import batch only
+            self.force_rescan = false;
+
             // we don't need to keep standalone addresses around once they get imported
-            self.pending_standalone_imports.clear();
+            self.pending_standalone.clear();
         }
 
         Ok(has_imports)
@@ -241,8 +245,7 @@ impl WalletWatcher {
             "Invalid network for address {}",
             address
         );
-        self.pending_standalone_imports
-            .push((address, rescan_since));
+        self.pending_standalone.push((address, rescan_since));
         Ok(())
     }
 }
@@ -255,7 +258,6 @@ pub struct Wallet {
     keys_info: Vec<DescKeyInfo>,
     network: Network,
     rescan_since: RescanSince,
-    force_rescan: bool,
     gap_limit: u32,
     initial_import_size: u32,
 
@@ -271,7 +273,6 @@ impl Wallet {
         gap_limit: u32,
         initial_import_size: u32,
         rescan_since: RescanSince,
-        force_rescan: bool,
     ) -> Result<Self> {
         ensure!(
             descriptor::derive_address(&desc, 0, network).is_some(),
@@ -293,7 +294,6 @@ impl Wallet {
             // setting initial_import_size < gap_limit makes no sense, the user probably meant to increase both
             initial_import_size: initial_import_size.max(gap_limit),
             rescan_since,
-            force_rescan,
             done_initial_import: false,
             max_funded_index: None,
             max_imported_index: None,
@@ -306,7 +306,6 @@ impl Wallet {
         gap_limit: u32,
         initial_import_size: u32,
         rescan_since: RescanSince,
-        force_rescan: bool,
     ) -> Result<Vec<Self>> {
         Ok(vec![
             // external chain (receive)
@@ -316,7 +315,6 @@ impl Wallet {
                 gap_limit,
                 initial_import_size,
                 rescan_since,
-                force_rescan,
             )?,
             // internal chain (change)
             Self::from_descriptor(
@@ -325,16 +323,11 @@ impl Wallet {
                 gap_limit,
                 initial_import_size,
                 rescan_since,
-                force_rescan,
             )?,
         ])
     }
 
     fn needs_imports(&self) -> bool {
-        if self.force_rescan {
-            return true;
-        }
-
         if !self.is_wildcard {
             return self.max_imported_index.is_none();
         }
@@ -345,12 +338,8 @@ impl Wallet {
         })
     }
 
-    /// Returns the start index to be imported
+    /// Returns the start index that needs to be imported
     fn import_start_index(&self) -> u32 {
-        if self.force_rescan {
-            return 0;
-        }
-
         self.max_imported_index
             .map_or(0, |max_imported| max_imported + 1)
     }
@@ -361,6 +350,7 @@ impl Wallet {
             return 0;
         }
 
+        // use larger chunk size during the initial rescan
         let chunk_size = if self.done_initial_import {
             self.gap_limit
         } else {
@@ -369,7 +359,7 @@ impl Wallet {
 
         self.max_funded_index
             .map_or(chunk_size - 1, |max| max + chunk_size)
-            // the current max_imported_index may be larger in force_rescan mode
+            // the current max_imported_index may be larger due to a previously larger chunk size
             .max(self.max_imported_index.unwrap_or(0))
     }
 
