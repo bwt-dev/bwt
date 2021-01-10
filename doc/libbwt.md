@@ -29,21 +29,21 @@ The interface exposes two functions, for starting and stopping the bwt servers.
 Everything else happens through the Electrum/HTTP APIs.
 
 ```c
+typedef void (*bwt_init_cb)(void* shutdown_ptr);
+
 typedef void (*bwt_notify_cb)(const char* msg_type, float progress,
                                 uint32_t detail_n, const char* detail_s);
 
-typedef void (*bwt_ready_cb)(void* shutdown_ptr);
-
 int32_t bwt_start(const char* json_config,
-                  bwt_notify_cb notify_cb,
-                  bwt_ready_cb ready_cb);
+                  bwt_init_cb init_cb,
+                  bwt_notify_cb notify_cb);
 
 int32_t bwt_shutdown(void* shutdown_ptr);
 ```
 
 Both functions return `0` on success or `-1` on failure.
 
-### `bwt_start(json_config, callback, shutdown_out)`
+### `bwt_start(json_config, init_cb, notify_cb)`
 
 Start the configured server(s).
 
@@ -56,36 +56,36 @@ Example minimal configuration:
 {
   "bitcoind_dir": "/home/satoshi/.bitcoin",
   "descriptors": [ "wpkh(xpub66../0/*)" ],
-  "electrum_addr": "127.0.0.1:0",
-  "http_addr": "127.0.0.1:0"
+  "electrum_addr": "127.0.0.1:0"
 }
 ```
 
 > You can configure `electrum_addr`/`http_addr` to `127.0.0.1:0` to bind on any available port.
 > The assigned port will be reported back via the `ready:X` notifications (see below).
 
-The `notify_cb(msg_type, progress, detail_n, detail_s)` function will be called with progress updates and information
-about the running services, with the `progress` argument indicating the current progress as a float from 0 to 1,
-as well as with errors.
+The function accepts two callbacks: `init_cb` and `notify_cb`.
+
+`init_cb(shutdown_ptr)` will be called with the shutdown pointer (see `bwt_shutdown()`)
+right before bwt is started up, after the configuration is validated.
+
+The `notify_cb(msg_type, progress, detail_n, detail_s)` callback will be called with error messages,
+progress updates and information about the running services, with the `progress` argument indicating the
+current progress as a float from 0 to 1.
 The meaning of the `detail_{n,s}` field varies for the different `msg_type`s, which are:
 
-- `booting` - Sent after the configuration is validated, right before booting up. `detail_{n,s}` are both empty.
-- `progress:sync` - Progress updates for bitcoind's initial block download. `detail_n` contains the unix timestamp
-  that the chain is currently synced up to.
+- `progress:sync` - Progress updates for bitcoind's initial block download. `detail_n` contains the unix
+  timestamp of the current chain tip.
 - `progress:scan` - Progress updates for historical transactions rescanning. `detail_n` contains the estimated
   remaining time in seconds.
 - `ready:electrum` - The Electrum server is ready. `detail_s` contains the address the server is bound on,
   as an `<ip>:<port>` string (useful for ephemeral binding on port 0).
 - `ready:http` - The HTTP server is ready. `detail_s` contains the address the server is bound on.
-- `error` - An error occurred during the initial indexing. `detail_s` contains the error message.
+- `ready` - Everything is ready.
+- `error` - An error occurred during the initial start-up. `detail_s` contains the error message.
 
-> The `detail_s` argument will be deallocated after the callback is called. If you need to keep it around, make a copy of it.
+> The `detail_s` argument will be deallocated after calling the callback. If you need to keep it around, make a copy of it.
 >
 > Note that `progress:X` notifications will be sent from a different thread.
-
-Once the initial indexing is completed (may take a long time, depending on the `rescan_since` configuration)
-and the services are ready, the `ready_cb(shutdown_ptr)` function will be
-called with the shutdown handler (see `bwt_shutdown()`).
 
 This function does not return until the daemon is stopped.
 
@@ -93,11 +93,16 @@ This function does not return until the daemon is stopped.
 
 Shutdown the bwt daemon.
 
-Should be called with the shutdown handler passed to `ready_cb()`.
+Should be called with the shutdown pointer passed to `init_cb()`.
+
+If this is called while bitcoind is importing/rescanning addresses,
+the daemon will not stop immediatly but will be marked for later termination.
 
 ## Config Options
 
 All options are optional, except for `descriptors`/`xpubs`/`addresses` (of which there must be at least one).
+
+To start the API servers, set `electrum_addr`/`http_addr`.
 
 If bitcoind is running locally on the default port, at the default datadir location and with cookie auth enabled (the default), connecting to it should Just Work™, no configuration needed.
 
@@ -124,7 +129,7 @@ If bitcoind is running locally on the default port, at the default datadir locat
 - `tx_broadcast_cmd` - [custom command](https://github.com/shesek/bwt#scriptable-transaction-broadcast) for broadcasting transactions
 - `verbose` - verbosity level for stderr log messages (0-4, defaults to 0)
 - `require_addresses` - when disabled, the daemon will start even without any configured wallet addresses (defaults to true)
-- `setup_logger` - initialize logging via `pretty_env_logger` or `android_logger` (defaults to true)
+- `setup_logger` - enable stderr logging (defaults to true)
 
 #### Electrum
 - `electrum_addr` - bind address for electrum server (off by default)
