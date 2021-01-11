@@ -6,18 +6,18 @@ docker_name=shesek/bwt
 gh_repo=shesek/bwt
 node_image=node:14 # for packaging nodejs-bwt-daemon
 
-alias docker_run="docker run -it --rm -u `id -u` -v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo"
+alias docker_run="docker run -it --rm -u $(id -u) -v $(pwd):/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo"
 
 if ! git diff-index --quiet HEAD; then
   echo git working directory is dirty
   exit 1
 fi
 
-version=`cat Cargo.toml | egrep '^version =' | cut -d'"' -f2`
+version=$(grep -E '^version =' Cargo.toml | cut -d'"' -f2)
 
 if [[ "$1" == "patch" ]]; then
   # bump the patch version by one
-  version=`node -p 'process.argv[1].replace(/\.(\d+)$/, (_, v) => "."+(+v+1))' $version`
+  version=$(node -p 'process.argv[1].replace(/\.(\d+)$/, (_, v) => "."+(+v+1))' $version)
   sed -i 's/^version =.*/version = "'$version'"/' Cargo.toml
 elif [[ "$1" != "nobump" ]]; then
   echo invalid argument, use "patch" or "nobump"
@@ -25,9 +25,9 @@ elif [[ "$1" != "nobump" ]]; then
 fi
 
 # Extract unreleased changelog & update version number
-changelog="`sed -nr '/^## (Unreleased|'$version' )/{n;:a;n;/^## /q;p;ba}' CHANGELOG.md`"
+changelog=$(sed -nr '/^## (Unreleased|'$version' )/{n;:a;n;/^## /q;p;ba}' CHANGELOG.md)
 grep '## Unreleased' CHANGELOG.md > /dev/null \
-  && sed -i "s/^## Unreleased/## $version - `date +%Y-%m-%d`/" CHANGELOG.md
+  && sed -i "s/^## Unreleased/## $version - $(date +%Y-%m-%d)/" CHANGELOG.md
 
 sed -i -r "s~bwt-[0-9a-z.-]+-x86_64-linux\.~bwt-$version-x86_64-linux.~g; s~/(download|tag)/v[0-9a-z.-]+~/\1/v$version~;" README.md
 
@@ -90,14 +90,14 @@ if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
   gh_auth="Authorization: token $GH_TOKEN"
   gh_base=https://api.github.com/repos/$gh_repo
 
-  travis_job=$(curl -s "https://api.travis-ci.org/v3/repo/${gh_repo/\//%2F}/branch/v$version" | jq -r .last_build.id || echo '')
+  travis_job=$(curl -s "https://api.travis-ci.org/v3/repo/${gh_repo/\//%2F}/branch/v$version" | jq -r '.last_build.id // ""')
 
-  release_text="### Changelog"$'\n'$'\n'$changelog$'\n'$'\n'`cat scripts/release-footer.md | sed "s/VERSION/$version/g; s/TRAVIS_JOB/$travis_job/g;"`
-  release_opt=`jq -n --arg version v$version --arg text "$release_text" \
-    '{ tag_name: $version, name: $version, body: $text, draft:true }'`
-  gh_release=`curl -sf -H "$gh_auth" $gh_base/releases/tags/v$version \
-           || curl -sf -H "$gh_auth" -d "$release_opt" $gh_base/releases`
-  gh_upload=`echo "$gh_release" | jq -r .upload_url | sed -e 's/{?name,label}//'`
+  release_text="### Changelog"$'\n'$'\n'$changelog$'\n'$'\n'$(sed "s/VERSION/$version/g; s/TRAVIS_JOB/$travis_job/g;" scripts/release-footer.md)
+  release_opt=$(jq -n --arg version v$version --arg text "$release_text" \
+    '{ tag_name: $version, name: $version, body: $text, draft:true }')
+  gh_release=$(curl -sf -H "$gh_auth" $gh_base/releases/tags/v$version \
+           || curl -sf -H "$gh_auth" -d "$release_opt" $gh_base/releases)
+  gh_upload=$(echo "$gh_release" | jq -r .upload_url | sed -e 's/{?name,label}//')
 
   for file in SHA256SUMS.asc dist/*; do
     echo ">> Uploading $file"
@@ -107,7 +107,7 @@ if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
   done
 
   # make release public once everything is ready
-  curl -sf -H "$gh_auth" -X PATCH $gh_base/releases/`echo "$gh_release" | jq -r .id` \
+  curl -sf -H "$gh_auth" -X PATCH "$gh_base/releases/$(echo "$gh_release" | jq -r .id)" \
     -d '{"draft":false}' > /dev/null
 fi
 

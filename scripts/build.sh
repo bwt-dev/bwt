@@ -9,14 +9,11 @@ build() {
   dest=dist/$name
   mkdir -p $dest
 
-  # Rust builds Windows dll files as `bwt.dll`, without the `lib` prefix
-  src_filename=$([[ $filename == *".dll" ]] && echo ${filename#lib} || echo $filename)
-
   echo Building $name for $target with features $features
 
   cargo build --release --target $target --no-default-features --features "$features"
 
-  mv target/$target/release/$src_filename $dest/
+  mv target/$target/release/$filename $dest/
   strip_symbols $target $dest/$filename || true
 
   cp LICENSE $dest/
@@ -30,12 +27,14 @@ build() {
 }
 
 build_bin() {
-  ext=$([[ $target == *"-windows-"* ]] && echo .exe || echo '')
+  ext=$([[ $2 == *"-windows-"* ]] && echo .exe || echo '')
   build $1 $2 cli,$3 bwt$ext
 }
 build_lib() {
-  ext=$([[ $target == *"-windows-"* ]] && echo .dll || ([[ $target == *"-apple-"* ]] && echo .dylib || echo .so))
-  build $1 $2 ffi,extra,$3 libbwt$ext
+  # Windows dll files don't have the "lib" prefix (e.g. bwt.dll vs libbwt.so)
+  pre=$([[ $2 == *"-windows-"* ]] || echo lib)
+  ext=$([[ $2 == *"-windows-"* ]] && echo .dll || ([[ $target == *"-apple-"* ]] && echo .dylib || echo .so))
+  build $1 $2 ffi,extra,$3 ${pre}bwt${ext}
 }
 
 strip_symbols() {
@@ -60,7 +59,7 @@ pack() {
   popd
 }
 
-version=`cat Cargo.toml | egrep '^version =' | cut -d'"' -f2`
+version=$(grep -E '^version =' Cargo.toml | cut -d'"' -f2)
 
 for cfg in x86_64-linux,x86_64-unknown-linux-gnu \
            x86_64-osx,x86_64-apple-darwin \
@@ -98,4 +97,4 @@ for platform in x86_64-linux x86_64-windows x86_64-osx arm32v7-linux arm64v8-lin
 done
 
 # remove subdirectories, keep release tarballs
-rm -rf dist/*/
+[ -n "$KEEP_DIRS" ] || rm -r dist/*/
