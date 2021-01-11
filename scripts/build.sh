@@ -4,6 +4,10 @@ set -xeo pipefail
 # `x86_64-osx` is also available, but requires osxcross installed (see builder-osx.Dockerfile)
 TARGETS=${TARGETS:-x86_64-linux,x86_64-windows,arm32v7-linux,arm64v8-linux}
 
+if [[ -n "$SCCACHE_DIR" && -d "$SCCACHE_DIR" ]]; then
+  export RUSTC_WRAPPER=$(which sccache)
+fi
+
 build() {
   name=$1; target=$2; features=$3; filename=$4
   dest=dist/$name

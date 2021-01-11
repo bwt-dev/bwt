@@ -6,8 +6,6 @@ docker_name=shesek/bwt
 gh_repo=shesek/bwt
 node_image=node:14 # for packaging nodejs-bwt-daemon
 
-alias docker_run="docker run -it --rm -u $(id -u) -v $(pwd):/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo"
-
 if ! git diff-index --quiet HEAD; then
   echo git working directory is dirty
   exit 1
@@ -36,6 +34,10 @@ echo -e "Releasing bwt v$version\n================\n\n$changelog\n\n"
 echo Running cargo check and fmt...
 cargo fmt -- --check
 ./scripts/check.sh
+
+alias docker_run="docker run -it --rm -u $(id -u) -v $(pwd):/usr/src/bwt \
+    -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo \
+    -v ${SCCACHE_DIR:-$HOME/.cache/sccache}:/usr/local/sccache"
 
 if [ -z "$SKIP_BUILD" ]; then
   echo Building releases...
