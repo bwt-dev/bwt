@@ -1,7 +1,7 @@
 # bwt-daemon
 
 A nodejs library for programmatically managing the Bitcoin Wallet Tracker Electrum RPC and HTTP API servers
-using the [`libbwt` FFI interface](https://github.com/shesek/bwt/blob/master/doc/libbwt.md).
+using the [`libbwt` C FFI interface](https://github.com/bwt-dev/libbwt).
 
 > ⚠️ WARNING: This is an alpha preview, released to gather developers' feedback. It is not ready for general use.
 
@@ -85,7 +85,7 @@ bwtd.shutdown()
 See [`example.js`](https://github.com/shesek/bwt/blob/master/contrib/nodejs-bwt-daemon/example.js) for an even more complete
 example, including connecting to the HTTP API.
 
-The full list of options is available in the [FFI documentation](https://github.com/shesek/bwt/blob/master/doc/libbwt.md#config-options).
+The full list of options is available in the [libbwt documentation](https://github.com/bwt-dev/libbwt#config-options).
 The nodejs wrapper also provides the following additional options:
 
 - `progress` - callback for progress update notifications, invoked with `(type, progress, detail)` (optional)

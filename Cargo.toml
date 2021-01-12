@@ -19,11 +19,10 @@ electrum = []
 http = [ "warp", "tokio" ]
 webhooks = [ "reqwest" ]
 track-spends = []
-ffi = []
 android = [ "android_logger" ]
 
 [lib]
-crate-type = [ "lib", "cdylib" ]
+crate-type = [ "lib" ]
 
 [[bin]]
 name = "bwt"

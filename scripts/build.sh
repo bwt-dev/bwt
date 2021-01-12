@@ -9,36 +9,20 @@ if [[ -n "$SCCACHE_DIR" && -d "$SCCACHE_DIR" ]]; then
 fi
 
 build() {
-  name=$1; target=$2; features=$3; filename=$4
+  name=$1; target=$2; features=$3
   dest=dist/$name
   mkdir -p $dest
 
   echo Building $name for $target with features $features
 
-  cargo build --release --target $target --no-default-features --features "$features"
+  cargo build --release --target $target --no-default-features --features "cli,$features"
 
+  filename=bwt$([[ $2 == *"-windows-"* ]] && echo .exe || echo '')
   mv target/$target/release/$filename $dest/
   strip_symbols $target $dest/$filename || true
 
-  cp LICENSE $dest/
-  if [[ $name == "libbwt-"* ]]; then
-    cp contrib/libbwt.h $dest/
-  else
-    cp README.md $dest/
-  fi
-
+  cp LICENSE README.md $dest/
   pack $name
-}
-
-build_bin() {
-  ext=$([[ $2 == *"-windows-"* ]] && echo .exe || echo '')
-  build $1 $2 cli,$3 bwt$ext
-}
-build_lib() {
-  # Windows dll files don't have the "lib" prefix (e.g. bwt.dll vs libbwt.so)
-  pre=$([[ $2 == *"-windows-"* ]] || echo lib)
-  ext=$([[ $2 == *"-windows-"* ]] && echo .dll || ([[ $target == *"-apple-"* ]] && echo .dylib || echo .so))
-  build $1 $2 ffi,extra,$3 ${pre}bwt${ext}
 }
 
 strip_symbols() {
@@ -50,12 +34,12 @@ strip_symbols() {
   esac
 }
 
-# pack an tar.gz/zip archive file, with fixed/removed metadata attrs and deterministic file order for reproducibility
+# pack a tar.gz or zip archive file, with fixed/removed metadata attrs and deterministic file order for reproducibility
 pack() {
   name=$1; dir=${2:-$1}
   pushd dist
   touch -t 1711081658 $name $name/*
-  if [[ $name == *"-linux" || $name == *"-arm"* || $name == "libbwt-"* ]]; then
+  if [[ $name == *"-linux" || $name == *"-arm"* ]]; then
     TZ=UTC tar --mtime='2017-11-08 16:58:00' --owner=0 --sort=name -I 'gzip --no-name' -chf $name.tar.gz $dir
   else
     find -H $dir | sort | xargs zip -X -q $name.zip
@@ -77,11 +61,8 @@ for cfg in x86_64-linux,x86_64-unknown-linux-gnu \
   # Disable it for now on ARM, follow up at https://github.com/shesek/bwt/issues/52
   complete_feat=http,electrum,track-spends$([[ $platform == "arm"* ]] || echo ',webhooks')
 
-  build_bin bwt-$version-$platform $target $complete_feat
-  build_bin bwt-$version-electrum_only-$platform $target electrum
-
-  build_lib libbwt-$version-$platform $target $complete_feat
-  build_lib libbwt-$version-electrum_only-$platform $target electrum
+  build bwt-$version-$platform $target $complete_feat
+  build bwt-$version-electrum_only-$platform $target electrum
 done
 
 echo Building electrum plugin

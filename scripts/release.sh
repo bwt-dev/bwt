@@ -52,12 +52,14 @@ if [ -z "$SKIP_BUILD" ]; then
       docker build -t bwt-builder-osx - < scripts/builder-osx.Dockerfile
       docker_run bwt-builder-osx
     fi
-    docker_run -w /usr/src/bwt/contrib/nodejs-bwt-daemon $node_image npm run dist -- $version ../../dist
+    # FIXME building nodejs-bwt-daemon depends on libbwt
+    # docker_run -w /usr/src/bwt/contrib/nodejs-bwt-daemon $node_image npm run dist -- $version ../../dist
   else
     # macOS builds are disabled by default when building on the host.
     # to enable, set TARGETS=x86_64-osx,...
     ./scripts/build.sh
-    (cd contrib/nodejs-bwt-daemon && npm run dist -- $version ../../dist)
+    # FIXME building nodejs-bwt-daemon depends on libbwt
+    #(cd contrib/nodejs-bwt-daemon && npm run dist -- $version ../../dist)
   fi
 
   echo Making SHA256SUMS...
@@ -82,10 +84,11 @@ if [ -z "$SKIP_CRATE" ]; then
   cargo publish
 fi
 
-if [ -z "$SKIP_PUBLISH_NPM_DAEMON" ]; then
-  echo Publishing bwt-daemon to npm...
-  npm publish file:dist/nodejs-bwt-daemon-$version.tgz
-fi
+# FIXME depends on libbwt
+# if [ -z "$SKIP_PUBLISH_NPM_DAEMON" ]; then
+#  echo Publishing bwt-daemon to npm...
+#  npm publish file:dist/nodejs-bwt-daemon-$version.tgz
+#fi
 
 if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
   echo Uploading to github...

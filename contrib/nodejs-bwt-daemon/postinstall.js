@@ -6,7 +6,7 @@ const https = require('https')
     , crypto = require('crypto')
     , tar = require('tar')
 
-const getUrl = (version, dist_name) => `https://github.com/shesek/bwt/releases/download/v${version}/${dist_name}.tar.gz`
+const getUrl = (version, dist_name) => `https://github.com/bwt-dev/libbwt/releases/download/v${version}/${dist_name}.tar.gz`
 const getDistName = (version, platform, variant) => `libbwt-${version}-${variant?variant+'-':''}${platform}`
 
 if (!process.env.BWT_NO_DOWNLOAD) {
