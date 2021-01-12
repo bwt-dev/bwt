@@ -16,8 +16,6 @@
 🔸 Developer-friendly, modern HTTP REST API<br>
 🔸 Real-time updates with Server-Sent-Events or Web Hooks
 
-> ⚠️ This is early beta quality software, use with care.
-
 Support development: [⛓️ on-chain or ⚡ lightning via BTCPay](https://btcpay.shesek.info/)
 
 - [Intro](#intro)
@@ -73,10 +71,12 @@ and install bwt using one of the methods below.
 Available for download on [the releases page](https://github.com/shesek/bwt/releases) (Linux, Mac, Windows and ARM).
 
 The releases are signed by Nadav Ivgi (@shesek).
-The public key can be verified on [keybase](https://keybase.io/nadav),
+The public key can be verified on
+the [PGP WoT](http://keys.gnupg.net/pks/lookup?op=vindex&fingerprint=on&search=0x81F6104CD0F150FC),
 [github](https://api.github.com/users/shesek/gpg_keys),
 [twitter](https://twitter.com/shesek),
-[HN](https://news.ycombinator.com/user?id=nadaviv)
+[keybase](https://keybase.io/nadav),
+[hacker news](https://news.ycombinator.com/user?id=nadaviv)
 and [this video presentation](https://youtu.be/SXJaN2T3M10?t=4) (bottom of slide).
 
 ```bash
@@ -1243,7 +1243,7 @@ Tip: services like [webhook.site](https://webhook.site/) or [requestbin](http://
 
 ### Developer Resources
 
-Documentation for the C FFI interface is [available here](https://github.com/shesek/bwt/blob/master/doc/libbwt.md).
+To integrate bwt into non-Rust software, check out [libbwt](https://github.com/bwt-dev/libbwt) and [libbwt-jni](https://github.com/bwt-dev/libbwt-jni).
 
 Documentation for the public Rust API is [available on docs.rs](https://docs.rs/bwt).
 
@@ -1297,19 +1297,19 @@ The builds can be reproduced in a Docker container environment as follows:
 
 ```
 $ git clone https://github.com/shesek/bwt && cd bwt
-
 $ git checkout <tag>
+$ git verify-commit HEAD
 
 # Linux, Windows & ARMv7/v8
 $ docker build -t bwt-builder - < scripts/builder.Dockerfile
-$ docker run -it -v `pwd`:/usr/src/bwt bwt-builder
+$ docker run -it -u `id -u` -v `pwd`:/usr/src/bwt bwt-builder
 
 # Mac OSX (cross-compiled via osxcross)
 $ docker build -t bwt-builder-osx - < scripts/builder-osx.Dockerfile
-$ docker run -it -v `pwd`:/usr/src/bwt bwt-builder-osx
+$ docker run -it -u `id -u` -v `pwd`:/usr/src/bwt bwt-builder-osx
 
 # NodeJS package (requires building all platforms first)
-$ docker run -it -v `pwd`:/usr/src/bwt -w /usr/src/bwt/contrib/nodejs-bwt-daemon \
+$ docker run -it -u `id -u` -v `pwd`:/usr/src/bwt -w /usr/src/bwt/contrib/nodejs-bwt-daemon \
              --entrypoint npm bwt-builder run dist
 
 $ sha256sum dist/*
