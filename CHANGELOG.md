@@ -2,21 +2,27 @@
 
 ## Unreleased
 
+- Migrated to the [@bwt-dev](https://github.com/bwt-dev) github org and split up into:
+
+  [bwt](https://github.com/bwt-dev/bwt), [bwt-electrum-plugin](https://github.com/bwt-dev/bwt-electrum-plugin), [libbwt](https://github.com/bwt-dev/libbwt), [libbwt-jni](https://github.com/bwt-dev/libbwt-jni) and [libbwt-nodejs](https://github.com/bwt-dev/libbwt-nodejs).
+
+- Java Native Bindings for `libbwt` (#73)
+
 - Support for tracking standalone addresses (#14)
 
-- JNI bindings for `libbwt` (#73)
+- New config options: `force_rescan` (9e7ccbe), `setup_logger` (35fc49f) and `require_addresses` (162790d)
 
 - Gracefully wait for bitcoind to warm-up (dec6d46)
 
 - Support for `android_logger` (74b2b2f)
-
-- New config options: `force_rescan` (9e7ccbe) and `require_addresses` (162790d)
 
 - Scrub bitcoin authentication from logs (c31def7)
 
 - Improved syncing/scanning progress updates (faba3f, 6e282fd, fdd46f3, 5ba2a0b)
 
 - Indexer: Fix excessive importing/rescanning (a20ae79)
+
+- Indexer: Fix cache invalidation for spends lookups (360eaee)
 
 - Indexer: Fix handling of missing mempool entries (e9b7511)
 
