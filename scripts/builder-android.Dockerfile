@@ -28,9 +28,8 @@ RUN wget -q -O sdktools.zip https://dl.google.com/android/repository/commandline
   && sdkmanager --install "ndk;$ANDROID_NDK_VERSION" --channel=1 \
   && chmod 777 $ANDROID_SDK_HOME
 
-# optional volume for gradle cache (improves build speed)
-VOLUME /usr/local/gradle
+# mount-in gradle cache directory for improved build speeds
 ENV GRADLE_USER_HOME=/usr/local/gradle
-RUN mkdir -p $GRADLE_USER_HOME
+RUN mkdir -p $GRADLE_USER_HOME && chmod 777 $GRADLE_USER_HOME
 
 ENV TARGETS=arm32v7-android,arm64v8-android,i686-android,x86_64-android
