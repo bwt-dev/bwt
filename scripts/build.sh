@@ -68,21 +68,5 @@ for cfg in x86_64-linux,x86_64-unknown-linux-gnu \
   build bwt-$version-electrum_only-$platform $target electrum
 done
 
-echo Building electrum plugin
-for platform in x86_64-linux x86_64-windows x86_64-osx arm32v7-linux arm64v8-linux; do
-  if [[ $TARGETS != *"$platform"* ]]; then continue; fi
-
-  name=bwt-$version-electrum_plugin-$platform
-  dest=dist/$name
-  mkdir $dest
-  cp contrib/electrum-plugin/*.py $dest
-  cp dist/bwt-$version-electrum_only-$platform/* $dest
-  # needs to be inside a directory with a name that matches the plugin module name for electrum to load it,
-  # create a temporary link to get tar/zip to pack it properly. (can also be done for tar.gz with --transform)
-  ln -s $name dist/bwt
-  pack $name bwt
-  rm dist/bwt
-done
-
 # remove subdirectories, keep release tarballs
 [ -n "$KEEP_DIRS" ] || rm -r dist/*/

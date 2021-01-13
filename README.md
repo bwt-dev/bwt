@@ -63,8 +63,8 @@ and install bwt using one of the methods below.
 
 ### Installation
 
-*New in v0.1.1*: You can now also [install bwt as an Electrum plugin](#electrum-plugin) with an embedded server
-(which doesn't require the standalone server installation described below).
+💥 Electrum desktop users can also [install bwt as an Electrum plugin](https://github.com/bwt-dev/bwt-electrum-plugin),
+which provides a GUI and doesn't require the standalone server installation described below.
 
 #### Signed pre-built binaries
 
@@ -188,7 +188,7 @@ or downloading the `electrum_only` pre-built binary.
 This removes several large dependencies and disables the `track-spends` database index
 (which is not needed for the electrum server).
 
-(Also see the [Electrum plugin](#electrum-plugin).)
+(Also see the [Electrum plugin](https://github.com/bwt-dev/bwt-electrum-plugin).)
 
 ### Pruning
 
@@ -268,28 +268,12 @@ For example, to broadcast transactions over Tor using the blockstream.info onion
 
 ## Electrum plugin
 
-You can setup bwt as an Electrum plugin that embeds the Electrum server into the Electrum wallet.
+You can setup bwt as an Electrum plugin, which allows connecting Electrum to a Bitcoin Core full node backend
+by running an embedded Electrum server within the Electrum wallet itself.
+
+See https://github.com/bwt-dev/bwt-electrum-plugin for more details and installation instructions.
 
 ![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
-
-Download the `electrum_plugin` package from the [releases page](https://github.com/shesek/bwt/releases), verify the signature and unpack into your `electrum/plugins` directory.
-After restarting Electrum, you should see bwt in the list of installed plugins under `Tools -> Plugins`.
-
-The plugin supports Electrum v3 and v4. It works with multi-signature wallets. It is available for Linux, Mac, Windows and ARM.
-
-Note that it is not possible to install external plugins with the Electrum AppImage or standalone Windows executable.
-You will need to [run from tar.gz](https://github.com/spesmilo/electrum/#running-from-targz) on Linux, use the Windows installer, or [run from source](https://github.com/spesmilo/electrum/#development-version-git-clone).
-
-The plugin automatically configures Electrum with `--oneserver` (to avoid connecting to public servers) and `--skipmerklecheck` (necessary for [pruning](#pruning)).
-
-To avoid connecting to public servers while setting up the plugin, make sure the "auto connect" feature is disabled or run Electrum with `--offline` until everything is ready.
-
-To build the plugin from source, first build the binary as [described here](#from-source), copy it into the `contrib/electrum-plugin` directory, then place that directory under `electrum/plugins`, *but renamed to `bwt`* (Electrum won't recognize it otherwise).
-
-> ⚠️ **NOTE:** The plugin supports watch-only wallets only and **cannot be used with hot wallets**.
-> This is done as a security measure, which is expected to eventually be relaxed.
-> You can use the plugin with hardware wallets or with an offline Electrum setup.
-> For hot wallets, you will need to setup a standalone server instead of using the plugin, ideally away from your keys.
 
 ## Manual Electrum setup (without the plugin)
 
