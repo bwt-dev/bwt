@@ -57,11 +57,14 @@ for cfg in x86_64-linux,x86_64-unknown-linux-gnu \
   IFS=',' read platform target <<< $cfg
   if [[ $TARGETS != *"$platform"* ]]; then continue; fi
 
-  # The OpenSSL dependency enabled by the webhooks feature causes an error on ARM targets.
-  # Disable it for now on ARM, follow up at https://github.com/shesek/bwt/issues/52
-  complete_feat=http,electrum,track-spends$([[ $platform == "arm"* ]] || echo ',webhooks')
 
-  build bwt-$version-$platform $target $complete_feat
+  if [ -z "$ELECTRUM_ONLY_ONLY" ]; then
+    # The OpenSSL dependency enabled by the webhooks feature causes an error on ARM targets.
+    # Disable it for now on ARM, follow up at https://github.com/shesek/bwt/issues/52
+    complete_feat=http,electrum,track-spends$([[ $platform == "arm"* ]] || echo ',webhooks')
+    build bwt-$version-$platform $target $complete_feat
+  fi
+
   build bwt-$version-electrum_only-$platform $target electrum
 done
 
