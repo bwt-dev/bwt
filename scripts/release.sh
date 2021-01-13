@@ -4,7 +4,6 @@ shopt -s expand_aliases
 
 docker_name=shesek/bwt
 gh_repo=shesek/bwt
-node_image=node:14 # for packaging nodejs-bwt-daemon
 
 if ! git diff-index --quiet HEAD; then
   echo git working directory is dirty
@@ -52,14 +51,10 @@ if [ -z "$SKIP_BUILD" ]; then
       docker build -t bwt-builder-osx - < scripts/builder-osx.Dockerfile
       docker_run bwt-builder-osx
     fi
-    # FIXME building nodejs-bwt-daemon depends on libbwt
-    # docker_run -w /usr/src/bwt/contrib/nodejs-bwt-daemon $node_image npm run dist -- $version ../../dist
   else
     # macOS builds are disabled by default when building on the host.
     # to enable, set TARGETS=x86_64-osx,...
     ./scripts/build.sh
-    # FIXME building nodejs-bwt-daemon depends on libbwt
-    #(cd contrib/nodejs-bwt-daemon && npm run dist -- $version ../../dist)
   fi
 
   # remove subdirectories, keep release tarballs
@@ -72,7 +67,7 @@ fi
 
 if [ -z "$SKIP_GIT" ]; then
   echo Tagging...
-  git add Cargo.{toml,lock} CHANGELOG.md SHA256SUMS.asc README.md contrib/nodejs-bwt-daemon
+  git add Cargo.{toml,lock} CHANGELOG.md SHA256SUMS.asc README.md
   git commit -S -m v$version
   git tag --sign -m "$changelog" v$version
   git branch -f latest HEAD
@@ -86,12 +81,6 @@ if [ -z "$SKIP_CRATE" ]; then
   echo Publishing to crates.io...
   cargo publish
 fi
-
-# FIXME depends on libbwt
-# if [ -z "$SKIP_PUBLISH_NPM_DAEMON" ]; then
-#  echo Publishing bwt-daemon to npm...
-#  npm publish file:dist/nodejs-bwt-daemon-$version.tgz
-#fi
 
 if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
   echo Uploading to github...
