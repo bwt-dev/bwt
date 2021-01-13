@@ -62,6 +62,9 @@ if [ -z "$SKIP_BUILD" ]; then
     #(cd contrib/nodejs-bwt-daemon && npm run dist -- $version ../../dist)
   fi
 
+  # remove subdirectories, keep release tarballs
+  rm -r dist/*/
+
   echo Making SHA256SUMS...
   (cd dist && sha256sum *) | sort | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc
 fi

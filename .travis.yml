@@ -51,6 +51,7 @@ jobs:
         docker run -e TARGETS -u `id -u` -v `pwd`:/usr/src/bwt -v ${CARGO_HOME:-$HOME/.cargo}:/usr/local/cargo $IMAGE &&
         echo tr''avis_fol''d:end:build
       - >
+        rm -rf dist/*/ &&
         echo '-----BEGIN SHA256SUM-----' &&
         (cd dist && sha256sum *) &&
         echo

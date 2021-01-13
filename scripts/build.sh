@@ -67,6 +67,3 @@ for cfg in x86_64-linux,x86_64-unknown-linux-gnu \
 
   build bwt-$version-electrum_only-$platform $target electrum
 done
-
-# remove subdirectories, keep release tarballs
-[ -n "$KEEP_DIRS" ] || rm -r dist/*/
