@@ -1,12 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 - 2021-01-14
 
 - Migrated to the [@bwt-dev](https://github.com/bwt-dev) github org and split up into:
 
   [bwt](https://github.com/bwt-dev/bwt), [bwt-electrum-plugin](https://github.com/bwt-dev/bwt-electrum-plugin), [libbwt](https://github.com/bwt-dev/libbwt), [libbwt-jni](https://github.com/bwt-dev/libbwt-jni) and [libbwt-nodejs](https://github.com/bwt-dev/libbwt-nodejs).
 
-- Java Native Bindings for `libbwt` (#73)
+- Java Native Bindings for `libbwt` ([libbwt-jni](https://github.com/bwt-dev/libbwt-jni), #73)
 
 - Support for tracking standalone addresses (#14)
 
