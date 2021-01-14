@@ -1,11 +1,11 @@
 # Bitcoin Wallet Tracker
 
-[![Build Status](https://travis-ci.org/shesek/bwt.svg?branch=master)](https://travis-ci.org/shesek/bwt)
-[![Latest release](https://img.shields.io/crates/v/bwt.svg?label=release)](https://github.com/shesek/bwt/releases/tag/v0.2.0)
-[![Downloads](https://img.shields.io/github/downloads/shesek/bwt/total.svg?color=blueviolet)](https://github.com/shesek/bwt/releases)
+[![Build Status](https://travis-ci.org/bwt-dev/bwt.svg?branch=master)](https://travis-ci.org/bwt-dev/bwt)
+[![Latest release](https://img.shields.io/crates/v/bwt.svg?label=release)](https://github.com/bwt-dev/bwt/releases/tag/v0.2.0)
+[![Downloads](https://img.shields.io/github/downloads/bwt-dev/bwt/total.svg?color=blueviolet)](https://github.com/bwt-dev/bwt/releases)
 [![Docker release](https://img.shields.io/docker/pulls/shesek/bwt.svg)](https://hub.docker.com/r/shesek/bwt)
 [![Crate package](https://img.shields.io/crates/d/bwt.svg?label=crate+installs)](https://crates.io/crates/bwt)
-[![MIT license](https://img.shields.io/github/license/shesek/bwt.svg?color=yellow)](https://github.com/shesek/bwt/blob/master/LICENSE)
+[![MIT license](https://img.shields.io/github/license/bwt-dev/bwt.svg?color=yellow)](https://github.com/bwt-dev/bwt/blob/master/LICENSE)
 [![Pull Requests Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#developing)
 
 `bwt` is a lightweight wallet descriptor/xpub tracker and query engine for Bitcoin, implemented in Rust.
@@ -68,7 +68,7 @@ which provides a GUI and doesn't require the standalone server installation desc
 
 #### Signed pre-built binaries
 
-Available for download on [the releases page](https://github.com/shesek/bwt/releases) (Linux, Mac, Windows and ARM).
+Available for download on [the releases page](https://github.com/bwt-dev/bwt/releases) (Linux, Mac, Windows and ARM).
 
 The releases are signed by Nadav Ivgi (@shesek).
 The public key can be verified on
@@ -81,13 +81,13 @@ and [this video presentation](https://youtu.be/SXJaN2T3M10?t=4) (bottom of slide
 
 ```bash
 # Download (change x86_64-linux to your platform)
-$ wget https://github.com/shesek/bwt/releases/download/v0.2.0/bwt-0.2.0-x86_64-linux.tar.gz
+$ wget https://github.com/bwt-dev/bwt/releases/download/v0.2.0/bwt-0.2.0-x86_64-linux.tar.gz
 
 # Fetch public key
 $ gpg --keyserver keyserver.ubuntu.com --recv-keys FCF19B67866562F08A43AAD681F6104CD0F150FC
 
 # Verify signature
-$ wget -qO - https://github.com/shesek/bwt/releases/download/v0.2.0/SHA256SUMS.asc \
+$ wget -qO - https://github.com/bwt-dev/bwt/releases/download/v0.2.0/SHA256SUMS.asc \
   | gpg --decrypt - | grep ' bwt-0.2.0-x86_64-linux.tar.gz$' | sha256sum -c -
 
 $ tar zxvf bwt-0.2.0-x86_64-linux.tar.gz
@@ -104,7 +104,7 @@ The builds are reproducible and can be verified against Travis CI. See [more det
 
 ```bash
 $ sudo apt install build-essential
-$ git clone https://github.com/shesek/bwt && cd bwt
+$ git clone https://github.com/bwt-dev/bwt && cd bwt
 $ cargo build --release
 $ ./target/release/bwt --xpub <xpub> ...
 ```
@@ -1221,7 +1221,7 @@ Tip: services like [webhook.site](https://webhook.site/) or [requestbin](http://
 
 > If you're building bwt from source, you'll need to set `--features webhooks` to enable web hooks support. This will also require to `apt install libssl-dev pkg-config`.
 >
-> The pre-built binaries ([except for ARM](https://github.com/shesek/bwt/issues/52)) and the `shesek/bwt` docker image come with webhooks support enabled by default.
+> The pre-built binaries ([except for ARM](https://github.com/bwt-dev/bwt/issues/52)) and the `shesek/bwt` docker image come with webhooks support enabled by default.
 
 ## Developing
 
@@ -1233,16 +1233,16 @@ Documentation for the public Rust API is [available on docs.rs](https://docs.rs/
 
 A yuml diagram showing how the big pieces interact together is [available here](https://yuml.me/edit/39229813).
 
-An example of initializing bwt and issuing queries against its db from Rust is available at [`examples/use-from-rust.rs`](https://github.com/shesek/bwt/blob/master/examples/use-from-rust.rs).
+An example of initializing bwt and issuing queries against its db from Rust is available at [`examples/use-from-rust.rs`](examples/use-from-rust.rs).
 (Note that the Rust API provides weaker backwards compatibility guarantees compared to the HTTP API.)
 
 An example JavaScript client utilizing the HTTP API for wallet tracking
-is available at [`examples/wallet-tracker.js`](https://github.com/shesek/bwt/blob/master/examples/wallet-tracker.js).
+is available at [`examples/wallet-tracker.js`](https://github.com/bwt-dev/bwt/blob/master/examples/wallet-tracker.js).
 
 
 ### Development environment
 
-To quickly setup a development environment, you can use [`scripts/dev-env.sh`](https://github.com/shesek/bwt/blob/master/scripts/dev-env.sh) to create a bitcoind regtest network and two Electrum wallets, fund the wallets, start bwt with tracking for both wallets' xpubs, and start the Electrum GUI.
+To quickly setup a development environment, you can use [`scripts/dev-env.sh`](https://github.com/bwt-dev/bwt/blob/master/scripts/dev-env.sh) to create a bitcoind regtest network and two Electrum wallets, fund the wallets, start bwt with tracking for both wallets' xpubs, and start the Electrum GUI.
 
 To use it, simply run `$ ./scripts/dev-env.sh` from the root directory with `bitcoind`, `bitcoin-cli` and `electrum` installed in your `PATH`.
 
@@ -1262,7 +1262,7 @@ You can use `scripts/check.sh` to run `cargo check` for some feature combos. Thi
 
 ### Tests
 
-End-to-end integration tests can be run with [`./test/tests.sh`](https://github.com/shesek/bwt/blob/master/test/tests.sh).
+End-to-end integration tests can be run with [`./test/tests.sh`](https://github.com/bwt-dev/bwt/blob/master/test/tests.sh).
 The tests deploy a regtest network, a bwt instance and an Electrum wallet connected to it (in headless mode), then run some basic tests using the Electrum client and against the HTTP REST API.
 
 Run with `bash -x test/tests.sh -v` to get more verbose output.
@@ -1273,14 +1273,14 @@ Are welcome!
 
 The only guideline is to use `cargo fmt`.
 
-You can check out [the list of enhancement issues](https://github.com/shesek/bwt/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement).
+You can check out [the list of enhancement issues](https://github.com/bwt-dev/bwt/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement).
 
 ## Reproducible builds
 
 The builds can be reproduced in a Docker container environment as follows:
 
 ```
-$ git clone https://github.com/shesek/bwt && cd bwt
+$ git clone https://github.com/bwt-dev/bwt && cd bwt
 $ git checkout <tag>
 $ git verify-commit HEAD
 
@@ -1295,7 +1295,7 @@ $ docker run -it -u `id -u` -v `pwd`:/usr/src/bwt bwt-builder-osx
 $ sha256sum dist/*
 ```
 
-The builds are [reproduced on Travis CI](https://travis-ci.org/github/shesek/bwt/branches) using the code from GitHub.
+The builds are [reproduced on Travis CI](https://travis-ci.org/github/bwt-dev/bwt/branches) using the code from GitHub.
 The SHA256 checksums are available under the "Reproducible builds" stage.
 
 ## Thanks

@@ -5,7 +5,7 @@ Also see the vVERSION downloads for [bwt-electrum-plugin](https://github.com/bwt
 
 ### Installation
 
-Installation instructions are [available on the README](https://github.com/shesek/bwt#installation).
+Installation instructions are [available on the README](https://github.com/bwt-dev/bwt#installation).
 
 ### Verifying signatures
 
@@ -20,13 +20,13 @@ and [this video presentation](https://youtu.be/SXJaN2T3M10?t=4) (bottom of slide
 
 ```bash
 # Download (change x86_64-linux to your platform)
-$ wget https://github.com/shesek/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-linux.tar.gz
+$ wget https://github.com/bwt-dev/bwt/releases/download/vVERSION/bwt-VERSION-x86_64-linux.tar.gz
 
 # Fetch public key
 $ gpg --keyserver keyserver.ubuntu.com --recv-keys FCF19B67866562F08A43AAD681F6104CD0F150FC
 
 # Verify signature
-$ wget -qO - https://github.com/shesek/bwt/releases/download/vVERSION/SHA256SUMS.asc \
+$ wget -qO - https://github.com/bwt-dev/bwt/releases/download/vVERSION/SHA256SUMS.asc \
   | gpg --decrypt - | grep ' bwt-VERSION-x86_64-linux.tar.gz$' | sha256sum -c -
 
 $ tar zxvf bwt-VERSION-x86_64-linux.tar.gz
@@ -39,6 +39,6 @@ The signature verification should show `Good signature from "Nadav Ivgi <nadav@s
 
 The builds are fully reproducible.
 
-You can verify the checksums against the vVERSION builds on Travis CI: https://travis-ci.org/github/shesek/bwt/builds/TRAVIS_JOB
+You can verify the checksums against the vVERSION builds on Travis CI: https://travis-ci.org/github/bwt-dev/bwt/builds/TRAVIS_JOB
 
-See [more details here](https://github.com/shesek/bwt#reproducible-builds).
+See [more details here](https://github.com/bwt-dev/bwt#reproducible-builds).

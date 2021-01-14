@@ -3,7 +3,7 @@ set -xeo pipefail
 shopt -s expand_aliases
 
 docker_name=shesek/bwt
-gh_repo=shesek/bwt
+gh_repo=bwt-dev/bwt
 
 if ! git diff-index --quiet HEAD; then
   echo git working directory is dirty

@@ -5,8 +5,8 @@ description = "a lightweight hd wallet tracker and query engine for Bitcoin"
 authors = ["Nadav Ivgi <nadav@shesek.info>"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/shesek/bwt"
-repository = "https://github.com/shesek/bwt"
+homepage = "https://github.com/bwt-dev/bwt"
+repository = "https://github.com/bwt-dev/bwt"
 keywords = [ "bitcoin", "electrum-server", "hd-wallet", "bitcoin-api", "xpub" ]
 edition = "2018"
 include = [ "src", "LICENSE" ]
@@ -61,7 +61,7 @@ pretty_env_logger = { version = "0.4.0", optional = true }
 signal-hook = { version = "0.1.16", optional = true }
 
 # Statically link OpenSSL when cross-compiling to ARM
-# OpenSSL is currently disabled on ARM, see https://github.com/shesek/bwt/issues/52
+# OpenSSL is currently disabled on ARM, see https://github.com/bwt-dev/bwt/issues/52
 # [target.'cfg(any(target_arch = "arm", target_arch = "aarch64"))'.dependencies]
 # openssl = { version = "0.10", features = ["vendored"], optional = true }
 # webhooks = [ "reqwest", "openssl" ]
