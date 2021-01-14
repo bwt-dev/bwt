@@ -353,11 +353,7 @@ impl Wallet {
         end_index: u32,
         rescan: bool,
     ) -> Vec<(Address, RescanSince, String)> {
-        let rescan_since = if rescan {
-            self.rescan_since
-        } else {
-            RescanSince::Now
-        };
+        let rescan_since = iif!(rescan, self.rescan_since, RescanSince::Now);
 
         (start_index..=end_index)
             .map(|index| {
@@ -437,16 +433,12 @@ fn batch_import(rpc: &RpcClient, import_reqs: Vec<(Address, RescanSince, String)
     let results = rpc.import_multi(
         &import_reqs
             .iter()
-            .map(|(address, rescan, label)| {
-                trace!("importing {} as {}", address, label,);
-
-                ImportMultiRequest {
-                    label: Some(&label),
-                    watchonly: Some(true),
-                    timestamp: (*rescan).into(),
-                    script_pubkey: Some(ImportMultiRequestScriptPubkey::Address(&address)),
-                    ..Default::default()
-                }
+            .map(|(address, rescan, label)| ImportMultiRequest {
+                label: Some(&label),
+                watchonly: Some(true),
+                timestamp: (*rescan).into(),
+                script_pubkey: Some(ImportMultiRequestScriptPubkey::Address(&address)),
+                ..Default::default()
             })
             .collect::<Vec<_>>(),
         None,

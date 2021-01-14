@@ -66,7 +66,9 @@ impl App {
         }
 
         let (sync_tx, sync_rx) = mpsc::channel();
-        // debounce sync message rate to avoid excessive indexing when bitcoind catches up
+
+        #[cfg(any(feature = "electrum", unix))]
+        // debounce external sync message rate to avoid excessive indexing when bitcoind catches up
         let debounced_sync_tx = debounce_sender(sync_tx.clone(), DEBOUNCE_SEC);
 
         #[cfg(feature = "electrum")]

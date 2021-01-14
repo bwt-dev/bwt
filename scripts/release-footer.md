@@ -1,7 +1,7 @@
 
 ------------
 
-Also see the vVERSION downloads for [bwt-electrum-plugin](https://github.com/bwt-dev/bwt-electrum-plugin/releases/tag/vVERSION), [libbwt](https://github.com/bwt-dev/libbwt/releases/tag/vVERSION), [libbwt-nodejs](https://github.com/bwt-dev/libbwt-nodejs/releases/tag/vVERSION) and [libbwt-jni](https://github.com/bwt-dev/libbwt-jni/releases/tag/vVERSION).
+Also see the vVERSION releases for [bwt-electrum-plugin](https://github.com/bwt-dev/bwt-electrum-plugin/releases/tag/vVERSION), [libbwt](https://github.com/bwt-dev/libbwt/releases/tag/vVERSION), [libbwt-nodejs](https://github.com/bwt-dev/libbwt-nodejs/releases/tag/vVERSION) and [libbwt-jni](https://github.com/bwt-dev/libbwt-jni/releases/tag/vVERSION).
 
 ### Installation
 

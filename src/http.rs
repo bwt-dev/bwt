@@ -515,7 +515,7 @@ impl HttpServer {
             spawn(warp_server, addr, addr_tx, shutdown_rx);
         });
 
-        let bound_addr = block_on_future(addr_rx).unwrap();
+        let bound_addr = block_on_future(addr_rx).expect("failed starting http server");
         info!("HTTP REST API server running on http://{}/", bound_addr);
 
         HttpServer {

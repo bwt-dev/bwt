@@ -10,6 +10,8 @@
 
 - Support for tracking standalone addresses (#14)
 
+  Using `--address <address>` or `--address-file <path>`.
+
 - New config options: `force_rescan` (9e7ccbe), `setup_logger` (35fc49f) and `require_addresses` (162790d)
 
 - Gracefully wait for bitcoind to warm-up (dec6d46)

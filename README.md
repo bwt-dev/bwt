@@ -141,6 +141,8 @@ You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
 
 You can also track output script descriptors using `--descriptor`. For example, `--descriptor 'wpkh(<xpub>/0/*)'`.
 
+Standalone addresses can be tracked with `--address <address>` or `--addresses-file <path>`.
+
 To speed up rescanning for historical transactions, you can provide the wallet creation date with `--rescan-since <timestmap>`.
 The timestamp can be a `YYYY-MM-DD` formatted string, or 'now' to disable rescanning and watch for new
 transactions only (for newly created wallets).
@@ -194,7 +196,8 @@ This removes several large dependencies and disables the `track-spends` database
 
 You can use bwt with pruning, but:
 
-1. You will have to provide a rescan date (via `--rescan-since`) that is within the range of non-pruned blocks, or use `none` to disable rescanning entirely.
+1. You can only scan for transactions in the non-pruned history and will have to provide a rescan
+   date that is within the range of non-pruned blocks.
 
 2. Electrum needs to be run with `--skipmerklecheck` to tolerate missing SPV proofs for transactions in pruned blocks.
 

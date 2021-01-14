@@ -1,6 +1,7 @@
 language: rust
 rust: [ stable ]
 cache: { cargo: true }
+env: [ CARGO_TERM_COLOR=always ]
 
 jobs:
   include:
@@ -53,7 +54,7 @@ jobs:
       - >
         rm -rf dist/*/ &&
         echo '-----BEGIN SHA256SUM-----' &&
-        (cd dist && sha256sum *) &&
+        (cd dist && sha256sum * | sort) &&
         echo
       # XXX if: branch in (master, dev, latest) OR tag IS present
 

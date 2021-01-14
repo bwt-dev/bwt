@@ -453,7 +453,7 @@ fn spawn_send_progress_thread(
             return;
         }
         if let Err(e) = wait_wallet_scan(&rpc, progress_tx, Some(shutdown_rx), interval) {
-            debug!("progress thread aborted: {:?}", e);
+            trace!("progress thread aborted: {:?}", e);
         }
     });
 
