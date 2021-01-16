@@ -2,7 +2,7 @@ use std::fmt;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
-pub use serde::de;
+use serde::de;
 
 use bitcoin::util::bip32::{ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint};
 use bitcoin::{util::base58, Network};
