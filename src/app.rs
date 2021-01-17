@@ -216,15 +216,26 @@ impl App {
     }
 }
 
-// Load the specified wallet, ignore "wallet is already loaded" errors
-fn load_wallet(rpc: &RpcClient, name: &str) -> Result<()> {
-    use crate::util::bitcoincore_ext::RPC_WALLET_ERROR;
+// Load the specified wallet, ignore "wallet is already loaded" errors,
+// and create the wallet if the `create_wallet_if_missing` option was set
+fn load_wallet(rpc: &RpcClient, name: &str, create_if_missing: bool) -> Result<()> {
+    use crate::util::bitcoincore_ext::{RPC_WALLET_ERROR, RPC_WALLET_NOT_FOUND};
+    // needs to be identified by the error message string because it uses a generic wallet error code
     const MSG_ALREADY_LOADED_SUFF: &str = "Duplicate -wallet filename specified.";
+
     match rpc.load_wallet(name) {
         Ok(_) => Ok(()),
+        // Wallet already loaded
         Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
             if e.code == RPC_WALLET_ERROR && e.message.ends_with(MSG_ALREADY_LOADED_SUFF) =>
         {
+            Ok(())
+        }
+        // Wallet missing, create it if the `create_wallet_if_missing` option was set
+        Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
+            if create_if_missing && e.code == RPC_WALLET_NOT_FOUND =>
+        {
+            rpc.create_wallet(name, Some(true), Some(true), None, None)?;
             Ok(())
         }
         Err(e) => bail!(e),
@@ -248,7 +259,7 @@ fn init_bitcoind(
     let bcinfo = wait_blockchain_sync(rpc, progress_tx.clone(), interval)?;
 
     if let Some(bitcoind_wallet) = &config.bitcoind_wallet {
-        load_wallet(&rpc, bitcoind_wallet)?;
+        load_wallet(&rpc, bitcoind_wallet, config.create_wallet_if_missing)?;
     }
     let walletinfo = wait_wallet_scan(rpc, progress_tx, None, interval)?;
 

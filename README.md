@@ -250,7 +250,8 @@ Higher value means less rescans. Should be increased for large wallets.
 If you're using [multi-wallet](https://bitcoin.org/en/release/v0.15.0.1#multi-wallet-support),
 you can specify which wallet to use with `--bitcoind-wallet <name>`.
 
-It is recommended to use a separate watch-only wallet for bwt (can be created with `bitcoin-cli createwallet bwt true`).
+Using a separate wallet for bwt is recommended. You can set
+`--bitcoind-wallet bwt --create-wallet-if-missing` to have bwt create one for you.
 
 *Note that EPS and bwt should not be run on the same bitcoind wallet with the same xpub, they will conflict.*
 

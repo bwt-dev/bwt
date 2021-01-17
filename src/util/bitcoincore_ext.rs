@@ -11,6 +11,7 @@ use bitcoincore_rpc::{self as rpc, Client, Result as RpcResult, RpcApi};
 pub const RPC_MISC_ERROR: i32 = -1;
 pub const RPC_WALLET_ERROR: i32 = -4;
 pub const RPC_WALLET_INVALID_LABEL_NAME: i32 = -11;
+pub const RPC_WALLET_NOT_FOUND: i32 = -18;
 pub const RPC_IN_WARMUP: i32 = -28;
 pub const RPC_METHOD_NOT_FOUND: i32 = -32601;
 

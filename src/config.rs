@@ -127,6 +127,18 @@ pub struct Config {
     )]
     pub bitcoind_cookie: Option<path::PathBuf>,
 
+    // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            long,
+            help = "Create the specified bitcoind wallet if it's missing.",
+            display_order(39)
+        )
+    )]
+    #[serde(default)]
+    pub create_wallet_if_missing: bool,
+
     #[cfg_attr(feature = "cli", structopt(
         short = "d",
         long = "descriptor",
@@ -650,7 +662,7 @@ defaultable!(Config,
   @default(
     verbose, timestamp, broadcast_cmd, startup_banner,
     descriptors, xpubs, addresses, addresses_file, force_rescan,
-    bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie,
+    bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie, create_wallet_if_missing,
     #[cfg(feature = "electrum")] electrum_addr,
     #[cfg(feature = "electrum")] electrum_skip_merkle,
     #[cfg(feature = "http")] http_addr,
