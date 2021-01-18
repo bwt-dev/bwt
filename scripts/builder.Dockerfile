@@ -1,4 +1,5 @@
-FROM rust:1.49-slim as builder
+# rust:1.49-slim
+FROM rust@sha256:3c1012af9fa01b63f14c077fbdf6bf6ea16f85389dd8ccc80f9c13d65ed4bce1
 RUN apt-get update && apt-get install -y pkg-config make zip wget \
         libssl-dev gcc-mingw-w64-x86-64 gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu && \
     rustup target add x86_64-pc-windows-gnu armv7-unknown-linux-gnueabihf aarch64-unknown-linux-gnu
