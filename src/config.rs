@@ -24,7 +24,7 @@ pub struct Config {
         structopt(
             short = "n",
             long,
-            help = "One of 'bitcoin', 'testnet' or 'regtest'",
+            help = "One of 'bitcoin', 'testnet', 'signet' or 'regtest'",
             default_value = "bitcoin",
             env,
             hide_env_values(true),
@@ -263,7 +263,7 @@ pub struct Config {
         structopt(
             short = "e",
             long,
-            help = "Address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:60001' for testnet or '127.0.0.1:60401' for regtest]",
+            help = "Address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:60001' for testnet, '127.0.0.1:60601' for signet or '127.0.0.1:60401' for regtest]",
             env,
             hide_env_values(true),
             display_order(40)
@@ -404,6 +404,7 @@ impl Config {
                             Network::Bitcoin => 8332,
                             Network::Testnet => 18332,
                             Network::Regtest => 18443,
+                            Network::Signet => 38332,
                         }
                     )
                 },
@@ -462,6 +463,7 @@ impl Config {
                     Network::Bitcoin => 50001,
                     Network::Testnet => 60001,
                     Network::Regtest => 60401,
+                    Network::Signet => 60601,
                 },
             ));
             #[cfg(not(feature = "cli"))]
@@ -570,8 +572,8 @@ fn apply_log_env(mut builder: LogBuilder) -> LogBuilder {
 
 #[cfg(feature = "cli")]
 fn parse_desc(s: &str) -> Result<ExtendedDescriptor> {
-    use crate::util::descriptor::DescriptorChecksum;
-    Ok(ExtendedDescriptor::parse_with_checksum(s)?)
+    use crate::util::descriptor::DescriptorExt;
+    Ok(ExtendedDescriptor::parse_canonical(s)?)
 }
 
 #[cfg(feature = "cli")]
@@ -617,6 +619,7 @@ fn get_cookie(config: &Config) -> Option<path::PathBuf> {
         Network::Bitcoin => (),
         Network::Testnet => dir.push("testnet3"),
         Network::Regtest => dir.push("regtest"),
+        Network::Signet => dir.push("signet"),
     }
     let cookie = dir.join(".cookie");
     if cookie.exists() {

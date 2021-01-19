@@ -1,18 +1,12 @@
-use std::iter::FromIterator;
 use std::str::FromStr;
 
 use bitcoin::secp256k1::{self, Secp256k1};
 use bitcoin::{Address, Network};
-use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorPublicKeyCtx};
+use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorTrait, Wildcard};
+use miniscript::{ForEachKey, TranslatePk2};
 
 use crate::error::{Error, OptionExt, Result};
 use crate::util::xpub::{xpub_matches_network, Bip32Origin};
-
-lazy_static! {
-    static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
-    pub static ref DESC_CTX: DescriptorPublicKeyCtx<'static, secp256k1::VerifyOnly> =
-        DescriptorPublicKeyCtx::new(&EC, 0.into());
-}
 
 pub type ExtendedDescriptor = Descriptor<DescriptorPublicKey>;
 
@@ -21,17 +15,16 @@ pub struct Checksum(String);
 
 impl_string_serializer!(Checksum, c, c.0);
 
-/// Derive the address at `index`, without creating a new Descriptor
+/// Derive the address at `index`
 pub fn derive_address(desc: &ExtendedDescriptor, index: u32, network: Network) -> Option<Address> {
-    let ctx = DescriptorPublicKeyCtx::new(&EC, index.into());
-    desc.address(network, ctx)
-}
-
-/// Derive the descriptor string at `index`, without creating a new Descriptor
-pub fn derive_desc_str(desc: &ExtendedDescriptor, index: u32) -> String {
-    // A hack, but it works and its fast. ^_^
-    let desc_str = desc.to_string().replace("*", &index.to_string());
-    format!("{}#{}", desc_str, get_checksum(&desc_str))
+    lazy_static! {
+        pub static ref EC: Secp256k1<secp256k1::VerifyOnly> = Secp256k1::verification_only();
+    }
+    desc.derive(index)
+        .translate_pk2(|xpk| xpk.derive_public_key(&EC))
+        .ok()?
+        .address(network)
+        .ok()
 }
 
 #[derive(Debug, Clone)]
@@ -40,11 +33,7 @@ pub struct DescKeyInfo {
     pub is_wildcard: bool,
 }
 
-impl From<&ExtendedDescriptor> for Checksum {
-    fn from(desc: &ExtendedDescriptor) -> Self {
-        get_checksum(&desc.to_string())
-    }
-}
+const CHECKSUM_CHARSET: &str = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
 impl FromStr for Checksum {
     type Err = Error;
@@ -62,38 +51,40 @@ impl FromStr for Checksum {
 
 impl DescKeyInfo {
     pub fn extract(desc: &ExtendedDescriptor, network: Network) -> Result<Vec<DescKeyInfo>> {
-        let mut valid_networks = true;
         let mut keys_info = vec![];
 
-        tap_desc_pks(desc, |pk| match pk {
-            DescriptorPublicKey::XPub(desc_xpub) => {
-                // Get key origin information from the descriptor, fallback to extracting from the
-                // xpub itself.
-                let bip32_origin = desc_xpub
-                    .origin
-                    .as_ref()
-                    .map_or_else(|| (&desc_xpub.xkey).into(), Into::<Bip32Origin>::into)
-                    .extend(&desc_xpub.derivation_path);
+        let is_valid = desc.for_each_key(|fe| {
+            match fe.as_key() {
+                DescriptorPublicKey::XPub(desc_xpub) => {
+                    // Get key origin information from the descriptor, fallback to extracting from the
+                    // xpub itself.
+                    let bip32_origin = desc_xpub
+                        .origin
+                        .as_ref()
+                        .map_or_else(|| (&desc_xpub.xkey).into(), Into::<Bip32Origin>::into)
+                        .extend(&desc_xpub.derivation_path);
 
-                keys_info.push(DescKeyInfo {
-                    bip32_origin,
-                    is_wildcard: desc_xpub.is_wildcard,
-                });
-
-                valid_networks = valid_networks && xpub_matches_network(&desc_xpub.xkey, network);
-            }
-            DescriptorPublicKey::SinglePub(desc_single) => {
-                if let Some(bip32_origin) = &desc_single.origin {
                     keys_info.push(DescKeyInfo {
-                        bip32_origin: bip32_origin.into(),
-                        is_wildcard: false,
+                        bip32_origin,
+                        is_wildcard: desc_xpub.wildcard != Wildcard::None,
                     });
+
+                    xpub_matches_network(&desc_xpub.xkey, network)
+                }
+                DescriptorPublicKey::SinglePub(desc_single) => {
+                    if let Some(bip32_origin) = &desc_single.origin {
+                        keys_info.push(DescKeyInfo {
+                            bip32_origin: bip32_origin.into(),
+                            is_wildcard: false,
+                        });
+                    }
+                    true
                 }
             }
         });
 
         ensure!(
-            valid_networks,
+            is_valid,
             "xpubs do not match the configured network {}",
             network
         );
@@ -102,135 +93,36 @@ impl DescKeyInfo {
     }
 }
 
-pub trait DescriptorChecksum: Sized {
-    /// Encode to string with the `#checksum` suffix
-    fn to_string_with_checksum(&self) -> String;
-    /// Parse a descriptor with an optional checksum suffix
-    fn parse_with_checksum(s: &str) -> Result<Self>;
+pub trait DescriptorExt: Sized {
+    /// Encode to string without the `#checksum` suffix
+    fn to_string_no_checksum(&self) -> String;
+    /// Get just the checksum
+    fn checksum(&self) -> Checksum;
+    /// Parse a descriptor, ensuring that it uses canonical encoding if the checksum is explicit
+    fn parse_canonical(s: &str) -> Result<Self>;
 }
 
-impl DescriptorChecksum for ExtendedDescriptor {
-    fn to_string_with_checksum(&self) -> String {
-        format!("{}#{}", self, get_checksum(&self.to_string()))
+impl DescriptorExt for ExtendedDescriptor {
+    fn to_string_no_checksum(&self) -> String {
+        self.to_string().splitn(2, '#').next().unwrap().into()
     }
 
-    fn parse_with_checksum(s: &str) -> Result<ExtendedDescriptor> {
-        let parts: Vec<&str> = s.splitn(2, '#').collect();
-        if parts.len() == 2 {
-            let desc_str = parts[0];
-            let desc = desc_str.parse::<ExtendedDescriptor>()?;
-            let provided_checksum = parts[1].parse::<Checksum>()?;
-
-            // FIXME using canonical encoding should not be required, but the current implementation
-            // won't retain the checsum if the descriptor is encoded differently by rust-miniscript,
-            // which would result in an unexpected behaviour.
-            ensure!(
-                desc.to_string() == desc_str,
-                "Descriptors with explicit checksums must use canonical encoding. {} is expected to be encoded as `{}`",
-                provided_checksum,
-                desc.to_string()
-            );
-
-            let actual_checksum = get_checksum(&desc.to_string());
-            ensure!(
-                provided_checksum == actual_checksum,
-                "Invalid descriptor checksum {}, expected {}",
-                provided_checksum,
-                actual_checksum,
-            );
-            Ok(desc)
-        } else {
-            Ok(s.parse()?)
-        }
+    fn checksum(&self) -> Checksum {
+        let desc_str = self.to_string();
+        let checksum = desc_str.splitn(2, '#').skip(1).next().unwrap();
+        Checksum(checksum.into())
     }
-}
 
-fn tap_desc_pks<F>(desc: &ExtendedDescriptor, mut tap_fn: F)
-where
-    F: FnMut(&DescriptorPublicKey),
-{
-    // TODO this shouldn't call translate_pk() twice. this is tricky because both closure
-    // arguments (Fpk/Fpkh) require a mutable borrow on `tap_fn`.
+    fn parse_canonical(desc_str: &str) -> Result<ExtendedDescriptor> {
+        let provided_desc_str = desc_str.splitn(2, '#').next().unwrap();
+        let desc: ExtendedDescriptor = desc_str.parse()?;
 
-    desc.translate_pk(
-        |pk| {
-            tap_fn(pk);
-            Ok::<DescriptorPublicKey, ()>(pk.clone())
-        },
-        |pk| Ok::<DescriptorPublicKey, ()>(pk.clone()),
-    )
-    .unwrap();
-
-    desc.translate_pk(
-        |pk| Ok::<DescriptorPublicKey, ()>(pk.clone()),
-        |pk| {
-            tap_fn(pk);
-            Ok::<DescriptorPublicKey, ()>(pk.clone())
-        },
-    )
-    .unwrap();
-}
-
-// Checksum code copied from https://github.com/bitcoindevkit/bdk/blob/master/src/descriptor/checksum.rs
-
-const INPUT_CHARSET: &str =  "0123456789()[],'/*abcdefgh@:$%{}IJKLMNOPQRSTUVWXYZ&+-.;<=>?!^_|~ijklmnopqrstuvwxyzABCDEFGH`#\"\\ ";
-const CHECKSUM_CHARSET: &str = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
-
-/// Compute the checksum of a descriptor
-fn get_checksum(desc_str: &str) -> Checksum {
-    let mut c = 1;
-    let mut cls = 0;
-    let mut clscount = 0;
-    for ch in desc_str.chars() {
-        let pos = INPUT_CHARSET
-            .find(ch)
-            .expect("ExtendedDescriptor's encoding cannot be invalid") as u64;
-        c = poly_mod(c, pos & 31);
-        cls = cls * 3 + (pos >> 5);
-        clscount += 1;
-        if clscount == 3 {
-            c = poly_mod(c, cls);
-            cls = 0;
-            clscount = 0;
-        }
-    }
-    if clscount > 0 {
-        c = poly_mod(c, cls);
-    }
-    (0..8).for_each(|_| c = poly_mod(c, 0));
-    c ^= 1;
-
-    let mut chars = Vec::with_capacity(8);
-    for j in 0..8 {
-        chars.push(
-            CHECKSUM_CHARSET
-                .chars()
-                .nth(((c >> (5 * (7 - j))) & 31) as usize)
-                .unwrap(),
+        ensure!(
+            desc.to_string_no_checksum() == provided_desc_str,
+            "Descriptors with explicit checksums must use canonical encoding. `{}` is expected to be encoded as `{}`",
+            provided_desc_str,
+            desc.to_string_no_checksum()
         );
+        Ok(desc)
     }
-
-    Checksum(String::from_iter(chars))
-}
-
-fn poly_mod(mut c: u64, val: u64) -> u64 {
-    let c0 = c >> 35;
-    c = ((c & 0x7ffffffff) << 5) ^ val;
-    if c0 & 1 > 0 {
-        c ^= 0xf5dee51989
-    };
-    if c0 & 2 > 0 {
-        c ^= 0xa9fdca3312
-    };
-    if c0 & 4 > 0 {
-        c ^= 0x1bab10e32d
-    };
-    if c0 & 8 > 0 {
-        c ^= 0x3706b1677a
-    };
-    if c0 & 16 > 0 {
-        c ^= 0x644d626ffd
-    };
-
-    c
 }

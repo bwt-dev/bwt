@@ -6,7 +6,7 @@ use serde::Serialize;
 use bitcoin::{Address, OutPoint, Txid};
 
 use crate::types::{MempoolEntry, ScriptHash, TxStatus};
-use crate::util::{remove_if, xpub::Bip32Origin};
+use crate::util::{descriptor::ExtendedDescriptor, remove_if, xpub::Bip32Origin};
 use crate::wallet::KeyOrigin;
 
 #[cfg(feature = "track-spends")]
@@ -422,7 +422,7 @@ pub struct ScriptInfo {
 
     // The descriptor and bip32 origins are only provided in some contexts, not always (even if available)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub desc: Option<String>,
+    pub desc: Option<ExtendedDescriptor>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bip32_origins: Option<Vec<Bip32Origin>>,
 }
@@ -431,7 +431,7 @@ impl ScriptInfo {
     pub fn from_desc(
         origin: KeyOrigin,
         address: Address,
-        desc: String,
+        desc: ExtendedDescriptor,
         bip32_origins: Vec<Bip32Origin>,
     ) -> Self {
         ScriptInfo {

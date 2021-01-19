@@ -4,17 +4,20 @@ use std::str::FromStr;
 
 use serde::de;
 
-use bitcoin::util::bip32::{ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint};
+use bitcoin::util::bip32::{self, ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint};
 use bitcoin::{util::base58, Network};
-use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorXKey};
+use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorXKey, Wildcard};
 
 use crate::types::ScriptType;
 use crate::util::descriptor::ExtendedDescriptor;
 use crate::util::BoolThen;
 
 pub fn xpub_matches_network(xpub: &ExtendedPubKey, network: Network) -> bool {
-    // testnet and regtest share the same bip32 version bytes
-    xpub.network == network || (xpub.network == Network::Testnet && network == Network::Regtest)
+    // testnet, signet and regtest share the same bip32 version bytes,
+    // and therefore always identified as testnet.
+    xpub.network == network
+        || (xpub.network == Network::Testnet
+            && matches!(network, Network::Regtest | Network::Signet))
 }
 
 /// An extended public key with an associated script type.
@@ -44,37 +47,36 @@ impl XyzPubKey {
             origin: bip32_origin,
             xkey: self.xpub,
             derivation_path,
-            is_wildcard: true,
+            wildcard: Wildcard::Unhardened,
         });
 
         match self.script_type {
-            ScriptType::P2pkh => Descriptor::Pkh(desc_key),
-            ScriptType::P2wpkh => Descriptor::Wpkh(desc_key),
-            ScriptType::P2shP2wpkh => Descriptor::ShWpkh(desc_key),
+            ScriptType::P2pkh => Descriptor::new_pkh(desc_key),
+            ScriptType::P2wpkh => Descriptor::new_wpkh(desc_key).expect("no uncompressed"),
+            ScriptType::P2shP2wpkh => Descriptor::new_sh_wpkh(desc_key).expect("no uncompressed"),
         }
     }
 }
 
 impl FromStr for XyzPubKey {
-    type Err = base58::Error;
+    type Err = bip32::Error;
 
-    fn from_str(inp: &str) -> StdResult<XyzPubKey, base58::Error> {
+    fn from_str(inp: &str) -> StdResult<XyzPubKey, bip32::Error> {
         let mut data = base58::from_check(inp)?;
 
         if data.len() != 78 {
-            return Err(base58::Error::InvalidLength(data.len()));
+            return Err(base58::Error::InvalidLength(data.len()).into());
         }
 
         // rust-bitcoin's bip32 implementation does not support ypubs/zpubs.
-        // instead, figure out the network and script type ourselves and feed rust-bitcoin with a
-        // modified faux xpub string that uses the regular p2pkh xpub version bytes it expects.
+        // instead, figure out the network and script type ourselves and feed rust-bitcoin with
+        // a modified key that uses the version bytes it expects.
 
         let version = &data[0..4];
         let (network, script_type) = parse_xyz_version(version)?;
         data.splice(0..4, get_xpub_p2pkh_version(network).iter().cloned());
 
-        let faux_xpub = base58::check_encode_slice(&data);
-        let xpub = faux_xpub.parse()?;
+        let xpub = ExtendedPubKey::decode(&data)?;
 
         Ok(XyzPubKey { script_type, xpub })
     }
@@ -149,7 +151,7 @@ fn parse_xyz_version(version: &[u8]) -> StdResult<(Network, ScriptType), base58:
 fn get_xpub_p2pkh_version(network: Network) -> [u8; 4] {
     match network {
         Network::Bitcoin => [0x04u8, 0x88, 0xB2, 0x1E],
-        Network::Testnet | Network::Regtest => [0x04u8, 0x35, 0x87, 0xCF],
+        Network::Testnet | Network::Regtest | Network::Signet => [0x04u8, 0x35, 0x87, 0xCF],
     }
 }
 
@@ -162,15 +164,15 @@ mod tests {
         let test_cases = [
             // Standard BIP32 xpub, uses p2pkh
             ("xpub661MyMwAqRbcFLqTBCNzuoj4FYE1xRxmCjrSWC6LUjKHo46Du4NacKgxdrJPWhzLjkPsXqnjAUwn1raMSWfxWZKysPoBNQMZMs8b5JM8egC",
-             "pkh(xpub661MyMwAqRbcFLqTBCNzuoj4FYE1xRxmCjrSWC6LUjKHo46Du4NacKgxdrJPWhzLjkPsXqnjAUwn1raMSWfxWZKysPoBNQMZMs8b5JM8egC/*)"),
+             "pkh(xpub661MyMwAqRbcFLqTBCNzuoj4FYE1xRxmCjrSWC6LUjKHo46Du4NacKgxdrJPWhzLjkPsXqnjAUwn1raMSWfxWZKysPoBNQMZMs8b5JM8egC/*)#l8pslygd"),
 
             // SLIP32 ypub, uses p2sh-p2wpkh
             ("ypub6QqdH2c5z7966e2a1ZAd7tpZRWNTu3xG7rNfHazDrjhAr9uT9iY9EPM6f4FyWceG9PWgHKPHd9JKu9BvAD5yJo1ajjVbxKB3dbCETvZ3Jzw",
-             "sh(wpkh(xpub661MyMwAqRbcFLqTBCNzuoj4FYE1xRxmCjrSWC6LUjKHo46Du4NacKgxdrJPWhzLjkPsXqnjAUwn1raMSWfxWZKysPoBNQMZMs8b5JM8egC/*))"),
+             "sh(wpkh(xpub661MyMwAqRbcFLqTBCNzuoj4FYE1xRxmCjrSWC6LUjKHo46Du4NacKgxdrJPWhzLjkPsXqnjAUwn1raMSWfxWZKysPoBNQMZMs8b5JM8egC/*))#s49cq0me"),
 
             // SLIP32 zpub, uses p2wpkh
             ("zpub6jftahH18ngZwwDgquxFKyv4bUWuqfwm2xtt4yt7Ek53uFigQNhhrT1EgGDZWXJBZ2dV2nyr5oesnRoUsuVz72hBc5C2YDzXuKFsrTu7JHp",
-             "wpkh(xpub661MyMwAqRbcFLqTBCNzuoj4FYE1xRxmCjrSWC6LUjKHo46Du4NacKgxdrJPWhzLjkPsXqnjAUwn1raMSWfxWZKysPoBNQMZMs8b5JM8egC/*)"),
+             "wpkh(xpub661MyMwAqRbcFLqTBCNzuoj4FYE1xRxmCjrSWC6LUjKHo46Du4NacKgxdrJPWhzLjkPsXqnjAUwn1raMSWfxWZKysPoBNQMZMs8b5JM8egC/*)#pyf5ce6k"),
         ];
         for (xyz_str, expected_desc) in &test_cases {
             let xyzpub = xyz_str.parse::<XyzPubKey>().unwrap();

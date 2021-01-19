@@ -310,7 +310,7 @@ You can associate the wallets to their parent xpub using the `bip32_origins` fie
 #### Wallet format
 
 - `desc` - the output script descriptor tracked by this wallet
-- `network` - the network this wallet belongs to (`bitcoin`, `testnet` or `regtest`)
+- `network` - the network this wallet belongs to (`bitcoin`, `testnet`, `signet` or `regtest`)
 - `is_wildcard` - a boolean indicating whether the descriptor includes wildcard keys (`xpub../*`)
 - `bip32_origins` - bip32 origin information for the keys contained in the descriptor
 - `gap_limit` - the gap limited configured for this wallet

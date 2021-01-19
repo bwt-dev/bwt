@@ -5,11 +5,12 @@ use std::result::Result as StdResult;
 use bitcoin::{Address, Network};
 use bitcoincore_rpc::json::{ImportMultiRequest, ImportMultiRequestScriptPubkey};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
+use miniscript::DescriptorTrait;
 
 use crate::error::{Context, Result};
 use crate::store::MemoryStore;
 use crate::types::RescanSince;
-use crate::util::descriptor::{self, Checksum, DescKeyInfo, ExtendedDescriptor, DESC_CTX};
+use crate::util::descriptor::{self, Checksum, DescKeyInfo, DescriptorExt, ExtendedDescriptor};
 use crate::util::xpub::{Bip32Origin, XyzPubKey};
 use crate::util::RpcApiExt;
 use crate::Config;
@@ -265,11 +266,11 @@ impl Wallet {
     ) -> Result<Self> {
         ensure!(
             descriptor::derive_address(&desc, 0, network).is_some(),
-            "Descriptor does not have address representation: `{}`",
+            "Invalid descriptor, hardended derivation or no address representation: `{}`",
             desc
         );
 
-        let checksum = Checksum::from(&desc);
+        let checksum = desc.checksum();
         let keys_info = DescKeyInfo::extract(&desc, network)?;
         let is_wildcard = keys_info.iter().any(|x| x.is_wildcard);
 
@@ -364,13 +365,15 @@ impl Wallet {
             .collect()
     }
 
+    /// Derive an address using the given non-hardended child derivation index.
+    /// Assumes the index is valid and panics if not. See is_valid_index().
     pub fn derive_address(&self, index: u32) -> Address {
         descriptor::derive_address(&self.desc, index, self.network)
             .expect("constructed Wallet must have address representation")
     }
 
-    pub fn derive_desc_str(&self, index: u32) -> String {
-        descriptor::derive_desc_str(&self.desc, index)
+    pub fn derive_desc(&self, index: u32) -> ExtendedDescriptor {
+        self.desc.derive(index)
     }
 
     pub fn get_next_index(&self) -> u32 {
@@ -526,12 +529,11 @@ impl Serialize for Wallet {
     where
         S: serde::Serializer,
     {
-        let desc_str = format!("{}#{}", self.desc, self.checksum);
         let bip32_origins: Vec<_> = self.keys_info.iter().map(|i| &i.bip32_origin).collect();
 
         let mut rgb = serializer.serialize_struct("Wallet", 3)?;
 
-        rgb.serialize_field("desc", &desc_str)?;
+        rgb.serialize_field("desc", &self.desc)?;
         rgb.serialize_field("network", &self.network)?;
         rgb.serialize_field("is_wildcard", &self.is_wildcard)?;
         rgb.serialize_field("bip32_origins", &bip32_origins)?;
@@ -540,7 +542,7 @@ impl Serialize for Wallet {
         rgb.serialize_field("max_imported_index", &self.max_imported_index)?;
         rgb.serialize_field(
             "satisfaction_weight",
-            &self.desc.max_satisfaction_weight(*DESC_CTX),
+            &self.desc.max_satisfaction_weight().ok(),
         )?;
 
         if self.is_wildcard {

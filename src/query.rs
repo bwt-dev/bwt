@@ -485,7 +485,7 @@ impl Query {
             Some(ScriptInfo::from_desc(
                 KeyOrigin::Descriptor(checksum.clone(), index),
                 wallet.derive_address(index),
-                wallet.derive_desc_str(index),
+                wallet.derive_desc(index),
                 wallet.bip32_origins(index),
             ))
         } else {
@@ -504,7 +504,7 @@ impl Query {
 fn attach_wallet_info(script_info: &mut ScriptInfo, indexer: &Indexer) {
     if let KeyOrigin::Descriptor(ref checksum, index) = script_info.origin {
         if let Some(wallet) = indexer.watcher().get(checksum) {
-            script_info.desc = Some(wallet.derive_desc_str(index));
+            script_info.desc = Some(wallet.derive_desc(index));
             script_info.bip32_origins = Some(wallet.bip32_origins(index));
         }
     }
