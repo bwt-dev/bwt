@@ -16,14 +16,20 @@ const HALVING_INTERVAL: u64 = 210_000;
 pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> {
     let rpc = query.rpc();
 
-    let net_info = rpc.get_network_info()?;
+    let net_info = rpc.get_network_info_()?;
     let chain_info = rpc.get_blockchain_info()?;
     let mempool_info = rpc.get_mempool_info()?;
     let net_totals = rpc.get_net_totals()?;
-    let peers = rpc.get_peer_info()?;
     let hash_rate_7d = rpc.get_network_hash_ps(Some(1008), None)?;
     let uptime = dur_from_secs(rpc.uptime()?);
     let tip = rpc.get_block_stats(&rpc.get_best_block_hash()?)?;
+
+    // Bitcoin Core v0.21 has a `connections_in` field. For older version,
+    // retreive the list of peers and check if there are any inbound ones.
+    let has_inbound = net_info.connections_in.map_or_else(
+        || -> Result<bool> { Ok(rpc.get_peer_info()?.iter().any(|p| p.inbound)) },
+        |connections_in| Ok(connections_in > 0),
+    )?;
 
     let est_fee = |target| {
         query
@@ -64,8 +70,6 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
 
     // sat/kb -> sat/vB
     let mempool_min_fee = mempool_info.mempool_min_fee.as_sat() as f64 / 1000f64;
-
-    let has_inbound = peers.iter().any(|p| p.inbound);
 
     let modes = [
         if chain_info.pruned {

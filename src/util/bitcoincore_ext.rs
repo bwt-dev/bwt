@@ -16,6 +16,11 @@ pub const RPC_IN_WARMUP: i32 = -28;
 pub const RPC_METHOD_NOT_FOUND: i32 = -32601;
 
 pub trait RpcApiExt: RpcApi {
+    // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/158
+    fn get_network_info_(&self) -> RpcResult<GetNetworkInfoResult> {
+        self.call("getnetworkinfo", &[])
+    }
+
     fn list_labels(&self) -> RpcResult<Vec<String>> {
         self.call("listlabels", &[])
     }
@@ -84,6 +89,41 @@ pub struct GetMempoolInfoResult {
         with = "bitcoin::util::amount::serde::as_btc"
     )]
     pub mempool_min_fee: bitcoin::Amount,
+}
+
+// Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/158
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+pub struct GetNetworkInfoResult {
+    pub version: usize,
+    pub subversion: String,
+    #[serde(rename = "protocolversion")]
+    pub protocol_version: usize,
+    #[serde(rename = "localservices")]
+    pub local_services: String,
+    #[serde(rename = "localrelay")]
+    pub local_relay: bool,
+    #[serde(rename = "timeoffset")]
+    pub time_offset: isize,
+    pub connections: usize,
+    /// The number of inbound connections
+    /// Added in Bitcoin Core v0.21
+    pub connections_in: Option<usize>,
+    /// The number of outbound connections
+    /// Added in Bitcoin Core v0.21
+    pub connectiosn_out: Option<usize>,
+    #[serde(rename = "networkactive")]
+    pub network_active: bool,
+    pub networks: Vec<json::GetNetworkInfoResultNetwork>,
+    #[serde(rename = "relayfee", with = "bitcoin::util::amount::serde::as_btc")]
+    pub relay_fee: bitcoin::Amount,
+    #[serde(
+        rename = "incrementalfee",
+        with = "bitcoin::util::amount::serde::as_btc"
+    )]
+    pub incremental_fee: bitcoin::Amount,
+    #[serde(rename = "localaddresses")]
+    pub local_addresses: Vec<json::GetNetworkInfoResultAddress>,
+    pub warnings: String,
 }
 
 // Wrap rust-bitcoincore-rpc's RescanSince to enable deserialization

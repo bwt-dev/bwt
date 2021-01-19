@@ -220,14 +220,18 @@ impl App {
 // and create the wallet if the `create_wallet_if_missing` option was set
 fn load_wallet(rpc: &RpcClient, name: &str, create_if_missing: bool) -> Result<()> {
     use crate::util::bitcoincore_ext::{RPC_WALLET_ERROR, RPC_WALLET_NOT_FOUND};
-    // needs to be identified by the error message string because it uses a generic wallet error code
-    const MSG_ALREADY_LOADED_SUFF: &str = "Duplicate -wallet filename specified.";
+    // Needs to be identified by the error message string because it uses a generic wallet error code.
+    // The error message changed in Bitcoin Core v0.21.
+    const MSG_ALREADY_LOADED_OLD: &str = "Duplicate -wallet filename specified.";
+    const MSG_ALREADY_LOADED_NEW: &str = "is already loaded.";
 
     match rpc.load_wallet(name) {
         Ok(_) => Ok(()),
         // Wallet already loaded
         Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
-            if e.code == RPC_WALLET_ERROR && e.message.ends_with(MSG_ALREADY_LOADED_SUFF) =>
+            if e.code == RPC_WALLET_ERROR
+                && (e.message.ends_with(MSG_ALREADY_LOADED_OLD)
+                    || e.message.ends_with(MSG_ALREADY_LOADED_NEW)) =>
         {
             Ok(())
         }

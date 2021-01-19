@@ -72,15 +72,16 @@ walletnotify=nc -U $BWT_SOCKET > /dev/null 2>&1
 
 [regtest]
 rpcport=$BTC_RPC_PORT
-wallet=internal
 EOL
 
 bitcoind -datadir=$BTC_DIR $BTC_OPTS &
 
 echo - Waiting for bitcoind to warm up...
 btc -rpcwait getblockchaininfo > /dev/null
-echo - Creating watch-only wallet...
-btc createwallet bwt true > /dev/null
+
+echo - Creating wallets...
+btc createwallet internal > /dev/null
+btc createwallet bwt true true > /dev/null
 
 echo - Generating some blocks...
 btc generatetoaddress 110 `btc getnewaddress` > /dev/null

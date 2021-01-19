@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Compatibility with Bitcoin Core v0.21
+
 - New `create_wallet_if_missing` option to ease the creation of a designated bitcoind wallet (#76)
 
 ## 0.2.1 - 2021-01-14
