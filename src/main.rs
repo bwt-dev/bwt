@@ -1,9 +1,8 @@
 use bwt::{App, Config, Result};
-use structopt::StructOpt;
 
 fn main() -> Result<()> {
     Config::dotenv();
-    let config = Config::from_args();
+    let config = Config::from_args_env()?;
 
     config.setup_logger();
 

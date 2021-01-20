@@ -8,6 +8,10 @@
 
 - New `create_wallet_if_missing` option to ease the creation of a designated bitcoind wallet (#76)
 
+- Support setting boolean config options using environment variables
+
+- Support configuration via wildcard envirnoment variables (`XPUB_*`, `DESC_*` and `ADDRESS_*`)
+
 - Upgrade to rust-bitcoin v0.26 & rust-miniscript v5.0
 
 ## 0.2.1 - 2021-01-14

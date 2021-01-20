@@ -40,7 +40,7 @@ pub struct Config {
         structopt(
             short = "v",
             long,
-            help = "Increase verbosity level (up to 4 times)",
+            help = "Increase verbosity level (up to 4 times) [env: VERBOSE]",
             parse(from_occurrences),
             display_order(98)
         )
@@ -48,7 +48,6 @@ pub struct Config {
     #[serde(default)]
     pub verbose: usize,
 
-    // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
     #[cfg_attr(
         feature = "cli",
         structopt(
@@ -127,12 +126,11 @@ pub struct Config {
     )]
     pub bitcoind_cookie: Option<path::PathBuf>,
 
-    // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
     #[cfg_attr(
         feature = "cli",
         structopt(
             long,
-            help = "Create the specified bitcoind wallet if it's missing.",
+            help = "Create the specified bitcoind wallet if it's missing [env: CREATE_WALLET_IF_MISSING]",
             display_order(39)
         )
     )]
@@ -214,13 +212,12 @@ pub struct Config {
     #[serde(default = "default_rescan_since")]
     pub rescan_since: RescanSince,
 
-    // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "F",
             long,
-            help = "Force rescanning for historical transactions, even if the addresses were already previously imported",
+            help = "Force rescanning for historical transactions, even if the addresses were already previously imported [env: FORCE_RESCAN]",
             display_order(29)
         )
     )]
@@ -271,13 +268,12 @@ pub struct Config {
     )]
     pub electrum_addr: Option<net::SocketAddr>,
 
-    // XXX not settable as an env var due to https://github.com/TeXitoi/structopt/issues/305
     #[cfg(feature = "electrum")]
     #[cfg_attr(
         feature = "cli",
         structopt(
             long,
-            help = "Skip generating merkle proofs. Reduces resource usage, requires running Electrum with --skipmerklecheck",
+            help = "Skip generating merkle proofs. Reduces resource usage, requires running Electrum with --skipmerklecheck. [env: ELECTRUM_SKIP_MERKLE]",
             display_order(41)
         )
     )]
@@ -336,10 +332,9 @@ pub struct Config {
     )]
     pub broadcast_cmd: Option<String>,
 
-    // XXX this is not settable as an env var due to https://github.com/clap-rs/clap/issues/1476
     #[cfg_attr(feature = "cli", structopt(
         long = "no-startup-banner",
-        help = "Disable the startup banner",
+        help = "Disable the startup banner [env: NO_STARTUP_BANNER]",
         parse(from_flag = std::ops::Not::not),
         display_order(92)
     ))]
@@ -388,11 +383,6 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn dotenv() {
-        #[cfg(feature = "cli")]
-        dirs::home_dir().map(|home| dotenv::from_path(home.join("bwt.env")).ok());
-    }
-
     pub fn bitcoind_url(&self) -> String {
         format!(
             "{}/{}",
@@ -481,6 +471,54 @@ impl Config {
             #[cfg(not(feature = "cli"))]
             return None;
         })
+    }
+
+    #[cfg(feature = "cli")]
+    pub fn from_args_env() -> Result<Config> {
+        use std::env;
+        use structopt::StructOpt;
+
+        let mut config = Self::from_args();
+
+        // Setting boolean options as env vars is not supported by clap/structopt
+        // https://github.com/TeXitoi/structopt/issues/305
+        let bool_env = |key| env::var(key).map_or(false, |val| !val.is_empty());
+        if bool_env("FORCE_RESCAN") {
+            config.force_rescan = true;
+        }
+        if bool_env("CREATE_WALLET_IF_MISSING") {
+            config.create_wallet_if_missing = true;
+        }
+        if bool_env("NO_STARTUP_BANNER") {
+            config.startup_banner = false;
+        }
+        #[cfg(feature = "electrum")]
+        if bool_env("ELECTRUM_SKIP_MERKLE") {
+            config.electrum_skip_merkle = true;
+        }
+        if let Ok(verbose) = env::var("VERBOSE") {
+            config.verbose = iif!(verbose.is_empty(), 0, verbose.parse().unwrap_or(1));
+        }
+
+        // Support configuring xpubs/descriptors using wildcard env vars
+        // (XPUB_* and DESCRIPTOR_* / DESC_*)
+        for (key, val) in env::vars() {
+            if key.starts_with("XPUB_") || key == "XPUB" {
+                config.xpubs.push(val.parse()?);
+            }
+            if key.starts_with("DESC_") || key.starts_with("DESCRIPTOR_") || key == "DESCRIPTOR" {
+                config.descriptors.push(val.parse()?);
+            }
+            if key.starts_with("ADDRESS_") {
+                config.addresses.push(val.parse()?);
+            }
+        }
+        Ok(config)
+    }
+
+    #[cfg(feature = "cli")]
+    pub fn dotenv() {
+        dirs::home_dir().map(|home| dotenv::from_path(home.join("bwt.env")).ok());
     }
 
     #[cfg(all(not(feature = "pretty_env_logger"), not(feature = "android_logger")))]
