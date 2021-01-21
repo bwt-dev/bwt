@@ -13,8 +13,8 @@ use bitcoin_hashes::hex::{FromHex, ToHex};
 
 use crate::error::{fmt_error_chain, BwtError, Error, OptionExt};
 use crate::types::{BlockId, ScriptHash};
-use crate::util::{block_on_future, descriptor::Checksum};
-use crate::{store, util::banner, IndexChange, Query};
+use crate::util::{banner, block_on_future, descriptor::Checksum, whitepaper};
+use crate::{store, IndexChange, Query};
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
 
@@ -416,7 +416,7 @@ fn setup(
     // GET /banner.txt
     let banner_handler = warp::get()
         .and(warp::path!("banner.txt"))
-        .and(query)
+        .and(query.clone())
         .map(|query: Arc<Query>| banner::get_welcome_banner(&query, true))
         .map(handle_error);
 
@@ -427,6 +427,20 @@ fn setup(
         .map(|sync_tx: SyncChanSender| {
             sync_tx.lock().unwrap().send(())?;
             Ok(reply::with_status("syncing queued", StatusCode::ACCEPTED))
+        })
+        .map(handle_error);
+
+    // GET /bitcoin.pdf
+    let whitepaper_handler = warp::get()
+        .and(warp::path!("bitcoin.pdf"))
+        .and(query.clone())
+        .map(|query: Arc<Query>| {
+            let pdf_blob = whitepaper::get_whitepaper_pdf(query.rpc())?;
+            Ok(reply::with_header(
+                pdf_blob,
+                "Content-Type",
+                "application/pdf",
+            ))
         })
         .map(handle_error);
 
@@ -462,6 +476,7 @@ fn setup(
         debug_handler,
         banner_handler,
         sync_handler,
+        whitepaper_handler,
         warp::any().map(|| StatusCode::NOT_FOUND)
     )
     .with(warp::log("bwt::http"))

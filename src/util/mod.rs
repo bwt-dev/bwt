@@ -13,6 +13,7 @@ pub mod banner;
 pub mod bitcoincore_ext;
 pub mod bitcoincore_wait;
 pub mod descriptor;
+pub mod whitepaper;
 pub mod xpub;
 
 pub use bitcoincore_ext::RpcApiExt;
