@@ -665,7 +665,7 @@ impl ChangelogFilter {
 
 fn parse_synced_tip(s: &str) -> Result<BlockId, Error> {
     let mut parts = s.splitn(2, ':');
-    let height: u32 = parts.next().req()?.parse()?;
+    let height: u32 = parts.next().required()?.parse()?;
     Ok(match parts.next() {
         Some(block_hash) => BlockId(height, BlockHash::from_hex(block_hash)?),
         None => BlockId(height, BlockHash::default()),

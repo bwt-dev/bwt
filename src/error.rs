@@ -71,7 +71,7 @@ pub trait OptionExt<T> {
     where
         D: Display + Send + Sync + 'static;
 
-    fn req(self) -> Result<T>;
+    fn required(self) -> Result<T>;
 }
 
 impl<T> OptionExt<T> for Option<T> {
@@ -82,7 +82,7 @@ impl<T> OptionExt<T> for Option<T> {
         self.context(context)
     }
 
-    fn req(self) -> Result<T> {
+    fn required(self) -> Result<T> {
         self.context("missing required option")
     }
 }

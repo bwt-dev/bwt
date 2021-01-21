@@ -636,12 +636,12 @@ fn parse_yyyymmdd(s: &str) -> Result<u64> {
     let mut parts = s.splitn(3, '-');
     Ok(Utc
         .ymd_opt(
-            parts.next().req()?.parse()?,
-            parts.next().req()?.parse()?,
-            parts.next().req()?.parse()?,
+            parts.next().required()?.parse()?,
+            parts.next().required()?.parse()?,
+            parts.next().required()?.parse()?,
         )
         .single()
-        .req()?
+        .required()?
         .and_hms(0, 0, 0)
         .timestamp() as u64)
 }
