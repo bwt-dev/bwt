@@ -169,7 +169,7 @@ pub struct Config {
         feature = "cli",
         structopt(
             short = "A",
-            long,
+            long = "address",
             help = "Addresses to track",
             env,
             hide_env_values(true),
