@@ -57,11 +57,8 @@ if [ -z "$SKIP_BUILD" ]; then
     ./scripts/build.sh
   fi
 
-  # remove subdirectories, keep release tarballs
-  rm -r dist/*/
-
   echo Making SHA256SUMS...
-  (cd dist && sha256sum *) | sort | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc
+  (cd dist && sha256sum *.{tar.gz,zip}) | sort | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc
 fi
 
 
@@ -96,7 +93,7 @@ if [[ -z "$SKIP_UPLOAD" && -n "$GH_TOKEN" ]]; then
            || curl -sf -H "$gh_auth" -d "$release_opt" $gh_base/releases)
   gh_upload=$(echo "$gh_release" | jq -r .upload_url | sed -e 's/{?name,label}//')
 
-  for file in SHA256SUMS.asc dist/*; do
+  for file in SHA256SUMS.asc dist/*.{tar.gz,zip}; do
     echo ">> Uploading $file"
 
     curl -f --progress-bar -H "$gh_auth" -H "Content-Type: application/octet-stream" \
@@ -110,11 +107,5 @@ fi
 
 if [ -z "$SKIP_DOCKER" ]; then
   echo Releasing docker images...
-
-  docker_tag=$docker_name:$version
-  docker build -t $docker_tag .
-  docker build -t $docker_tag-electrum --build-arg FEATURES=electrum .
-  docker tag $docker_tag $docker_name:latest
-  docker tag $docker_tag-electrum $docker_name:electrum
-  docker push $docker_name
+  ./scripts/docker-release.sh
 fi

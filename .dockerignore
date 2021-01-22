@@ -4,6 +4,5 @@ Dockerfile
 stuff
 scripts
 .git
-dist
 contrib
 examples
