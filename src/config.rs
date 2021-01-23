@@ -12,7 +12,7 @@ use crate::util::BoolThen;
 
 #[cfg(any(feature = "pretty_env_logger", feature = "android_logger"))]
 use log::Level;
-#[cfg(feature = "pretty_env_logger")]
+#[cfg(all(feature = "pretty_env_logger", not(feature = "android_logger")))]
 use pretty_env_logger::env_logger::Builder as LogBuilder;
 
 #[derive(Debug, Deserialize)]
@@ -530,7 +530,9 @@ impl Config {
             return;
         }
 
-        #[cfg(feature = "pretty_env_logger")]
+        // If both pretty_env_logger and android_logger are enabled, android_logger takes priority
+
+        #[cfg(all(feature = "pretty_env_logger", not(feature = "android_logger")))]
         let mut builder = apply_log_env(if self.timestamp {
             pretty_env_logger::formatted_timed_builder()
         } else {
@@ -580,7 +582,7 @@ impl Config {
                 .to_level_filter(),
             );
 
-        #[cfg(feature = "pretty_env_logger")]
+        #[cfg(all(feature = "pretty_env_logger", not(feature = "android_logger")))]
         builder.init();
 
         #[cfg(feature = "android_logger")]
@@ -596,7 +598,7 @@ impl Config {
     }
 }
 
-#[cfg(feature = "pretty_env_logger")]
+#[cfg(all(feature = "pretty_env_logger", not(feature = "android_logger")))]
 fn apply_log_env(mut builder: LogBuilder) -> LogBuilder {
     use std::env;
     if let Ok(s) = env::var("RUST_LOG") {

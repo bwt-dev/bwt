@@ -1,6 +1,7 @@
 #!/bin/bash
 
 cargo check
+cargo check --all-features
 
 # All combos that include at least `cli` and one pf `http`/`electrum`
 feature_combos="CH CE CEH CET CHT CHW CEW CEHT CEHW CETW CHTW CEHTW"
