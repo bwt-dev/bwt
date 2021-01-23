@@ -19,6 +19,9 @@ use pretty_env_logger::env_logger::Builder as LogBuilder;
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "cli", derive(structopt::StructOpt))]
 pub struct Config {
+    //
+    // General options
+    //
     #[cfg_attr(
         feature = "cli",
         structopt(
@@ -42,7 +45,7 @@ pub struct Config {
             long,
             help = "Increase verbosity level (up to 4 times) [env: VERBOSE]",
             parse(from_occurrences),
-            display_order(98)
+            display_order(1000)
         )
     )]
     #[serde(default)]
@@ -51,15 +54,18 @@ pub struct Config {
     #[cfg_attr(
         feature = "cli",
         structopt(
-            short = "t",
+            short = "T",
             long,
             help = "Show timestmaps in log messages",
-            display_order(99)
+            display_order(1001)
         )
     )]
     #[serde(default)]
     pub timestamp: bool,
 
+    //
+    // Bitcoin Core options
+    //
     #[cfg_attr(
         feature = "cli",
         structopt(
@@ -130,13 +136,17 @@ pub struct Config {
         feature = "cli",
         structopt(
             long,
+            short = "W",
             help = "Create the specified bitcoind wallet if it's missing [env: CREATE_WALLET_IF_MISSING]",
-            display_order(39)
+            display_order(1002)
         )
     )]
     #[serde(default)]
     pub create_wallet_if_missing: bool,
 
+    //
+    // Wallet tracking settings
+    //
     #[cfg_attr(feature = "cli", structopt(
         short = "d",
         long = "descriptor",
@@ -170,7 +180,7 @@ pub struct Config {
         structopt(
             short = "A",
             long = "address",
-            help = "Addresses to track",
+            help = "Add an address to track",
             env,
             hide_env_values(true),
             use_delimiter(true),
@@ -218,7 +228,7 @@ pub struct Config {
             short = "F",
             long,
             help = "Force rescanning for historical transactions, even if the addresses were already previously imported [env: FORCE_RESCAN]",
-            display_order(29)
+            display_order(1003)
         )
     )]
     #[serde(default)]
@@ -254,6 +264,10 @@ pub struct Config {
     #[serde(default = "default_initial_import_size")]
     pub initial_import_size: u32,
 
+
+    //
+    // Electrum options
+    //
     #[cfg(feature = "electrum")]
     #[cfg_attr(
         feature = "cli",
@@ -273,13 +287,17 @@ pub struct Config {
         feature = "cli",
         structopt(
             long,
+            short = "M",
             help = "Skip generating merkle proofs. Reduces resource usage, requires running Electrum with --skipmerklecheck. [env: ELECTRUM_SKIP_MERKLE]",
-            display_order(41)
+            display_order(1004)
         )
     )]
     #[serde(default)]
     pub electrum_skip_merkle: bool,
 
+    //
+    // HTTP options
+    //
     #[cfg(feature = "http")]
     #[cfg_attr(
         feature = "cli",
@@ -298,6 +316,7 @@ pub struct Config {
     #[cfg_attr(
         feature = "cli",
         structopt(
+            short = "S",
             long,
             help = "Allowed cross-origins for http api server (Access-Control-Allow-Origin)",
             env,
@@ -307,6 +326,9 @@ pub struct Config {
     )]
     pub http_cors: Option<String>,
 
+    //
+    // Miscellaneous options
+    //
     #[cfg_attr(feature = "cli", structopt(
         short = "i",
         long,
@@ -336,7 +358,7 @@ pub struct Config {
         long = "no-startup-banner",
         help = "Disable the startup banner [env: NO_STARTUP_BANNER]",
         parse(from_flag = std::ops::Not::not),
-        display_order(92)
+        display_order(1005)
     ))]
     #[serde(default)]
     pub startup_banner: bool,
