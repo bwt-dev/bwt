@@ -11,8 +11,8 @@ mod macros;
 
 pub mod banner;
 pub mod bitcoincore_ext;
-pub mod bitcoincore_wait;
 pub mod descriptor;
+pub mod progress;
 pub mod xpub;
 
 pub use bitcoincore_ext::RpcApiExt;
@@ -71,6 +71,11 @@ where
     } else {
         false
     }
+}
+
+pub fn fmt_date(unix: u64) -> String {
+    let dt = chrono::NaiveDateTime::from_timestamp(unix as i64, 0);
+    dt.format("%Y-%m-%d").to_string()
 }
 
 // debounce a Sender to only emit events sent when `duration` seconds has passed since

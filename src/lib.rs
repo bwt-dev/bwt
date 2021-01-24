@@ -43,6 +43,8 @@ pub use config::Config;
 pub use error::{Error, Result};
 pub use indexer::{IndexChange, Indexer};
 pub use query::Query;
+pub use types::RescanSince;
+pub use util::progress::Progress;
 pub use wallet::{Wallet, WalletWatcher};
 
 pub const BWT_VERSION: &str = env!("CARGO_PKG_VERSION");
