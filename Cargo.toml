@@ -30,7 +30,7 @@ path = "src/main.rs"
 required-features = [ "cli" ]
 
 [dependencies]
-bitcoin = { version = "0.25.2", features = [ "use-serde" ] }
+bitcoin = { version = "0.25.2", features = [ "use-serde", "base64" ] }
 bitcoin_hashes = { version = "0.9.0", features = [ "serde" ] }
 bitcoincore-rpc = "0.12.0"
 miniscript = { version = "4.0.0", features = [ "serde" ] }
@@ -41,6 +41,7 @@ lazy_static = "1.4.0"
 anyhow = "1.0.34"
 log = "0.4.11"
 thiserror = "1.0.22"
+rand = "0.8.2"
 
 # http deps
 tokio = { version = "0.2.23", features = ["macros"], optional = true }
