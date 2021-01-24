@@ -6,6 +6,7 @@ use bitcoincore_rpc::Auth as RpcAuth;
 use crate::error::{Context, OptionExt, Result};
 use crate::query::QueryConfig;
 use crate::types::RescanSince;
+use crate::util::auth::AuthMethod;
 use crate::util::descriptor::ExtendedDescriptor;
 use crate::util::xpub::XyzPubKey;
 use crate::util::BoolThen;
@@ -264,6 +265,49 @@ pub struct Config {
     #[serde(default = "default_initial_import_size")]
     pub initial_import_size: u32,
 
+    //
+    // Auth settings
+    //
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            short = "C",
+            long,
+            help = "Generate an access token and persist it to the specified cookie file",
+            env,
+            hide_env_values(true),
+            display_order(40)
+        )
+    )]
+    pub auth_cookie: Option<path::PathBuf>,
+
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            short = "t",
+            long,
+            help = "Set access token for authentication",
+            env,
+            hide_env_values(true),
+            display_order(41)
+        )
+    )]
+    pub auth_token: Option<String>,
+
+    #[cfg_attr(feature = "cli", structopt(skip = false))]
+    #[serde(default)]
+    pub auth_ephemeral: bool,
+
+    #[cfg_attr(
+        feature = "cli",
+        structopt(
+            long,
+            help = "Print access token (useful with --auth-cookie) [env: PRINT_TOKEN]",
+            display_order(1006)
+        )
+    )]
+    #[serde(default)]
+    pub print_token: bool,
 
     //
     // Electrum options
@@ -277,7 +321,7 @@ pub struct Config {
             help = "Address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:60001' for testnet, '127.0.0.1:60601' for signet or '127.0.0.1:60401' for regtest]",
             env,
             hide_env_values(true),
-            display_order(40)
+            display_order(43)
         )
     )]
     pub electrum_addr: Option<net::SocketAddr>,
@@ -464,6 +508,18 @@ impl Config {
         Ok(addresses)
     }
 
+    pub fn auth_method(&self) -> Result<AuthMethod> {
+        Ok(
+            match (&self.auth_cookie, &self.auth_token, self.auth_ephemeral) {
+                (Some(cookie), None, false) => AuthMethod::Cookie(cookie.clone()),
+                (None, Some(token), false) => AuthMethod::UserProvided(token.clone()),
+                (None, None, true) => AuthMethod::Ephemeral,
+                (None, None, false) => AuthMethod::None,
+                _ => bail!("Invalid combination of authentication options"),
+            },
+        )
+    }
+
     #[cfg(feature = "electrum")]
     pub fn electrum_addr(&self) -> Option<net::SocketAddr> {
         self.electrum_addr.clone().or_else(|| {
@@ -513,6 +569,9 @@ impl Config {
         }
         if bool_env("NO_STARTUP_BANNER") {
             config.startup_banner = false;
+        }
+        if bool_env("PRINT_TOKEN") {
+            config.print_token = true;
         }
         #[cfg(feature = "electrum")]
         if bool_env("ELECTRUM_SKIP_MERKLE") {
@@ -728,6 +787,7 @@ defaultable!(Config,
     verbose, timestamp, broadcast_cmd, startup_banner,
     descriptors, xpubs, addresses, addresses_file, force_rescan,
     bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie, create_wallet_if_missing,
+    auth_cookie, auth_token, auth_ephemeral, print_token,
     #[cfg(feature = "electrum")] electrum_addr,
     #[cfg(feature = "electrum")] electrum_skip_merkle,
     #[cfg(feature = "http")] http_addr,

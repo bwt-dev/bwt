@@ -1,5 +1,5 @@
 use std::sync::{mpsc, Arc, Mutex};
-use std::{net, thread};
+use std::{convert, net, thread};
 
 use serde::{Deserialize, Deserializer};
 use tokio::stream::{self, Stream, StreamExt};
@@ -13,12 +13,14 @@ use bitcoin_hashes::hex::{FromHex, ToHex};
 
 use crate::error::{fmt_error_chain, BwtError, Error, OptionExt};
 use crate::types::{BlockId, ScriptHash};
+use crate::util::auth::http_basic_auth;
 use crate::util::{banner, block_on_future, descriptor::Checksum, whitepaper};
 use crate::{store, IndexChange, Query};
 
 type SyncChanSender = Arc<Mutex<mpsc::Sender<()>>>;
 
 fn setup(
+    access_token: Option<String>,
     cors: Option<String>,
     query: Arc<Query>,
     sync_tx: SyncChanSender,
@@ -444,7 +446,7 @@ fn setup(
         })
         .map(handle_error);
 
-    let handlers = balanced_or_tree!(
+    let handler = balanced_or_tree!(
         wallets_handler,
         wallet_handler,
         wallet_key_handler, // needs to be before spk_handler to work with keys that don't have any indexed history
@@ -479,10 +481,17 @@ fn setup(
         whitepaper_handler,
         warp::any().map(|| StatusCode::NOT_FOUND)
     )
-    .with(warp::log("bwt::http"))
     .with(warp::reply::with::headers(headers));
 
-    warp::serve(handlers)
+    // Wrap handler with (optional) authentication, logging and rejection handling
+    let handler = http_basic_auth(access_token)
+        .and_then(reject_error)
+        .untuple_one()
+        .and(handler)
+        .with(warp::log("bwt::http"))
+        .recover(handle_rejection);
+
+    warp::serve(handler)
 }
 
 #[tokio::main]
@@ -515,13 +524,14 @@ pub struct HttpServer {
 impl HttpServer {
     pub fn start(
         addr: net::SocketAddr,
+        access_token: Option<String>,
         cors: Option<String>,
         query: Arc<Query>,
         sync_tx: mpsc::Sender<()>,
     ) -> Self {
         let listeners = Arc::new(Mutex::new(Vec::new()));
         let sync_tx = Arc::new(Mutex::new(sync_tx));
-        let warp_server = setup(cors, query, sync_tx, listeners.clone());
+        let warp_server = setup(access_token, cors, query, sync_tx, listeners.clone());
 
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
         let (addr_tx, addr_rx) = oneshot::channel();
@@ -712,6 +722,7 @@ fn compact_history(tx_hist: &store::HistoryEntry) -> serde_json::Value {
     json!([tx_hist.txid, tx_hist.status])
 }
 
+// Handle errors produced by route handlers
 fn handle_error<T>(result: Result<T, Error>) -> impl Reply
 where
     T: Reply + Send,
@@ -719,7 +730,7 @@ where
     match result {
         Ok(x) => x.into_response(),
         Err(e) => {
-            warn!("processing failed: {:#?}", e);
+            warn!("handler failed: {:#?}", e);
             let status = get_error_status(&e);
             let body = fmt_error_chain(&e);
             reply::with_status(body, status).into_response()
@@ -727,11 +738,20 @@ where
     }
 }
 
+// Transform an anyhow::Error into a Rejection
 async fn reject_error<T>(result: Result<T, Error>) -> Result<T, warp::Rejection> {
-    result.map_err(|err| {
-        warn!("pre-processing failed: {:?}", err);
-        warp::reject::custom(WarpError(err))
-    })
+    result.map_err(|err| warp::reject::custom(WarpError(err)))
+}
+
+// Format rejections into HTTP responses
+async fn handle_rejection(err: warp::Rejection) -> Result<impl Reply, convert::Infallible> {
+    warn!("request rejected: {:?}", err);
+    let (status, body) = if let Some(WarpError(err)) = err.find() {
+        (get_error_status(&err), fmt_error_chain(&err))
+    } else {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", err))
+    };
+    Ok(reply::with_status(body, status).into_response())
 }
 
 fn get_error_status(e: &Error) -> StatusCode {

@@ -23,6 +23,7 @@ pub struct App {
     config: Config,
     indexer: Arc<RwLock<Indexer>>,
     query: Arc<Query>,
+    access_token: Option<String>,
     sync_chan: (mpsc::Sender<()>, mpsc::Receiver<()>),
 
     #[cfg(feature = "electrum")]
@@ -42,7 +43,6 @@ impl App {
         debug!("{}", scrub_config(&config));
 
         let watcher = WalletWatcher::from_config(&config)?;
-
         let rpc = Arc::new(RpcClient::new(
             config.bitcoind_url(),
             config.bitcoind_auth()?,
@@ -50,6 +50,7 @@ impl App {
         let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)));
         let query = Arc::new(Query::new((&config).into(), rpc.clone(), indexer.clone()));
 
+        // wait for bitcoind to load up and initialize the wallet
         init_bitcoind(&rpc, &config, progress_tx.clone())?;
 
         if config.startup_banner {
@@ -59,27 +60,42 @@ impl App {
         // do an initial sync without keeping track of updates
         indexer.write().unwrap().initial_sync(progress_tx.clone())?;
 
+        // abort if the progress channel was shutdown
         if let Some(progress_tx) = progress_tx {
             if progress_tx.send(Progress::Done).is_err() {
                 bail!(BwtError::Canceled);
             }
         }
 
-        let (sync_tx, sync_rx) = mpsc::channel();
+        // prepare access token (user-provided, cookie file or ephemeral)
+        let access_token = config.auth_method()?.get_token()?;
+        if config.print_token {
+            if let Some(token) = &access_token {
+                info!(target: "bwt::auth", "Your SECRET access token is: {}", token);
+            }
+        }
 
-        #[cfg(any(feature = "electrum", unix))]
-        // debounce external sync message rate to avoid excessive indexing when bitcoind catches up
+        // channel for triggering real-time index sync
+        // debounced to avoid excessive indexing when bitcoind catches up
+        let (sync_tx, sync_rx) = mpsc::channel();
+        #[cfg(any(feature = "http", unix))]
         let debounced_sync_tx = debounce_sender(sync_tx.clone(), DEBOUNCE_SEC);
 
         #[cfg(feature = "electrum")]
-        let electrum = config
-            .electrum_addr()
-            .map(|addr| ElectrumServer::start(addr, config.electrum_skip_merkle, query.clone()));
+        let electrum = config.electrum_addr().map(|addr| {
+            ElectrumServer::start(
+                addr,
+                access_token.clone(),
+                config.electrum_skip_merkle,
+                query.clone(),
+            )
+        });
 
         #[cfg(feature = "http")]
         let http = config.http_addr().map(|addr| {
             HttpServer::start(
                 addr,
+                access_token.clone(),
                 config.http_cors.clone(),
                 query.clone(),
                 debounced_sync_tx.clone(),
@@ -100,6 +116,7 @@ impl App {
             config,
             indexer,
             query,
+            access_token,
             sync_chan: (sync_tx, sync_rx),
             #[cfg(feature = "electrum")]
             electrum,
@@ -163,6 +180,11 @@ impl App {
     /// Get the `Query` instance
     pub fn query(&self) -> Arc<Query> {
         self.query.clone()
+    }
+
+    /// Get the access token
+    pub fn access_token(&self) -> Option<&str> {
+        self.access_token.as_deref()
     }
 
     #[cfg(feature = "electrum")]
@@ -287,6 +309,9 @@ fn scrub_config(config: &Config) -> String {
     let mut s = format!("{:?}", config);
     if let Some(auth) = config.bitcoind_auth.as_deref() {
         s = s.replace(auth, "**SCRUBBED**")
+    }
+    if let Some(token) = config.auth_token.as_deref() {
+        s = s.replace(token, "**SCRUBBED**")
     }
     s
 }

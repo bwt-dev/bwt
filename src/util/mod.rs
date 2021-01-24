@@ -9,6 +9,7 @@ use bitcoin::Txid;
 #[macro_use]
 mod macros;
 
+pub mod auth;
 pub mod banner;
 pub mod bitcoincore_ext;
 pub mod descriptor;

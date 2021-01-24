@@ -15,6 +15,7 @@ use crate::error::{fmt_error_chain, BwtError, Context, Result};
 use crate::indexer::IndexChange;
 use crate::query::Query;
 use crate::types::{BlockId, MempoolEntry, ScriptHash, StatusHash};
+use crate::util::auth::electrum_socks5_auth;
 use crate::util::{banner, BoolThen};
 
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
@@ -408,7 +409,22 @@ impl Connection {
         }
     }
 
-    fn handle_requests(mut reader: BufReader<TcpStream>, tx: SyncSender<Message>) -> Result<()> {
+    fn handle_requests(
+        mut stream: TcpStream,
+        access_token: Option<&str>,
+        tx: SyncSender<Message>,
+    ) -> Result<()> {
+        // If an access token was set, require the SOCKS5-based authentication
+        // to take place before allowing RPC commands to pass through.
+        if let Some(access_token) = access_token {
+            stream = electrum_socks5_auth(stream, access_token).map_err(|err| {
+                let _ = tx.send(Message::Done);
+                err.context("authentication failed")
+            })?;
+            info!(target: LT, "client authenticated");
+        }
+
+        let mut reader = BufReader::new(stream);
         loop {
             let mut line = Vec::<u8>::new();
             reader
@@ -434,22 +450,27 @@ impl Connection {
         }
     }
 
-    pub fn run(mut self) {
-        let reader = BufReader::new(self.stream.try_clone().expect("failed to clone TcpStream"));
+    pub fn run(mut self, access_token: Arc<Option<String>>) {
         let tx = self.chan.sender();
-        let child = spawn_thread("reader", || Connection::handle_requests(reader, tx));
+        let stream = self.stream.try_clone().expect("failed to clone TcpStream");
+        let child = spawn_thread("reader", move || {
+            Connection::handle_requests(stream, access_token.as_deref(), tx)
+        });
         if let Err(e) = self.handle_replies() {
-            error!(
-                target: LT,
-                "[{}] connection handling failed: {:#?}", self.addr, e,
-            )
+            warn!(target: LT, "[{}] handling failed: {}", self.addr, e,)
         }
         trace!(target: LT, "[{}] shutting down connection", self.addr);
-        self.subman.lock().unwrap().remove(self.subscriber_id);
         let _ = self.stream.shutdown(Shutdown::Both);
         if let Err(err) = child.join().expect("receiver panicked") {
-            error!(target: LT, "[{}] receiver failed: {:?}", self.addr, err);
+            let msg = fmt_error_chain(&err);
+            warn!(target: LT, "[{}] receiver failed: {}", self.addr, msg);
         }
+    }
+}
+
+impl Drop for Connection {
+    fn drop(&mut self) {
+        self.subman.lock().unwrap().remove(self.subscriber_id);
     }
 }
 
@@ -526,9 +547,15 @@ impl ElectrumServer {
         (bound_addr, chan)
     }
 
-    pub fn start(addr: SocketAddr, skip_merkle: bool, query: Arc<Query>) -> Self {
+    pub fn start(
+        addr: SocketAddr,
+        access_token: Option<String>,
+        skip_merkle: bool,
+        query: Arc<Query>,
+    ) -> Self {
         let notification = Channel::unbounded();
         let (bound_addr, acceptor) = Self::start_acceptor(addr);
+        let access_token = Arc::new(access_token);
         Self {
             notification: notification.sender(),
             addr: bound_addr,
@@ -546,11 +573,12 @@ impl ElectrumServer {
                     let query = query.clone();
                     let subman = subman.clone();
                     let threads_ = threads.clone();
+                    let access_token = access_token.clone();
 
                     let thandle = spawn_thread("peer", move || {
                         info!(target: LT, "[{}] connected peer", addr);
                         let conn = Connection::new(query, skip_merkle, stream, addr, subman);
-                        conn.run();
+                        conn.run(access_token);
                         info!(target: LT, "[{}] disconnected peer", addr);
                         threads_.lock().unwrap().remove(&thread::current().id());
                     });

@@ -16,7 +16,7 @@ default = [ "cli", "electrum", "http", "track-spends" ]
 cli = [ "extra", "structopt", "dotenv" ]
 extra = [ "dirs", "pretty_env_logger", "signal-hook" ]
 electrum = []
-http = [ "warp", "tokio" ]
+http = [ "warp", "tokio", "bitcoin/base64" ]
 webhooks = [ "reqwest" ]
 track-spends = []
 android = [ "android_logger" ]
@@ -41,6 +41,7 @@ lazy_static = "1.4.0"
 anyhow = "1.0.34"
 log = "0.4.11"
 thiserror = "1.0.22"
+rand = "0.8.2"
 
 # http deps
 tokio = { version = "0.2.23", features = ["macros"], optional = true }

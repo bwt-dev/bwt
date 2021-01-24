@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Authentication support for the Electrum and HTTP API servers (#70)
+
 - Compatibility with Bitcoin Core v0.21
 
 - Support for Signet
