@@ -15,7 +15,7 @@ use log::Level;
 #[cfg(all(feature = "pretty_env_logger", not(feature = "android_logger")))]
 use pretty_env_logger::env_logger::Builder as LogBuilder;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 #[cfg_attr(feature = "cli", derive(structopt::StructOpt))]
 pub struct Config {
