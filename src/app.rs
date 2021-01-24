@@ -4,7 +4,7 @@ use std::{net, thread, time};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::error::{BwtError, Result};
-use crate::util::bitcoincore_wait::Progress;
+use crate::util::progress::Progress;
 use crate::util::{banner, debounce_sender, on_oneshot_done};
 use crate::{Config, Indexer, Query, WalletWatcher};
 
@@ -253,7 +253,7 @@ fn init_bitcoind(
     config: &Config,
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> Result<()> {
-    use crate::util::bitcoincore_wait::{wait_blockchain_sync, wait_wallet_scan};
+    use crate::util::progress::{wait_blockchain_sync, wait_wallet_scan};
 
     const INTERVAL_SLOW: time::Duration = time::Duration::from_secs(6);
     const INTERVAL_FAST: time::Duration = time::Duration::from_millis(1500);

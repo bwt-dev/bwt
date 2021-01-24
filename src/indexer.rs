@@ -13,7 +13,7 @@ use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 use crate::error::Result;
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
 use crate::types::{BlockId, InPoint, RescanSince, ScriptHash, TxStatus};
-use crate::util::bitcoincore_wait::Progress;
+use crate::util::progress::Progress;
 use crate::wallet::{KeyOrigin, WalletWatcher};
 
 pub struct Indexer {
@@ -435,7 +435,7 @@ fn spawn_send_progress_thread(
     rpc: Arc<RpcClient>,
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> mpsc::SyncSender<()> {
-    use crate::util::bitcoincore_wait::wait_wallet_scan;
+    use crate::util::progress::wait_wallet_scan;
 
     const DELAY: time::Duration = time::Duration::from_millis(250);
     const INTERVAL_SLOW: time::Duration = time::Duration::from_secs(6);
