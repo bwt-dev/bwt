@@ -23,12 +23,12 @@ pub struct Config {
     //
     // General options
     //
+    /// One of 'bitcoin', 'testnet', 'signet' or 'regtest'
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "n",
             long,
-            help = "One of 'bitcoin', 'testnet', 'signet' or 'regtest'",
             default_value = "bitcoin",
             env,
             hide_env_values(true),
@@ -38,80 +38,50 @@ pub struct Config {
     #[serde(default = "default_network")]
     pub network: Network,
 
+    /// Increase verbosity level (up to 4 times) [env: VERBOSE]
     // cannot be set using an env var, it does not play nicely with from_occurrences
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "v",
-            long,
-            help = "Increase verbosity level (up to 4 times) [env: VERBOSE]",
-            parse(from_occurrences),
-            display_order(1000)
-        )
+        structopt(short = "v", long, parse(from_occurrences), display_order(1000))
     )]
     #[serde(default)]
     pub verbose: usize,
 
-    #[cfg_attr(
-        feature = "cli",
-        structopt(
-            short = "T",
-            long,
-            help = "Show timestmaps in log messages",
-            display_order(1001)
-        )
-    )]
+    /// Show timestmaps in log messages
+    #[cfg_attr(feature = "cli", structopt(short = "T", long, display_order(1001)))]
     #[serde(default)]
     pub timestamp: bool,
 
     //
     // Bitcoin Core options
     //
+    /// Specify the bitcoind wallet to use (optional)
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "w",
-            long,
-            help = "Specify the bitcoind wallet to use (optional)",
-            env,
-            hide_env_values(true),
-            display_order(30)
-        )
+        structopt(short = "w", long, env, hide_env_values(true), display_order(30))
     )]
     pub bitcoind_wallet: Option<String>,
 
+    /// Path to bitcoind directory (used for cookie file) [default: ~/.bitcoin]
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "r",
-            long,
-            help = "Path to bitcoind directory (used for cookie file) [default: ~/.bitcoin)",
-            env,
-            hide_env_values(true),
-            display_order(31)
-        )
+        structopt(short = "r", long, env, hide_env_values(true), display_order(31))
     )]
     pub bitcoind_dir: Option<path::PathBuf>,
 
+    /// URL for the bitcoind RPC server [default: http://localhost:<network-rpc-port>]
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "u",
-            long,
-            help = "URL for the bitcoind RPC server [default: http://localhost:<network-rpc-port>)",
-            env,
-            hide_env_values(true),
-            display_order(32)
-        )
+        structopt(short = "u", long, env, hide_env_values(true), display_order(32))
     )]
     pub bitcoind_url: Option<String>,
 
+    /// Credentials for accessing the bitcoind RPC server (as <username>:<password>, used instead of the cookie file)
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "a",
             long,
-            help = "Credentials for accessing the bitcoind RPC server (as <username>:<password>, used instead of the cookie file)",
             alias = "bitcoind-cred",
             env,
             hide_env_values(true),
@@ -120,38 +90,25 @@ pub struct Config {
     )]
     pub bitcoind_auth: Option<String>,
 
+    /// Cookie file for accessing the bitcoind RPC server [default: <bitcoind-dir>/.cookie]
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "c",
-            long,
-            help = "Cookie file for accessing the bitcoind RPC server [default: <bitcoind-dir>/.cookie)",
-            env,
-            hide_env_values(true),
-            display_order(34)
-        )
+        structopt(short = "c", long, env, hide_env_values(true), display_order(34))
     )]
     pub bitcoind_cookie: Option<path::PathBuf>,
 
-    #[cfg_attr(
-        feature = "cli",
-        structopt(
-            long,
-            short = "W",
-            help = "Create the specified bitcoind wallet if it's missing [env: CREATE_WALLET_IF_MISSING]",
-            display_order(1002)
-        )
-    )]
+    /// Create the specified bitcoind wallet if it's missing [env: CREATE_WALLET_IF_MISSING]
+    #[cfg_attr(feature = "cli", structopt(long, short = "W", display_order(1002)))]
     #[serde(default)]
     pub create_wallet_if_missing: bool,
 
     //
     // Wallet tracking settings
     //
+    /// Add a descriptor to track
     #[cfg_attr(feature = "cli", structopt(
         short = "d",
         long = "descriptor",
-        help = "Add a descriptor to track",
         parse(try_from_str = parse_desc),
         env, hide_env_values(true),
         use_delimiter(true), value_delimiter(";"),
@@ -160,12 +117,12 @@ pub struct Config {
     #[serde(default)]
     pub descriptors: Vec<ExtendedDescriptor>,
 
+    /// Add an extended public key to track (with separate internal/external chains)
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "x",
             long = "xpub",
-            help = "Add an extended public key to track (with separate internal/external chains)",
             env,
             hide_env_values(true),
             use_delimiter(true),
@@ -176,12 +133,12 @@ pub struct Config {
     #[serde(default)]
     pub xpubs: Vec<XyzPubKey>,
 
+    /// Add an address to track
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "A",
             long = "address",
-            help = "Add an address to track",
             env,
             hide_env_values(true),
             use_delimiter(true),
@@ -192,27 +149,21 @@ pub struct Config {
     #[serde(default)]
     pub addresses: Vec<Address>,
 
+    /// File with addresses to track
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "f",
-            long,
-            help = "File with addresses to track",
-            env,
-            hide_env_values(true),
-            display_order(24)
-        )
+        structopt(short = "f", long, env, hide_env_values(true), display_order(24))
     )]
     #[serde(default)]
     pub addresses_file: Option<path::PathBuf>,
 
-    // defaults to scanning from genesis for structopt/cli use, or to 'now' for direct library use
+    /// Start date for wallet history rescan. Accepts YYYY-MM-DD formatted strings, unix timestamps, or 'now' to watch for new transactions only. Defaults to rescanning from genesis.
+    // (defaults to scanning from genesis for structopt/cli use, or to 'now' for direct library use)
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "R",
             long,
-            help = "Start date for wallet history rescan. Accepts YYYY-MM-DD formatted strings, unix timestamps, or 'now' to watch for new transactions only. Defaults to rescanning from genesis.",
             parse(try_from_str = parse_rescan),
             default_value = "0",
             env,
@@ -223,24 +174,17 @@ pub struct Config {
     #[serde(default = "default_rescan_since")]
     pub rescan_since: RescanSince,
 
-    #[cfg_attr(
-        feature = "cli",
-        structopt(
-            short = "F",
-            long,
-            help = "Force rescanning for historical transactions, even if the addresses were already previously imported [env: FORCE_RESCAN]",
-            display_order(1003)
-        )
-    )]
+    /// Force rescanning for historical transactions, even if the addresses were already previously imported [env: FORCE_RESCAN]
+    #[cfg_attr(feature = "cli", structopt(short = "F", long, display_order(1003)))]
     #[serde(default)]
     pub force_rescan: bool,
 
+    /// Gap limit for importing child addresses
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "g",
             long,
-            help = "Gap limit for importing child addresses",
             default_value = "20",
             env,
             hide_env_values(true),
@@ -250,12 +194,12 @@ pub struct Config {
     #[serde(default = "default_gap_limit")]
     pub gap_limit: u32,
 
+    /// The batch size for importing addresses during the initial sync (set higher to reduce number of rescans)
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "G",
             long,
-            help = "The batch size for importing addresses during the initial sync (set higher to reduce number of rescans)",
             default_value = "350",
             env,
             hide_env_values(true),
@@ -268,29 +212,17 @@ pub struct Config {
     //
     // Auth settings
     //
+    /// Generate an access token and persist it to the specified cookie file
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "C",
-            long,
-            help = "Generate an access token and persist it to the specified cookie file",
-            env,
-            hide_env_values(true),
-            display_order(40)
-        )
+        structopt(short = "C", long, env, hide_env_values(true), display_order(40))
     )]
     pub auth_cookie: Option<path::PathBuf>,
 
+    /// Set access token for authentication
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "t",
-            long,
-            help = "Set access token for authentication",
-            env,
-            hide_env_values(true),
-            display_order(41)
-        )
+        structopt(short = "t", long, env, hide_env_values(true), display_order(41))
     )]
     pub auth_token: Option<String>,
 
@@ -298,85 +230,54 @@ pub struct Config {
     #[serde(default)]
     pub auth_ephemeral: bool,
 
-    #[cfg_attr(
-        feature = "cli",
-        structopt(
-            long,
-            help = "Print access token (useful with --auth-cookie) [env: PRINT_TOKEN]",
-            display_order(1006)
-        )
-    )]
+    /// Print access token (useful with --auth-cookie) [env: PRINT_TOKEN]
+    #[cfg_attr(feature = "cli", structopt(long, display_order(1006)))]
     #[serde(default)]
     pub print_token: bool,
 
     //
     // Electrum options
     //
+    /// Address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:60001' for testnet, '127.0.0.1:60601' for signet or '127.0.0.1:60401' for regtest]
     #[cfg(feature = "electrum")]
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "e",
-            long,
-            help = "Address to bind the electrum rpc server [default: '127.0.0.1:50001' for mainnet, '127.0.0.1:60001' for testnet, '127.0.0.1:60601' for signet or '127.0.0.1:60401' for regtest]",
-            env,
-            hide_env_values(true),
-            display_order(43)
-        )
+        structopt(short = "e", long, env, hide_env_values(true), display_order(43))
     )]
     pub electrum_addr: Option<net::SocketAddr>,
 
+    /// Skip generating merkle proofs. Reduces resource usage, requires running Electrum with --skipmerklecheck. [env: ELECTRUM_SKIP_MERKLE]
     #[cfg(feature = "electrum")]
-    #[cfg_attr(
-        feature = "cli",
-        structopt(
-            long,
-            short = "M",
-            help = "Skip generating merkle proofs. Reduces resource usage, requires running Electrum with --skipmerklecheck. [env: ELECTRUM_SKIP_MERKLE]",
-            display_order(1004)
-        )
-    )]
+    #[cfg_attr(feature = "cli", structopt(long, short = "M", display_order(1004)))]
     #[serde(default)]
     pub electrum_skip_merkle: bool,
 
     //
     // HTTP options
     //
+    /// Address to bind the http api server [default: 127.0.0.1:3060]
     #[cfg(feature = "http")]
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short,
-            long,
-            help = "Address to bind the http api server [default: 127.0.0.1:3060]",
-            env,
-            hide_env_values(true),
-            display_order(45)
-        )
+        structopt(short, long, env, hide_env_values(true), display_order(45))
     )]
     pub http_addr: Option<net::SocketAddr>,
 
+    /// Allowed cross-origins for http api server (Access-Control-Allow-Origin)
     #[cfg(feature = "http")]
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            short = "S",
-            long,
-            help = "Allowed cross-origins for http api server (Access-Control-Allow-Origin)",
-            env,
-            hide_env_values(true),
-            display_order(46)
-        )
+        structopt(short = "S", long, env, hide_env_values(true), display_order(46))
     )]
     pub http_cors: Option<String>,
 
     //
     // Miscellaneous options
     //
+    /// Interval for checking for new blocks/seconds (in seconds)
     #[cfg_attr(feature = "cli", structopt(
         short = "i",
         long,
-        help = "Interval for checking for new blocks/seconds (in seconds)",
         default_value = "5",
         parse(try_from_str = parse_duration),
         env, hide_env_values(true),
@@ -385,12 +286,12 @@ pub struct Config {
     #[serde(default = "default_poll_interval")]
     pub poll_interval: time::Duration,
 
+    /// Custom command for broadcasting transactions. {tx_hex} is replaced with the transaction.
     #[cfg_attr(
         feature = "cli",
         structopt(
             short = "B",
             long = "tx-broadcast-cmd",
-            help = "Custom command for broadcasting transactions. {tx_hex} is replaced with the transaction.",
             env,
             hide_env_values(true),
             display_order(91)
@@ -398,36 +299,30 @@ pub struct Config {
     )]
     pub broadcast_cmd: Option<String>,
 
+    /// Disable the startup banner [env: NO_STARTUP_BANNER]
     #[cfg_attr(feature = "cli", structopt(
         long = "no-startup-banner",
-        help = "Disable the startup banner [env: NO_STARTUP_BANNER]",
         parse(from_flag = std::ops::Not::not),
         display_order(1005)
     ))]
     #[serde(default)]
     pub startup_banner: bool,
 
+    /// Path to bind the sync notification unix socket
     #[cfg(unix)]
     #[cfg_attr(
         feature = "cli",
-        structopt(
-            long,
-            short = "U",
-            help = "Path to bind the sync notification unix socket",
-            env,
-            hide_env_values(true),
-            display_order(101)
-        )
+        structopt(long, short = "U", env, hide_env_values(true), display_order(101))
     )]
     pub unix_listener_path: Option<path::PathBuf>,
 
+    /// Webhook url(s) to notify with index event updates
     #[cfg(feature = "webhooks")]
     #[cfg_attr(
         feature = "cli",
         structopt(
             long = "webhook-url",
             short = "H",
-            help = "Webhook url(s) to notify with index event updates",
             env,
             hide_env_values(true),
             use_delimiter(true),
