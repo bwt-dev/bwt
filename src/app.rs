@@ -6,7 +6,7 @@ use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 use crate::error::{BwtError, Result};
 use crate::util::progress::Progress;
 use crate::util::{banner, debounce_sender, on_oneshot_done};
-use crate::{Config, Indexer, Query, WalletWatcher};
+use crate::{Config, Indexer, IndexChange, Query, WalletWatcher};
 
 #[cfg(feature = "electrum")]
 use crate::electrum::ElectrumServer;
@@ -127,13 +127,35 @@ impl App {
         })
     }
 
+    /// Synchronize new blocks/transactions and emit updates to the running services
+    #[allow(clippy::option_map_unit_fn)]
+    pub fn sync(&self) -> Result<Vec<IndexChange>> {
+        let updates = self.indexer.write().unwrap().sync()?;
+
+        if !updates.is_empty() {
+            #[cfg(feature = "electrum")]
+            self.electrum
+                .as_ref()
+                .map(|electrum| electrum.send_updates(&updates));
+
+            #[cfg(feature = "http")]
+            self.http.as_ref().map(|http| http.send_updates(&updates));
+
+            #[cfg(feature = "webhooks")]
+            self.webhook
+                .as_ref()
+                .map(|webhook| webhook.send_updates(&updates));
+        }
+        Ok(updates)
+    }
+
     /// Start a sync loop blocking the current thread
-    pub fn sync(&self, shutdown_rx: Option<mpsc::Receiver<()>>) {
-        debug!("starting sync loop");
+    pub fn sync_loop(&self, shutdown_rx: Option<mpsc::Receiver<()>>) {
         let shutdown_rx = shutdown_rx
             .map(|rx| self.bind_shutdown(rx))
             .or_else(|| self.default_shutdown_signal());
 
+        debug!("starting sync loop");
         loop {
             if let Some(shutdown_rx) = &shutdown_rx {
                 if shutdown_rx.try_recv() != Err(mpsc::TryRecvError::Empty) {
@@ -141,24 +163,10 @@ impl App {
                 }
             }
 
-            #[allow(clippy::option_map_unit_fn)]
-            match self.indexer.write().unwrap().sync() {
-                Ok(updates) if !updates.is_empty() => {
-                    #[cfg(feature = "electrum")]
-                    self.electrum
-                        .as_ref()
-                        .map(|electrum| electrum.send_updates(&updates));
-
-                    #[cfg(feature = "http")]
-                    self.http.as_ref().map(|http| http.send_updates(&updates));
-
-                    #[cfg(feature = "webhooks")]
-                    self.webhook
-                        .as_ref()
-                        .map(|webhook| webhook.send_updates(&updates));
-                }
-                Ok(_) => (), // no updates
-                Err(e) => warn!("error while updating index: {:?}", e),
+            if let Err(e) = self.sync() {
+                warn!("error while syncing: {:?}", e);
+                // Report the error and try again on the next run, this might be
+                // a temporary connectivity issue.
             }
 
             // wait for poll_interval seconds or until we receive a sync notification message
@@ -170,16 +178,17 @@ impl App {
         }
     }
 
+    /// Start a sync loop in a new background thread.
+    /// Takes ownership over the app. You can retain a Query instance before calling this.
+    pub fn sync_background(self) -> mpsc::SyncSender<()> {
+        let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
+        thread::spawn(move || self.sync_loop(Some(shutdown_rx)));
+        shutdown_tx
+    }
+
     /// Get the sender for triggering a real-time index sync
     pub fn sync_sender(&self) -> mpsc::Sender<()> {
         self.sync_chan.0.clone()
-    }
-
-    /// Start a sync loop in a new background thread.
-    pub fn sync_background(self) -> mpsc::SyncSender<()> {
-        let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
-        thread::spawn(move || self.sync(Some(shutdown_rx)));
-        shutdown_tx
     }
 
     /// Get the `Query` instance
