@@ -170,6 +170,11 @@ impl App {
         }
     }
 
+    /// Get the sender for triggering a real-time index sync
+    pub fn sync_sender(&self) -> mpsc::Sender<()> {
+        self.sync_chan.0.clone()
+    }
+
     /// Start a sync loop in a new background thread.
     pub fn sync_background(self) -> mpsc::SyncSender<()> {
         let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
