@@ -149,16 +149,18 @@ impl Indexer {
             // transactions that were re-added in the active chain will appear in `removed`
             // but with a positive confirmation count, ignore these.
             if ltx.info.confirmations < 0 {
-                let tx_deleted = self.store.purge_tx(&ltx.info.txid);
-                if tx_deleted {
-                    changelog.push(|| IndexChange::TransactionReplaced(ltx.info.txid));
-                }
+                self.purge_tx(&ltx.info.txid, changelog);
             }
         }
 
         let mut buffered_outgoing: HashMap<Txid, i32> = HashMap::new();
 
         for ltx in result.transactions {
+            if ltx.info.confirmations < 0 {
+                self.purge_tx(&ltx.info.txid, changelog);
+                continue;
+            }
+
             // "listtransactions"/"listsinceblock" in fact lists transaction outputs and not transactions.
             // for "receive" txs, it returns one entry per wallet-owned output in the tx.
             // for "send" txs, it returns one entry for every output in the tx, owned or not.
@@ -200,6 +202,13 @@ impl Indexer {
                 let tx_entry = self.store.get_tx_entry(txid).unwrap();
                 changelog.extend(IndexChange::from_tx(txid, tx_entry));
             });
+        }
+    }
+
+    fn purge_tx(&mut self, txid: &Txid, changelog: &mut Changelog) {
+        let tx_deleted = self.store.purge_tx(&txid);
+        if tx_deleted {
+            changelog.push(|| IndexChange::TransactionReplaced(*txid));
         }
     }
 

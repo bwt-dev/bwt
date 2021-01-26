@@ -287,7 +287,7 @@ impl MemoryStore {
     pub fn purge_tx(&mut self, txid: &Txid) -> bool {
         // XXX should replaced transactions be kept around instead of purged entirely?
         if let Some(old_entry) = self.transactions.remove(txid) {
-            info!("purge tx {:?}", txid);
+            debug!("purge tx {:?}", txid);
 
             if old_entry.status.is_unconfirmed() {
                 assert!(self.mempool.remove(txid).is_some());
