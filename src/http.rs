@@ -2,11 +2,10 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::{convert, net, thread};
 
 use serde::{Deserialize, Deserializer};
-use tokio::stream::{self, Stream, StreamExt};
 use tokio::sync::{mpsc as tmpsc, oneshot};
+use tokio_stream::{wrappers::UnboundedReceiverStream, Stream, StreamExt};
 use warp::http::{header, StatusCode};
-use warp::sse::ServerSentEvent;
-use warp::{self, reply, Filter, Reply};
+use warp::{self, reply, sse::Event, Filter, Reply};
 
 use bitcoin::{Address, BlockHash, OutPoint, Txid};
 use bitcoin_hashes::hex::{FromHex, ToHex};
@@ -596,10 +595,11 @@ fn make_sse_stream(
     filter: ChangelogFilter,
     listeners: Listeners,
     query: &Query,
-) -> Result<impl Stream<Item = Result<impl ServerSentEvent, warp::Error>>, Error> {
+) -> Result<impl Stream<Item = Result<Event, warp::Error>>, Error> {
     debug!("subscribing sse client with {:?}", filter);
 
     let (tx, rx) = tmpsc::unbounded_channel();
+    let rx = UnboundedReceiverStream::new(rx);
     listeners.lock().unwrap().push(Listener {
         tx,
         filter: filter.clone(),
@@ -614,17 +614,23 @@ fn make_sse_stream(
     .filter(move |change| filter.matches(change));
     // TODO don't produce unwanted events to begin with instead of filtering them
 
-    Ok(stream::iter(changelog).chain(rx).map(make_sse_msg).map(Ok))
+    Ok(tokio_stream::iter(changelog)
+        .chain(rx)
+        .map(make_sse_msg)
+        .map(Ok))
 }
 
-fn make_sse_msg(change: IndexChange) -> impl ServerSentEvent {
+fn make_sse_msg(change: IndexChange) -> Event {
     match &change {
         IndexChange::ChainTip(blockid) => {
             // set the synced tip as the sse identifier field, so the client will send it back to
             // us on reconnection via the Last-Event-Id header.
-            (warp::sse::id(blockid.to_string()), warp::sse::json(change)).into_a()
+            Event::default()
+                .id(blockid.to_string())
+                .json_data(change)
+                .unwrap()
         }
-        _ => warp::sse::json(change).into_b(),
+        _ => Event::default().json_data(change).unwrap(),
     }
 }
 

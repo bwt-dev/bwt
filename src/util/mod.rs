@@ -120,8 +120,7 @@ pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sen
 /// Wait for the future to resolve, blocking the current thread until it does
 #[cfg(feature = "tokio")]
 pub fn block_on_future<F: std::future::Future>(future: F) -> F::Output {
-    let mut rt = tokio::runtime::Builder::new()
-        .basic_scheduler()
+    let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
