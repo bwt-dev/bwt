@@ -64,10 +64,6 @@ fn read_write_cookie(file: &path::Path) -> Result<String, io::Error> {
 ///
 /// For clients that support setting a SOCKS5 proxy but not a password for it, the token can also
 /// be provided as the destination hostname.
-///
-/// Clients that wish to authenticate without using a SOCKS5 library can send the following byte sequence:
-/// 0x05 0x01 0x02 0x01 0x00 <LENGTH> <TOKEN> 0x05 0x01 0x00 0x01 0x00 0x00 0x00 0x00 0x00 0x00
-/// Then read and discard the first 14 bytes of the response.
 #[cfg(feature = "electrum")]
 pub fn electrum_socks5_auth(
     mut stream: net::TcpStream,

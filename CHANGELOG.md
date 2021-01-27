@@ -8,11 +8,18 @@
 
 - Support for Signet
 
-- New `create_wallet_if_missing` option to ease the creation of a designated bitcoind wallet (#76)
+- New `GET /bitcoin.pdf` HTTP API endpoint for extracting the Bitcoin whitepaper from the block chain
+  (see https://twitter.com/shesek/status/1352368296553836544)
 
-- Support setting boolean config options using environment variables
+- New `--create-wallet-if-missing` option to ease the creation of a designated bitcoind wallet (#76)
 
-- Support configuration via wildcard envirnoment variables (`XPUB_*`, `DESC_*` and `ADDRESS_*`)
+- Docker: Multi-arch images for amd64, arm32v7 and arm64v8 (#79)
+
+- Support setting boolean options using environment variables
+  (`FORCE_RESCAN`, `CREATE_WALLET_IF_MISSING`, `ELECTRUM_SKIP_MERKLE`, `NO_STARTUP_BANNER` and `VERBOSE`)
+
+- Accept wildcard envirnoment variables for options that accept multiple values
+  (`XPUB_*`, `DESC_*`/`DESCRIPTOR_*` and `ADDRESS_*`)
 
 - Upgrade to rust-bitcoin v0.26 & rust-miniscript v5.0
 

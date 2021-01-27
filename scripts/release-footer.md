@@ -9,14 +9,7 @@ Installation instructions are [available on the README](https://github.com/bwt-d
 
 ### Verifying signatures
 
-The releases are signed by Nadav Ivgi (@shesek).
-The public key can be verified on
-the [PGP WoT](http://keys.gnupg.net/pks/lookup?op=vindex&fingerprint=on&search=0x81F6104CD0F150FC),
-[github](https://api.github.com/users/shesek/gpg_keys),
-[twitter](https://twitter.com/shesek),
-[keybase](https://keybase.io/nadav),
-[hacker news](https://news.ycombinator.com/user?id=nadaviv)
-and [this video presentation](https://youtu.be/SXJaN2T3M10?t=4) (bottom of slide).
+The releases are signed by Nadav Ivgi (@shesek). The public key can be verified on the [PGP WoT](http://keys.gnupg.net/pks/lookup?op=vindex&fingerprint=on&search=0x81F6104CD0F150FC), [github](https://api.github.com/users/shesek/gpg_keys), [twitter](https://twitter.com/shesek), [keybase](https://keybase.io/nadav), [hacker news](https://news.ycombinator.com/user?id=nadaviv) and [this video presentation](https://youtu.be/SXJaN2T3M10?t=4).
 
 ```bash
 # Download (change x86_64-linux to your platform)

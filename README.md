@@ -52,7 +52,7 @@ history that can be queried using the Electrum RPC protocol or using bwt's custo
 Real-time updates are available through [Server-Sent events](#server-sent-events) (a streaming long-lived HTTP connection),
 or using [Web Hooks](#web-hooks) push updates (an HTTP request sent to your URL with the event).
 
-The index is currently managed in-memory and does not get persisted (this is expected to change), but building it is pretty fast: bwt can index thousands of transactions in a matter of seconds.
+The index is currently managed in-memory and does not get persisted (this is expected to change), but building it is pretty fast: bwt can index thousands of transactions in under a second.
 
 *TL;DR: EPS + Rust + Modern HTTP API*
 
@@ -68,7 +68,7 @@ which provides a GUI and doesn't require the standalone server installation desc
 
 #### Signed pre-built binaries
 
-Available for download on [the releases page](https://github.com/bwt-dev/bwt/releases) (Linux, Mac, Windows and ARM).
+Available for download on [the releases page](https://github.com/bwt-dev/bwt/releases) (Linux, Mac, Windows and ARMv7/v8).
 
 The releases are signed by Nadav Ivgi (@shesek).
 The public key can be verified on
@@ -144,7 +144,7 @@ You can also track output script descriptors using `--descriptor`. For example, 
 Standalone addresses can be tracked with `--address <address>` or `--addresses-file <path>`.
 
 To speed up rescanning for historical transactions, you can provide the wallet creation date with `--rescan-since <timestmap>`.
-The timestamp can be a `YYYY-MM-DD` formatted string, or 'now' to disable rescanning and watch for new
+The timestamp can be a `YYYY-MM-DD` formatted string or 'now' to disable rescanning and watch for new
 transactions only (for newly created wallets).
 *Setting this is highly recommended.*
 
@@ -152,10 +152,12 @@ By default, the Electrum server will be bound on port `50001`/`60001`/`60401` (a
 and the HTTP server will be bound on port `3060`. This can be controlled with `--electrum-addr`
 and `--http-addr`.
 
-> ⚠️ Both the HTTP API server and the Electrum server are *unauthenticated and unencrypted.*
-If you're exposing them over the internet, they should be put behind something like an SSH tunnel,
-VPN, or a Tor hidden service.
-([more information](https://www.reddit.com/r/Bitcoin/comments/grlpbm/you_can_now_connect_your_electrum_wallet_directly/fsa7jjd/))
+> ⚠️ Both the HTTP API server and the Electrum server are *unauthenticated and unencrypted* by default.
+> If you're exposing them over the internet, they should be put behind a secure transport like an SSH tunnel,
+> a VPN, or a Tor hidden service.
+>
+> Authentication (but not encryption) can be enabled by following [the instructions here](doc/auth.md).
+
 
 You may set `-v` to increase verbosity or `-vv` to increase it more.
 
@@ -165,17 +167,19 @@ See `--help` for the full list of options.
 
 Configuration options can be set under `~/bwt.env` as environment variables in the dotenv format.
 
-Options that accept multiple values (`DESCRIPTORS`, `XPUBS`, `BARE_XPUBS` and `WEBHOOKS_URLs`)
-can be provided as a `;`-separated list.
+Options that accept multiple values (`DESCRIPTORS`, `XPUBS`, `ADDRESSES` and `WEBHOOKS_URLs`)
+can be provided as a `;`-separated list, or using wildcard `XPUB_*`/`DESC_*`/`ADDRESS_*` variables.
 
 For example:
 
 ```
 NETWORK=regtest
 GAP_LIMIT=20
-XPUBS='<xpub1>;<xpub2>'
-DESCRIPTORS='pkh(<xpub>/0/*)'
 RESCAN_SINCE=2020-01-01
+XPUBS='<xpub1>;<xpub2>'
+DESCRIPTORS=pkh(<xpub>/0/*)
+XPUB_BOB=<xpub3>
+XPUB_ALICE=<xpub4>
 ```
 
 Setting the environment variables directly is also supported.
@@ -196,8 +200,10 @@ This removes several large dependencies and disables the `track-spends` database
 
 You can use bwt with pruning, but:
 
-1. You can only scan for transactions in the non-pruned history and will have to provide a rescan
-   date that is within the range of non-pruned blocks.
+1. The `--rescan-since` date has to be within the range of non-pruned blocks -
+   meaning that you won't see history that was already pruned when you first started tracking the wallet.
+
+   This limitation makes this primarily suitable for newly created wallets (or wallets created recently, within the unpruned range).
 
 2. Electrum needs to be run with `--skipmerklecheck` to tolerate missing SPV proofs for transactions in pruned blocks.
 
@@ -277,7 +283,7 @@ by running an embedded Electrum server within the Electrum wallet itself.
 
 See https://github.com/bwt-dev/bwt-electrum-plugin for more details and installation instructions.
 
-![Screenshot of bwt integrated into Electrum](doc/electrum-plugin.png)
+![Screenshot of bwt integrated into Electrum](https://raw.githubusercontent.com/bwt-dev/bwt/master/doc/img/electrum-plugin.png)
 
 ## Manual Electrum setup (without the plugin)
 
