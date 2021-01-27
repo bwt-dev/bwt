@@ -21,7 +21,7 @@
 - Accept wildcard envirnoment variables for options that accept multiple values
   (`XPUB_*`, `DESC_*`/`DESCRIPTOR_*` and `ADDRESS_*`)
 
-- Upgrade to rust-bitcoin v0.26 & rust-miniscript v5.0
+- Upgrade to rust-bitcoin v0.26.0, rust-miniscript v5.0.1 and bitcoincore-rpc v0.13.0
 
 ## 0.2.1 - 2021-01-14
 

@@ -16,7 +16,7 @@ const HALVING_INTERVAL: u64 = 210_000;
 pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> {
     let rpc = query.rpc();
 
-    let net_info = rpc.get_network_info_()?;
+    let net_info = rpc.get_network_info()?;
     let chain_info = rpc.get_blockchain_info()?;
     let mempool_info = rpc.get_mempool_info()?;
     let net_totals = rpc.get_net_totals()?;
