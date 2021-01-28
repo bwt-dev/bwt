@@ -10,6 +10,11 @@ if ! git diff-index --quiet HEAD; then
   exit 1
 fi
 
+if [ -z "$BWT_BASE" ]; then
+  echo >&2 BWT_BASE is required
+  exit 1
+fi
+
 version=$(grep -E '^version =' Cargo.toml | cut -d'"' -f2)
 
 if [[ "$1" == "patch" ]]; then
@@ -61,7 +66,6 @@ if [ -z "$SKIP_BUILD" ]; then
   (cd dist && sha256sum *.{tar.gz,zip}) | sort | gpg --clearsign --digest-algo sha256 > SHA256SUMS.asc
 fi
 
-
 if [ -z "$SKIP_GIT" ]; then
   echo Tagging...
   git add Cargo.{toml,lock} CHANGELOG.md SHA256SUMS.asc README.md
@@ -108,4 +112,21 @@ fi
 if [ -z "$SKIP_DOCKER" ]; then
   echo Releasing docker images...
   ./scripts/docker-release.sh
+fi
+
+if [ -z "$SKIP_SUBPROJECTS" ]; then
+  export BWT_COMMIT=$(git rev-parse HEAD)
+
+  echo '## Releasing libbwt'
+  (cd $BWT_BASE/libbwt && ./scripts/release.sh)
+
+  echo '## Releasing libbwt-jni'
+  (cd $BWT_BASE/libbwt-jni && ./scripts/release.sh)
+
+  echo '## Releasing bwt-electrum-plugin'
+  (cd $BWT_BASE/bwt-electrum-plugin && ./scripts/release.sh)
+
+  echo '## Releasing libbwt-nodejs'
+  export LIBBWT_COMMIT=$(cd $BWT_BASE/libbwt && git rev-parse HEAD)
+  (cd $BWT_BASE/libbwt-nodejs && ./scripts/release.sh)
 fi
