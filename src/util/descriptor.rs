@@ -109,7 +109,7 @@ impl DescriptorExt for ExtendedDescriptor {
 
     fn checksum(&self) -> Checksum {
         let desc_str = self.to_string();
-        let checksum = desc_str.splitn(2, '#').skip(1).next().unwrap();
+        let checksum = desc_str.splitn(2, '#').nth(1).unwrap();
         Checksum(checksum.into())
     }
 

@@ -41,7 +41,7 @@ jobs:
       run: ./scripts/check.sh
 
     - name: Check with Clippy
-      run: cargo clippy --all-targets -- -A clippy::redundant_field_names
+      run: cargo clippy --all-targets --all-features -- -A clippy::redundant_field_names
 
     - name: Build
       run: cargo build --release

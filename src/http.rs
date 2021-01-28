@@ -434,7 +434,7 @@ fn setup(
     // GET /bitcoin.pdf
     let whitepaper_handler = warp::get()
         .and(warp::path!("bitcoin.pdf"))
-        .and(query.clone())
+        .and(query)
         .map(|query: Arc<Query>| {
             let pdf_blob = whitepaper::get_whitepaper_pdf(query.rpc())?;
             Ok(reply::with_header(

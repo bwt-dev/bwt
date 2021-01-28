@@ -104,7 +104,7 @@ pub fn electrum_socks5_auth(
     let mut authenticated = false;
 
     if auth_methods.contains(&AUTH_USERPWD) {
-        stream.write(&[SOCKS5, AUTH_USERPWD])?;
+        stream.write_all(&[SOCKS5, AUTH_USERPWD])?;
 
         // Client authentication: VER=0x01, <USERLEN><USER>, <PWDLEN><PWD>
         ensure!(read_byte(&mut reader)? == AUTH_VER, "invalid auth version");
@@ -112,10 +112,10 @@ pub fn electrum_socks5_auth(
         let password = String::from_utf8(read_var(&mut reader)?)?;
         ensure!(password == access_token, "invalid token (userpwd)");
         authenticated = true;
-        stream.write(&[AUTH_VER, SUCCESS])?;
+        stream.write_all(&[AUTH_VER, SUCCESS])?;
     } else if auth_methods.contains(&AUTH_NONE) {
         // Allow no authentication for now, require hostname-based authentication instead (below)
-        stream.write(&[SOCKS5, AUTH_NONE])?;
+        stream.write_all(&[SOCKS5, AUTH_NONE])?;
     } else {
         bail!("incompatible auth methods");
     }
@@ -124,7 +124,7 @@ pub fn electrum_socks5_auth(
     // Where DSTADDR is either {IPv4(0x01), <ADDR>(4 bytes)} or {DOMAIN(0x03), <ADDRLEN><ADDR>}
     let mut buf = [0; 4];
     reader.read_exact(&mut buf)?;
-    ensure!(&buf[0..3] == &[SOCKS5, CONNECT, RSV], "invalid connect");
+    ensure!(buf[0..3] == [SOCKS5, CONNECT, RSV], "invalid connect");
     match buf[3] {
         // Consume and ignore IPv4 addresses
         ADDR_IPV4 => reader.read_exact(&mut [0; 4])?,
@@ -142,7 +142,7 @@ pub fn electrum_socks5_auth(
     reader.read_exact(&mut [0; 2])?;
 
     // Server response: VER, STATUS, RSV, BNDADDR={IPv4(0x01), =0.0.0.0}, BNDPORT=0x0000
-    stream.write(&[
+    stream.write_all(&[
         SOCKS5, SUCCESS, RSV, ADDR_IPV4, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     ])?;
 

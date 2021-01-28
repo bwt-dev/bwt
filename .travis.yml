@@ -16,7 +16,7 @@ jobs:
     - name: clippy
       env: CACHE_BUCKET=clippy
       install: rustup component add clippy
-      script: cargo clippy --all-targets -- -A clippy::redundant_field_names
+      script: cargo clippy --all-targets --all-features -- -A clippy::redundant_field_names
     - name: e2e tests
       env: CACHE_BUCKET=test
       install: source scripts/ci-test-deps.sh
