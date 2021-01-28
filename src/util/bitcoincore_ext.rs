@@ -10,6 +10,7 @@ use bitcoincore_rpc::{self as rpc, Client, Result as RpcResult, RpcApi};
 
 pub const RPC_MISC_ERROR: i32 = -1;
 pub const RPC_WALLET_ERROR: i32 = -4;
+pub const RPC_INVALID_ADDRESS_OR_KEY: i32 = -5;
 pub const RPC_WALLET_INVALID_LABEL_NAME: i32 = -11;
 pub const RPC_WALLET_NOT_FOUND: i32 = -18;
 pub const RPC_IN_WARMUP: i32 = -28;
@@ -53,9 +54,37 @@ pub trait RpcApiExt: RpcApi {
         self.call("getblockstats", &[json!(blockhash), json!(fields)])
     }
 
+    // Retrieve a mempool entry, returning an Ok(None) if it doesn't exists
+    fn get_mempool_entry_opt(
+        &self,
+        txid: &bitcoin::Txid,
+    ) -> RpcResult<Option<json::GetMempoolEntryResult>> {
+        match self.get_mempool_entry(txid) {
+            Ok(entry) => Ok(Some(entry)),
+            // "Transaction not in mempool" error. Not sure why it uses that code..
+            Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(e)))
+                if e.code == RPC_INVALID_ADDRESS_OR_KEY =>
+            {
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     // Only supports the fields we're interested in (so not currently upstremable)
     fn get_mempool_info(&self) -> RpcResult<GetMempoolInfoResult> {
         self.call("getmempoolinfo", &[])
+    }
+
+    // listsinceblock with the 'wallet_conflicts' field, pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/161
+    fn list_since_block_(
+        &self,
+        blockhash: Option<&bitcoin::BlockHash>,
+    ) -> RpcResult<ListSinceBlockResult> {
+        self.call(
+            "listsinceblock",
+            &[json!(blockhash), 1.into(), true.into(), true.into()],
+        )
     }
 }
 
@@ -187,4 +216,38 @@ impl<'de> serde::Deserialize<'de> for RescanSince {
         }
         deserializer.deserialize_any(Visitor)
     }
+}
+
+// Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/161
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize)]
+pub struct ListTransactionResult {
+    #[serde(flatten)]
+    pub info: WalletTxInfo,
+    #[serde(flatten)]
+    pub detail: json::GetTransactionResultDetail,
+
+    pub trusted: Option<bool>,
+    pub comment: Option<String>,
+}
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize)]
+pub struct ListSinceBlockResult {
+    pub transactions: Vec<ListTransactionResult>,
+    #[serde(default)]
+    pub removed: Vec<ListTransactionResult>,
+    pub lastblock: bitcoin::BlockHash,
+}
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize)]
+pub struct WalletTxInfo {
+    pub confirmations: i32,
+    pub blockhash: Option<bitcoin::BlockHash>,
+    pub blockindex: Option<usize>,
+    pub blocktime: Option<u64>,
+    pub blockheight: Option<u32>,
+    pub txid: bitcoin::Txid,
+    pub time: u64,
+    pub timereceived: u64,
+    #[serde(rename = "bip125-replaceable")]
+    pub bip125_replaceable: json::Bip125Replaceable,
+    #[serde(rename = "walletconflicts")]
+    pub wallet_conflicts: Vec<bitcoin::Txid>,
 }
