@@ -15,6 +15,8 @@
 
 - Docker: Multi-arch images for amd64, arm32v7 and arm64v8 (#79)
 
+- Indexer: Fix detection of conflicted mempool transactions
+
 - Support setting boolean options using environment variables
   (`FORCE_RESCAN`, `CREATE_WALLET_IF_MISSING`, `ELECTRUM_SKIP_MERKLE`, `NO_STARTUP_BANNER` and `VERBOSE`)
 

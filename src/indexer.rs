@@ -5,14 +5,13 @@ use std::{fmt, thread, time};
 use serde::Serialize;
 
 use bitcoin::{Address, BlockHash, OutPoint, Txid};
-use bitcoincore_rpc::json::{
-    GetTransactionResultDetailCategory as TxCategory, ListTransactionResult,
-};
+use bitcoincore_rpc::json::GetTransactionResultDetailCategory as TxCategory;
 use bitcoincore_rpc::{Client as RpcClient, RpcApi};
 
 use crate::error::Result;
 use crate::store::{FundingInfo, MemoryStore, SpendingInfo, TxEntry};
 use crate::types::{BlockId, InPoint, RescanSince, ScriptHash, TxStatus};
+use crate::util::bitcoincore_ext::{ListTransactionResult, RpcApiExt};
 use crate::util::progress::Progress;
 use crate::wallet::{KeyOrigin, WalletWatcher};
 
@@ -134,9 +133,7 @@ impl Indexer {
         let tip_height = self.rpc.get_block_count()? as u32;
         let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
 
-        let result = self
-            .rpc
-            .list_since_block(since_block, Some(1), Some(true), Some(true))?;
+        let result = self.rpc.list_since_block_(since_block)?;
 
         // Workaround for https://github.com/bitcoin/bitcoin/issues/19338,
         // listsinceblock is not atomic and could provide inconsistent results.
@@ -154,9 +151,10 @@ impl Indexer {
         }
 
         let mut buffered_outgoing: HashMap<Txid, i32> = HashMap::new();
+        let mut cached_conflicted = HashMap::new();
 
         for ltx in result.transactions {
-            if ltx.info.confirmations < 0 {
+            if self.is_conflicted(&ltx, &mut cached_conflicted)? {
                 self.purge_tx(&ltx.info.txid, changelog);
                 continue;
             }
@@ -192,6 +190,32 @@ impl Indexer {
         }
 
         Ok(BlockId(tip_height, tip_hash))
+    }
+
+    /// Check if the given wallet transaction is conflicted
+    fn is_conflicted(
+        &self,
+        ltx: &ListTransactionResult,
+        cached: &mut HashMap<Txid, bool>,
+    ) -> Result<bool> {
+        // Unconfirmed transactions with wallet conflicts need to be looked up in the mempool to
+        // determine if the node considers them to be the active leading one among the conflicts
+        // See https://github.com/bitcoin/bitcoin/issues/21018
+        if ltx.info.confirmations == 0 && !ltx.info.wallet_conflicts.is_empty() {
+            if let Some(is_conflicted) = cached.get(&ltx.info.txid) {
+                Ok(*is_conflicted)
+            } else {
+                let is_active = self.rpc.get_mempool_entry_opt(&ltx.info.txid)?.is_some();
+                cached.insert(ltx.info.txid, !is_active);
+                if is_active {
+                    // if this transaction is the active one, the ones that conflict with it aren't
+                    cached.extend(ltx.info.wallet_conflicts.iter().map(|txid| (*txid, true)));
+                }
+                Ok(!is_active)
+            }
+        } else {
+            Ok(ltx.info.confirmations < 0)
+        }
     }
 
     // upsert the transaction while collecting the changelog
@@ -311,7 +335,7 @@ impl Indexer {
             if force_refresh || opt_entry.is_none() {
                 match self.rpc.get_mempool_entry(txid) {
                     Ok(rpc_entry) => *opt_entry = Some(rpc_entry.into()),
-                    Err(e) => debug!("failed fetching mempool entry for {}: {}", txid, e),
+                    Err(e) => warn!("failed fetching mempool entry for {}: {}", txid, e),
                 }
             }
         }
