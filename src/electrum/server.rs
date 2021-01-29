@@ -15,7 +15,7 @@ use crate::error::{fmt_error_chain, BwtError, Context, Result};
 use crate::indexer::IndexChange;
 use crate::query::Query;
 use crate::types::{BlockId, MempoolEntry, ScriptHash, StatusHash};
-use crate::util::auth::electrum_socks5_auth;
+use crate::util::auth::electrum_auth;
 use crate::util::{banner, BoolThen};
 
 // Heavily based on the RPC server implementation written by Roman Zeyde for electrs,
@@ -417,7 +417,7 @@ impl Connection {
         // If an access token was set, require the SOCKS5-based authentication
         // to take place before allowing RPC commands to pass through.
         if let Some(access_token) = access_token {
-            stream = electrum_socks5_auth(stream, access_token).map_err(|err| {
+            stream = electrum_auth(stream, access_token).map_err(|err| {
                 let _ = tx.send(Message::Done);
                 err.context("authentication failed")
             })?;
