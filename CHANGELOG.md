@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 - 2021-01-29
 
 - [Authentication support](doc/auth.md) for the Electrum and HTTP API servers (#70)
 
