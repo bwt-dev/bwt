@@ -62,7 +62,7 @@ Or with Electrum mobile:
 To enable SOCKS5-based authentication, the bwt Electrum server masquerades as a SOCKS5 proxy server, parses the SOCKS5 handshake,
 verifies the token, then passes control over the TCP socket to the 'real' server and continues processing the connection as usual.
 
-The implementation can be seen in [`auth.rs`](src/util/auth.rs) under `electrum_socks5_auth`.
+The implementation can be seen in [`auth.rs`](https://github.com/bwt-dev/bwt/blob/master/src/util/auth.rs) under `electrum_socks5_auth`.
 
 ### Authenticating programmatically
 
