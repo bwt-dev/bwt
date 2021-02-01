@@ -9,7 +9,7 @@ homepage = "https://github.com/bwt-dev/bwt"
 repository = "https://github.com/bwt-dev/bwt"
 keywords = [ "bitcoin", "electrum-server", "hd-wallet", "bitcoin-api", "xpub" ]
 edition = "2018"
-include = [ "src", "LICENSE" ]
+include = [ "/src", "/LICENSE" ]
 
 [features]
 default = [ "cli", "electrum", "http", "track-spends" ]
