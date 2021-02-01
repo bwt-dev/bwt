@@ -167,3 +167,19 @@ impl BoolThen for bool {
         }
     }
 }
+/// Daemon readiness notification via file descriptors
+/// Primarly for use with s6, but can useful for any program that wants to be notified when the dameon is ready
+/// See https://skarnet.org/software/s6/notifywhenup.html
+#[cfg(all(unix, feature = "cli"))]
+pub fn fd_readiness_notification() {
+    use std::os::unix::io::FromRawFd;
+    use std::{env, fs::File, io::Write};
+    if let Ok(fd_number) = env::var("NOTIFY_FD") {
+        if let Ok(fd_number) = fd_number.parse::<u32>() {
+            let mut f = unsafe { File::from_raw_fd(fd_number as i32) };
+            write!(f, "\n").ok();
+        }
+    }
+}
+#[cfg(not(all(unix, feature = "cli")))]
+pub fn fd_readiness_notification() {}

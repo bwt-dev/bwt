@@ -5,7 +5,7 @@ use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::error::{BwtError, Result};
 use crate::util::progress::Progress;
-use crate::util::{banner, debounce_sender, on_oneshot_done};
+use crate::util::{banner, debounce_sender, fd_readiness_notification, on_oneshot_done};
 use crate::{Config, IndexChange, Indexer, Query, WalletWatcher};
 
 #[cfg(feature = "electrum")]
@@ -111,6 +111,8 @@ impl App {
 
         #[cfg(feature = "webhooks")]
         let webhook = config.webhook_urls.clone().map(WebHookNotifier::start);
+
+        fd_readiness_notification();
 
         Ok(App {
             config,
