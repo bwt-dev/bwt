@@ -757,7 +757,12 @@ async fn handle_rejection(err: warp::Rejection) -> Result<impl Reply, convert::I
     } else {
         (StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", err))
     };
-    Ok(reply::with_status(body, status).into_response())
+    let reply = reply::with_status(body, status);
+    Ok(iif!(
+        status == StatusCode::UNAUTHORIZED,
+        reply::with_header(reply, "WWW-Authenticate", "Basic realm=\"\"").into_response(),
+        reply.into_response()
+    ))
 }
 
 fn get_error_status(e: &Error) -> StatusCode {
