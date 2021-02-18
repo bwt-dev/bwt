@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Allow setting `NO_REQUIRE_ADDRESSES` as an env variable
 
 Breaking CLI changes:
 

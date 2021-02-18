@@ -472,6 +472,9 @@ impl Config {
         if bool_env("NO_STARTUP_BANNER") {
             config.startup_banner = false;
         }
+        if bool_env("NO_REQUIRE_ADDRESSES") {
+            config.require_addresses = false;
+        }
         if bool_env("PRINT_TOKEN") {
             config.print_token = true;
         }
