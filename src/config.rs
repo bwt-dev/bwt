@@ -252,6 +252,13 @@ pub struct Config {
     #[serde(default)]
     pub electrum_skip_merkle: bool,
 
+    /// Enable the Electrum SOCKS5-based authentication mechanism
+    /// (see https://github.com/bwt-dev/bwt/blob/master/doc/auth.md) [env: ELECTRUM_SOCKS_AUTH]
+    #[cfg(feature = "electrum")]
+    #[cfg_attr(feature = "cli", structopt(long, short = "5", display_order(1004)))]
+    #[serde(default)]
+    pub electrum_socks_auth: bool,
+
     //
     // HTTP options
     //
@@ -455,7 +462,7 @@ impl Config {
 
         // Setting boolean options as env vars is not supported by clap/structopt
         // https://github.com/TeXitoi/structopt/issues/305
-        let bool_env = |key| env::var(key).map_or(false, |val| !val.is_empty());
+        let bool_env = |key| env::var(key).map_or(false, |val| !val.is_empty() && val != "0");
         if bool_env("FORCE_RESCAN") {
             config.force_rescan = true;
         }
@@ -471,6 +478,10 @@ impl Config {
         #[cfg(feature = "electrum")]
         if bool_env("ELECTRUM_SKIP_MERKLE") {
             config.electrum_skip_merkle = true;
+        }
+        #[cfg(feature = "electrum")]
+        if bool_env("ELECTRUM_SOCKS_AUTH") {
+            config.electrum_socks_auth = true;
         }
         if let Ok(verbose) = env::var("VERBOSE") {
             config.verbose = iif!(verbose.is_empty(), 0, verbose.parse().unwrap_or(1));
@@ -638,12 +649,7 @@ fn get_cookie(config: &Config) -> Option<path::PathBuf> {
         Network::Signet => dir.push("signet"),
     }
     let cookie = dir.join(".cookie");
-    if cookie.exists() {
-        Some(cookie)
-    } else {
-        println!("cookie file not found in {:?}", cookie);
-        None
-    }
+    iif!(cookie.exists(), Some(cookie), None)
 }
 
 #[cfg(feature = "dirs")]
@@ -685,6 +691,7 @@ defaultable!(Config,
     auth_cookie, auth_token, auth_ephemeral, print_token,
     #[cfg(feature = "electrum")] electrum_addr,
     #[cfg(feature = "electrum")] electrum_skip_merkle,
+    #[cfg(feature = "electrum")] electrum_socks_auth,
     #[cfg(feature = "http")] http_addr,
     #[cfg(feature = "http")] http_cors,
     #[cfg(feature = "webhooks")] webhook_urls,

@@ -85,7 +85,7 @@ impl App {
         let electrum = config.electrum_addr().map(|addr| {
             ElectrumServer::start(
                 addr,
-                access_token.clone(),
+                iif!(config.electrum_socks_auth, access_token.clone(), None),
                 config.electrum_skip_merkle,
                 query.clone(),
             )

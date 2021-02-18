@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+
+Breaking CLI changes:
+
+- The Electrum SOCKS5-based authentication needs to be explicitly enabled with `--electrum-socks-auth`,
+  in addition to enabling the `--auth-*` options. By default, authentication will only be enabled for
+  the HTTP API server.
+
 ## 0.2.2 - 2021-01-29
 
 - [Authentication support](doc/auth.md) for the Electrum and HTTP API servers (#70)
