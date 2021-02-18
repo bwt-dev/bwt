@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Allow setting `UNIX_LISTENER_MODE` to control permissions for the unix socket notification listener.
+
 - Allow setting `NO_REQUIRE_ADDRESSES` as an env variable
 
 Breaking CLI changes:
