@@ -1,7 +1,7 @@
 # Bitcoin Wallet Tracker
 
 [![Build Status](https://travis-ci.org/bwt-dev/bwt.svg?branch=master)](https://travis-ci.org/bwt-dev/bwt)
-[![Latest release](https://img.shields.io/crates/v/bwt.svg?label=release)](https://github.com/bwt-dev/bwt/releases/tag/v0.2.2)
+[![Latest release](https://img.shields.io/crates/v/bwt.svg?label=release)](https://github.com/bwt-dev/bwt/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/bwt-dev/bwt/total.svg?color=blueviolet)](https://github.com/bwt-dev/bwt/releases)
 [![Docker release](https://img.shields.io/docker/pulls/shesek/bwt.svg)](https://hub.docker.com/r/shesek/bwt)
 [![Crate package](https://img.shields.io/crates/d/bwt.svg?label=crate+installs)](https://crates.io/crates/bwt)
