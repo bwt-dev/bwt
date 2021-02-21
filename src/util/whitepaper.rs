@@ -9,7 +9,7 @@ pub fn get_whitepaper_pdf(client: &RpcClient) -> Result<Vec<u8>> {
         .parse()
         .unwrap();
     let mut blob = vec![];
-    for vout in 0..=956 {
+    for vout in 0..=945 {
         let out = client.get_tx_out(&txid, vout, None)?.required()?;
         for instruction in out.script_pub_key.script()?.instructions() {
             if let Ok(Instruction::PushBytes(data)) = instruction {
