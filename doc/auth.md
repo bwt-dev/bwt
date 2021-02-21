@@ -31,6 +31,8 @@ This workaround has two main limitations:
    If you're already taking the risk of having an entirely unauthenticated personal Electrum server exposed to the internet
    and understand the risks involved, using this may provide some additional protection against some types of attackers.
 
+Enabling this feature requires setting `--electrum-socks-auth` in addition to the `--auth-*` options.
+
 ### Wallet setup
 
 To authenticate, you will need to enable SOCKS5 proxy in your wallet, configure the SOCKS5 proxy address to your *server address*
@@ -104,7 +106,7 @@ Using HTTP basic authentication headers, with an empty (or any) username and the
 Example with `curl`:
 
 ```bash
-$ curl --user :mySecretAccessToken http://192.168.1.106:3060/wallets
+$ curl -u :mySecretAccessToken http://192.168.1.106:3060/wallets
 ```
 
 If exposed to the public internet, the HTTP API server should be put behind a reverse proxy with SSL.
