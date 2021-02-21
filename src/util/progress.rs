@@ -1,11 +1,13 @@
-use std::{sync::mpsc, thread, time};
+use std::{fmt::Write, sync::mpsc, thread, time};
 
 use bitcoincore_rpc::json::{self, ScanningDetails};
 use bitcoincore_rpc::{self as rpc, Client, RpcApi};
 
 use crate::error::{BwtError, Result};
 use crate::util::bitcoincore_ext::RPC_IN_WARMUP;
-use crate::util::fmt_date;
+use crate::util::{fmt_date, fmt_duration};
+
+const LT: &str = "bwt::progress";
 
 #[derive(Debug, Clone)]
 pub enum Progress {
@@ -19,6 +21,7 @@ pub fn wait_blockchain_sync(
     progress_tx: Option<mpsc::Sender<Progress>>,
     interval: time::Duration,
 ) -> Result<json::GetBlockchainInfoResult> {
+    let mut sync_start: Option<(time::Instant, u64)> = None;
     Ok(loop {
         match rpc.get_blockchain_info() {
             Ok(info) => {
@@ -35,23 +38,52 @@ pub fn wait_blockchain_sync(
                     break info;
                 }
 
+                // Keep track of the start time and height to calculate the block processing rate
+                let (start_time, start_height) =
+                    sync_start.get_or_insert_with(|| (time::Instant::now(), info.blocks));
+
                 if let Some(ref progress_tx) = progress_tx {
                     let progress = Progress::Sync {
                         progress_f: info.verification_progress as f32,
                         tip: info.median_time,
+                        // TODO expose sync rate and eta info to library consumers
                     };
                     ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
-                } else {
-                    info!(target: "bwt",
-                        "waiting for bitcoind to sync [{}/{} blocks, progress={:.1}%, tip at {}]",
-                        info.blocks, info.headers, info.verification_progress * 100.0, fmt_date(info.median_time),
+                } else if info.blocks == 0 {
+                    info!(
+                        target: LT,
+                        "bitcoind syncing up... [fetched {} headers]", info.headers
                     );
+                } else if info.headers != info.blocks {
+                    // blocks can be > headers in some cases, like after `reconsiderblock`
+                    let blocks_left = info.headers.saturating_sub(info.blocks);
+                    let blocks_synced = info.blocks - *start_height;
+
+                    let mut est_info = String::new();
+                    if blocks_synced > 3 {
+                        let rate = blocks_synced as f32 / start_time.elapsed().as_secs_f32();
+                        write!(est_info, ", {:.1} blocks/s", rate)?;
+                        if info.verification_progress > 0.85 {
+                            let eta = time::Duration::from_secs_f32(blocks_left as f32 / rate);
+                            write!(est_info, ", ETA {}", fmt_duration(&eta))?;
+                        }
+                    };
+
+                    info!(target: LT,
+                        "bitcoind syncing up... [{} blocks remaining of {}, {:.2}% completed, tip at {}{}]",
+                        blocks_left, info.headers, info.verification_progress * 100.0, fmt_date(info.median_time), est_info,
+                    );
+                }
+
+                // Reset the counters occasionally to account for changes in the average block sizes
+                if info.blocks - *start_height >= 288 {
+                    sync_start = Some((time::Instant::now(), info.blocks));
                 }
             }
             Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
                 if e.code == RPC_IN_WARMUP =>
             {
-                info!("waiting for bitcoind to warm up: {}", e.message);
+                info!(target: LT, "waiting for bitcoind to warm up: {}", e.message);
             }
             Err(e) => bail!(e),
         }
@@ -96,7 +128,7 @@ pub fn wait_wallet_scan(
                 duration,
             }) => {
                 let eta = iif!(
-                    progress_f > 0.0,
+                    progress_f > 0.1,
                     (duration as f32 / progress_f) as u64 - duration as u64,
                     0
                 );
@@ -105,9 +137,16 @@ pub fn wait_wallet_scan(
                     let progress = Progress::Scan { progress_f, eta };
                     ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
                 } else {
-                    info!(target: "bwt",
-                        "waiting for bitcoind to finish scanning [done {:.1}%, running for {}m, eta {}m]",
-                        progress_f * 100.0, duration / 60, eta / 60
+                    let est_info = iif!(
+                        eta > 0,
+                        format!(", ETA {}", fmt_duration(&time::Duration::from_secs(eta))),
+                        "".into()
+                    );
+                    info!(
+                        target: LT,
+                        "bitcoind scanning history... [{:.1}% completed{}]",
+                        progress_f * 100.0,
+                        est_info
                     );
                 }
             }

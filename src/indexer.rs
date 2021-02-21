@@ -106,16 +106,17 @@ impl Indexer {
         let mut changelog = changelog.into_vec();
 
         if tip_updated {
-            info!("synced up to height {}", synced_tip.0);
+            info!(
+                "synced up to height {}{}",
+                synced_tip.0,
+                iif!(changelog.is_empty(), "", " (found wallet activity)")
+            );
+
             changelog.push(IndexChange::ChainTip(synced_tip));
             self.tip = Some(synced_tip);
         }
 
         if !changelog.is_empty() && log_enabled!(log::Level::Debug) {
-            debug!(
-                "sync resulted in {} index changelog events",
-                changelog.len()
-            );
             for update in &changelog {
                 debug!("  - {:?}", update);
             }

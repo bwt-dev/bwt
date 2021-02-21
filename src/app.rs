@@ -18,6 +18,7 @@ use crate::listener;
 use crate::webhooks::WebHookNotifier;
 
 const DEBOUNCE_SEC: u64 = 2;
+const LT: &str = "bwt";
 
 pub struct App {
     config: Config,
@@ -40,7 +41,7 @@ impl App {
     /// To abort during initialization, disconnect the progress_tx channel.
     /// To shutdown after initialization was completed, drop the App.
     pub fn boot(config: Config, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<Self> {
-        debug!("{}", scrub_config(&config));
+        debug!(target: LT, "{}", scrub_config(&config));
 
         let watcher = WalletWatcher::from_config(&config)?;
         let rpc = Arc::new(RpcClient::new(
@@ -157,7 +158,7 @@ impl App {
             .map(|rx| self.bind_shutdown(rx))
             .or_else(|| self.default_shutdown_signal());
 
-        debug!("starting sync loop");
+        debug!(target: LT, "starting sync loop");
         loop {
             if let Some(shutdown_rx) = &shutdown_rx {
                 if shutdown_rx.try_recv() != Err(mpsc::TryRecvError::Empty) {
@@ -166,7 +167,7 @@ impl App {
             }
 
             if let Err(e) = self.sync() {
-                warn!("error while syncing: {:?}", e);
+                warn!(target: LT, "failed syncing with bitcoind: {:?}", e);
                 // Report the error and try again on the next run, this might be
                 // a temporary connectivity issue.
             }
@@ -233,7 +234,7 @@ impl App {
 
         thread::spawn(move || {
             let signal = signals.into_iter().next().unwrap();
-            trace!("received shutdown signal {}", signal);
+            trace!(target: LT, "received shutdown signal {}", signal);
             shutdown_tx.send(()).unwrap();
             // Need to also trigger `sync_tx`, see rational above
             sync_tx.send(()).unwrap();
@@ -307,16 +308,17 @@ fn init_bitcoind(
 
     let netinfo = rpc.get_network_info()?;
     info!(
+        target: LT,
         "bwt v{} connected to {} on {} at height {}",
         crate::BWT_VERSION,
         netinfo.subversion,
         bcinfo.chain,
-        bcinfo.headers
+        bcinfo.blocks
     );
 
-    trace!("{:?}", netinfo);
-    trace!("{:?}", bcinfo);
-    trace!("{:?}", walletinfo);
+    trace!(target: LT, "{:?}", netinfo);
+    trace!(target: LT, "{:?}", bcinfo);
+    trace!(target: LT, "{:?}", walletinfo);
 
     Ok(())
 }

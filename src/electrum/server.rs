@@ -529,7 +529,7 @@ impl ElectrumServer {
         let bound_addr = listener.local_addr().unwrap();
         info!(
             target: LT,
-            "Electrum RPC server running on {} (protocol {})", bound_addr, PROTOCOL_VERSION
+            "Electrum RPC server running on {}:t (protocol {})", bound_addr, PROTOCOL_VERSION
         );
 
         let chan = Channel::unbounded();
@@ -701,7 +701,7 @@ impl SubscriptionManager {
             return Ok(());
         }
 
-        info!(
+        debug!(
             target: LT,
             "sending {} update(s) to {} rpc client(s)",
             changelog.len(),

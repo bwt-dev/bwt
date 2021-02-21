@@ -80,6 +80,27 @@ pub fn fmt_date(unix: u64) -> String {
     dt.format("%Y-%m-%d").to_string()
 }
 
+pub fn fmt_duration(dur: &Duration) -> String {
+    const DAY: u64 = 86400;
+    const HOUR: u64 = 3600;
+    const MINUTE: u64 = 60;
+
+    let secs = dur.as_secs();
+    if secs > 90 * DAY {
+        format!("{} months", secs / DAY / 30)
+    } else if secs > 21 * DAY {
+        format!("{} weeks", secs / DAY / 7)
+    } else if secs > 3 * DAY {
+        format!("{} days", secs / DAY)
+    } else if secs > 3 * HOUR {
+        format!("{} hours", secs / HOUR)
+    } else if secs > 3 * MINUTE {
+        return format!("{} mins", secs / MINUTE);
+    } else {
+        format!("{} secs", secs)
+    }
+}
+
 // debounce a Sender to only emit events sent when `duration` seconds has passed since
 // the previous event, or after `duration` seconds elapses without new events coming in.
 pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sender<()> {

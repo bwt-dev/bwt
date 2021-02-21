@@ -97,9 +97,13 @@ impl WalletWatcher {
             .map(|address| (address, config.rescan_since))
             .collect::<Vec<_>>();
 
-        if config.require_addresses && wallets.is_empty() && addresses.is_empty() {
-            error!("Please provide at least one descriptors/xpubs/addresses to track (via --descriptor, --xpub or --address).");
-            bail!("No descriptors/xpubs/addresses provided");
+        if wallets.is_empty() && addresses.is_empty() {
+            if config.require_addresses {
+                error!("Please provide at least one descriptors/xpubs/addresses to track (via --descriptor, --xpub or --address).");
+                bail!("No descriptors/xpubs/addresses provided");
+            } else {
+                warn!("No descriptors, xpubs or addresses were provided. No wallet activity will be available.");
+            }
         }
 
         Self::new(config.network, wallets, addresses, config.force_rescan)
@@ -177,15 +181,10 @@ impl WalletWatcher {
         let mut import_reqs = vec![];
         let mut pending_updates = vec![];
 
-        for (checksum, wallet) in self.wallets.iter_mut() {
+        for (_, wallet) in self.wallets.iter_mut() {
             if self.force_rescan || wallet.needs_imports() {
                 let start_index = iif!(self.force_rescan, 0, wallet.import_start_index());
                 let end_index = wallet.import_end_index(rescan);
-
-                debug!(
-                    "importing {} range {}-{} with rescan={}",
-                    checksum, start_index, end_index, rescan,
-                );
 
                 import_reqs.append(&mut wallet.make_imports(start_index, end_index, rescan));
 
@@ -355,6 +354,14 @@ impl Wallet {
         rescan: bool,
     ) -> Vec<(Address, RescanSince, String)> {
         let rescan_since = iif!(rescan, self.rescan_since, RescanSince::Now);
+
+        debug!(
+            "importing {} range {}-{} ({} rescan)",
+            self.checksum,
+            start_index,
+            end_index,
+            iif!(rescan_since == RescanSince::Now, "without", "with"),
+        );
 
         (start_index..=end_index)
             .map(|index| {

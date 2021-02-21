@@ -1,11 +1,9 @@
-use std::time::{Duration as StdDuration, UNIX_EPOCH};
-
-use chrono::Duration;
+use std::time::{Duration, UNIX_EPOCH};
 
 use bitcoin::{blockdata::constants, Amount};
 use bitcoincore_rpc::RpcApi;
 
-use crate::util::RpcApiExt;
+use crate::util::{fmt_duration, RpcApiExt};
 use crate::{Query, Result};
 
 const DIFFCHANGE_INTERVAL: u64 = constants::DIFFCHANGE_INTERVAL as u64;
@@ -21,7 +19,7 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
     let mempool_info = rpc.get_mempool_info()?;
     let net_totals = rpc.get_net_totals()?;
     let hash_rate_7d = rpc.get_network_hash_ps(Some(1008), None)?;
-    let uptime = dur_from_secs(rpc.uptime()?);
+    let uptime = Duration::from_secs(rpc.uptime()?);
     let tip = rpc.get_block_stats(&rpc.get_best_block_hash()?)?;
 
     // Bitcoin Core v0.21 has a `connections_in` field. For older version,
@@ -45,23 +43,23 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
     };
 
     // 24 hour average bandwidth usage
-    let num_days = uptime.num_seconds() as f64 / 86400f64;
+    let num_days = uptime.as_secs() as f64 / 86400f64;
     let bandwidth_up = (net_totals.total_bytes_sent as f64 / num_days) as u64;
     let bandwidth_down = (net_totals.total_bytes_recv as f64 / num_days) as u64;
 
     // Time until the next difficulty adjustment
     let retarget_blocks = DIFFCHANGE_INTERVAL - (tip.height % DIFFCHANGE_INTERVAL);
-    let retarget_dur = dur_from_secs(retarget_blocks * TARGET_BLOCK_SPACING);
+    let retarget_dur = Duration::from_secs(retarget_blocks * TARGET_BLOCK_SPACING);
 
     // Current reward era and time until next halving
     let reward_era = tip.height / HALVING_INTERVAL;
     let block_reward = Amount::from_sat(INITIAL_REWARD / 2u64.pow(reward_era as u32));
     let halving_blocks = HALVING_INTERVAL - (tip.height % HALVING_INTERVAL);
-    let halving_dur = dur_from_secs(halving_blocks * TARGET_BLOCK_SPACING);
+    let halving_dur = Duration::from_secs(halving_blocks * TARGET_BLOCK_SPACING);
 
     // Time since last block
-    let tip_ago = match (UNIX_EPOCH + StdDuration::from_secs(tip.time as u64)).elapsed() {
-        Ok(elapsed) => format!("{} ago", format_dur(&Duration::from_std(elapsed).unwrap())),
+    let tip_ago = match (UNIX_EPOCH + Duration::from_secs(tip.time as u64)).elapsed() {
+        Ok(elapsed) => format!("{} ago", fmt_duration(&elapsed)),
         Err(_) => "just now".to_string(), // account for blocks with a timestamp slightly in the future
     };
 
@@ -109,14 +107,14 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
         client_name = to_widetext(&net_info.subversion),
         chain_name = to_smallcaps(&chain_name),
         connected_peers = net_info.connections,
-        uptime = to_smallcaps(&format_dur(&uptime).to_uppercase()),
+        uptime = to_smallcaps(&fmt_duration(&uptime).to_uppercase()),
         bandwidth_up = to_smallcaps(&format_bytes(bandwidth_up)),
         bandwidth_down = to_smallcaps(&format_bytes(bandwidth_down)),
         chain_size = to_smallcaps(&format_bytes(chain_info.size_on_disk)),
         hash_rate = to_smallcaps(&format_metric(hash_rate_7d, " ", "H/s")),
         difficulty = to_smallcaps(&format_metric(chain_info.difficulty as f64, " ", "")),
-        retarget_dur = to_smallcaps(&format_dur(&retarget_dur).to_uppercase()),
-        halving_dur = to_smallcaps(&format_dur(&halving_dur).to_uppercase()),
+        retarget_dur = to_smallcaps(&fmt_duration(&retarget_dur).to_uppercase()),
+        halving_dur = to_smallcaps(&fmt_duration(&halving_dur).to_uppercase()),
         block_reward = block_reward.as_btc(),
         tip_height = tip.height,
         tip_ago = to_smallcaps(&tip_ago),
@@ -158,32 +156,6 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
         total_supply_line = "‾".repeat(total_supply.len()),
         height = utxo_info.height,
 */
-
-fn dur_from_secs(seconds: u64) -> Duration {
-    Duration::from_std(StdDuration::from_secs(seconds)).unwrap()
-}
-
-fn format_dur(dur: &Duration) -> String {
-    let days = dur.num_days();
-    if days > 90 {
-        return format!("{} months", days / 30);
-    }
-    if days > 21 {
-        return format!("{} weeks", days / 7);
-    }
-    if days > 3 {
-        return format!("{} days", days);
-    }
-    let hours = dur.num_hours();
-    if hours > 3 {
-        return format!("{} hours", hours);
-    }
-    let minutes = dur.num_minutes();
-    if minutes > 3 {
-        return format!("{} mins", minutes);
-    }
-    format!("{} secs", dur.num_seconds())
-}
 
 fn format_bytes(bytes: u64) -> String {
     format_metric(bytes as f64, " ", "B")
