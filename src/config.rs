@@ -209,6 +209,17 @@ pub struct Config {
     #[serde(default = "default_initial_import_size")]
     pub initial_import_size: u32,
 
+    /// Don't wait for bitcoind to finish syncing up before starting bwt (useful with pruning for
+    /// importing/scanning before blocks get pruned) [env: NO_WAIT_IBD]
+    #[cfg_attr(feature = "cli", structopt(
+        long = "no-wait-ibd",
+        short = "I",
+        parse(from_flag = std::ops::Not::not),
+        display_order(1004)
+    ))]
+    #[serde(default = "default_true")]
+    pub wait_ibd: bool,
+
     //
     // Auth settings
     //
@@ -231,7 +242,7 @@ pub struct Config {
     pub auth_ephemeral: bool,
 
     /// Print access token (useful with --auth-cookie) [env: PRINT_TOKEN]
-    #[cfg_attr(feature = "cli", structopt(long, display_order(1006)))]
+    #[cfg_attr(feature = "cli", structopt(long, display_order(1005)))]
     #[serde(default)]
     pub print_token: bool,
 
@@ -248,14 +259,14 @@ pub struct Config {
 
     /// Skip generating merkle proofs. Reduces resource usage, requires running Electrum with --skipmerklecheck. [env: ELECTRUM_SKIP_MERKLE]
     #[cfg(feature = "electrum")]
-    #[cfg_attr(feature = "cli", structopt(long, short = "M", display_order(1004)))]
+    #[cfg_attr(feature = "cli", structopt(long, short = "M", display_order(1006)))]
     #[serde(default)]
     pub electrum_skip_merkle: bool,
 
     /// Enable the Electrum SOCKS5-based authentication mechanism
     /// (see https://github.com/bwt-dev/bwt/blob/master/doc/auth.md) [env: ELECTRUM_SOCKS_AUTH]
     #[cfg(feature = "electrum")]
-    #[cfg_attr(feature = "cli", structopt(long, short = "5", display_order(1004)))]
+    #[cfg_attr(feature = "cli", structopt(long, short = "5", display_order(1007)))]
     #[serde(default)]
     pub electrum_socks_auth: bool,
 
@@ -310,7 +321,7 @@ pub struct Config {
     #[cfg_attr(feature = "cli", structopt(
         long = "no-startup-banner",
         parse(from_flag = std::ops::Not::not),
-        display_order(1005)
+        display_order(1007)
     ))]
     #[serde(default)]
     pub startup_banner: bool,
@@ -468,6 +479,9 @@ impl Config {
         }
         if bool_env("CREATE_WALLET_IF_MISSING") {
             config.create_wallet_if_missing = true;
+        }
+        if bool_env("NO_WAIT_IBD") {
+            config.wait_ibd = false;
         }
         if bool_env("NO_STARTUP_BANNER") {
             config.startup_banner = false;
@@ -706,6 +720,7 @@ defaultable!(Config,
     gap_limit=20,
     initial_import_size=350,
     poll_interval=time::Duration::from_secs(5),
+    wait_ibd=true,
     require_addresses=true,
     setup_logger=true,
   )

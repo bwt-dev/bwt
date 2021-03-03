@@ -16,18 +16,19 @@ pub enum Progress {
     Done,
 }
 
+/// Waits for bitcoind to finish syncing blocks when `wait_full_sync` is true,
+/// otherwise only waits for the RPC to 'warm up'.
 pub fn wait_blockchain_sync(
     rpc: &Client,
     progress_tx: Option<mpsc::Sender<Progress>>,
     interval: time::Duration,
+    wait_full_sync: bool,
 ) -> Result<json::GetBlockchainInfoResult> {
     let mut sync_start: Option<(time::Instant, u64)> = None;
     Ok(loop {
         match rpc.get_blockchain_info() {
             Ok(info) => {
-                if info.blocks == info.headers
-                    && (!info.initial_block_download || info.chain == "regtest")
-                {
+                if is_synced(&info) {
                     if let Some(ref progress_tx) = progress_tx {
                         let progress = Progress::Sync {
                             progress_f: 1.0,
@@ -35,6 +36,8 @@ pub fn wait_blockchain_sync(
                         };
                         ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
                     }
+                    break info;
+                } else if !wait_full_sync {
                     break info;
                 }
 
@@ -91,6 +94,11 @@ pub fn wait_blockchain_sync(
     })
 }
 
+pub fn is_synced(info: &json::GetBlockchainInfoResult) -> bool {
+    info.blocks == info.headers && (!info.initial_block_download || info.chain == "regtest")
+}
+
+/// Wait for bitcoind to finish rescanning for wallet activity.
 pub fn wait_wallet_scan(
     rpc: &Client,
     progress_tx: Option<mpsc::Sender<Progress>>,

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- New `--import-while-syncing` option to import addresses without waiting for bitcoind to finish syncing first.
+  Useful for tracking a wallet during the IBD of a pruned node, so transactions could be indexed before the blocks get pruned.
+
 - Allow setting `UNIX_LISTENER_MODE` to control permissions for the unix socket notification listener.
 
 - Allow setting `NO_REQUIRE_ADDRESSES` as an env variable

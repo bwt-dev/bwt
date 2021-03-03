@@ -52,7 +52,7 @@ impl App {
         let query = Arc::new(Query::new((&config).into(), rpc.clone(), indexer.clone()));
 
         // wait for bitcoind to load up and initialize the wallet
-        init_bitcoind(&rpc, &config, progress_tx.clone())?;
+        init_bitcoind(rpc.clone(), &config, progress_tx.clone())?;
 
         if config.startup_banner {
             println!("{}", banner::get_welcome_banner(&query, false)?);
@@ -285,26 +285,32 @@ fn load_wallet(rpc: &RpcClient, name: &str, create_if_missing: bool) -> Result<(
     }
 }
 
-// Initialize bitcoind and wait for it to finish syncing and rescanning
+// Initialize bitcoind and wait for it to finish rescanning and syncing (unless --no-wait-ibd was set)
 // Aborted if the progress channel gets disconnected.
 fn init_bitcoind(
-    rpc: &RpcClient,
+    rpc: Arc<RpcClient>,
     config: &Config,
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> Result<()> {
-    use crate::util::progress::{wait_blockchain_sync, wait_wallet_scan};
-
+    use crate::util::progress::{is_synced, wait_blockchain_sync, wait_wallet_scan};
     const INTERVAL_SLOW: time::Duration = time::Duration::from_secs(6);
     const INTERVAL_FAST: time::Duration = time::Duration::from_millis(1500);
-    // use the fast interval if we're reporting progress to a channel, or the slow one if its only for CLI
+    // Use the fast interval if we're reporting progress to a channel, or the slow one if its only for CLI
     let interval = iif!(progress_tx.is_some(), INTERVAL_FAST, INTERVAL_SLOW);
 
-    let bcinfo = wait_blockchain_sync(rpc, progress_tx.clone(), interval)?;
+    // When `wait-ibd` is true (the default), block until bitcoind is fully synced up.
+    // Otherwise, block until the RPC is 'warmed up', then report syncing progress in a non-blocking background thread.
+    let bcinfo = wait_bitcoind_ready(&rpc, progress_tx.clone(), interval, config.wait_ibd)?;
+    if !config.wait_ibd && !is_synced(&bcinfo) {
+        let rpc = rpc.clone();
+        thread::spawn(move || wait_blockchain_sync(&rpc, None, INTERVAL_SLOW, true).ok());
+    }
 
+    // Load/create wallet and wait for rescan to finish
     if let Some(bitcoind_wallet) = &config.bitcoind_wallet {
         load_wallet(&rpc, bitcoind_wallet, config.create_wallet_if_missing)?;
     }
-    let walletinfo = wait_wallet_scan(rpc, progress_tx, None, interval)?;
+    let walletinfo = wait_wallet_scan(&rpc, progress_tx, None, interval)?;
 
     let netinfo = rpc.get_network_info()?;
     info!(
