@@ -20,16 +20,21 @@ pub struct Indexer {
     watcher: WalletWatcher,
     store: MemoryStore,
     tip: Option<BlockId>,
+    fixed_listsinceblock: bool,
 }
 
 impl Indexer {
-    pub fn new(rpc: Arc<RpcClient>, watcher: WalletWatcher) -> Self {
-        Indexer {
+    pub fn new(rpc: Arc<RpcClient>, watcher: WalletWatcher) -> Result<Self> {
+        // listsinceblock was racey in Bitcoin Core < 0.21: https://github.com/bitcoin/bitcoin/issues/19338
+        let fixed_listsinceblock = rpc.version()? >= 210000;
+
+        Ok(Indexer {
             rpc,
             watcher,
             store: MemoryStore::new(),
             tip: None,
-        }
+            fixed_listsinceblock,
+        })
     }
 
     pub fn store(&self) -> &MemoryStore {
@@ -130,18 +135,44 @@ impl Indexer {
         refresh_outgoing: bool,
         changelog: &mut Changelog,
     ) -> Result<BlockId> {
-        let since_block = self.tip.as_ref().map(|tip| &tip.1);
-        let tip_height = self.rpc.get_block_count()? as u32;
-        let tip_hash = self.rpc.get_block_hash(tip_height as u64)?;
+        // To deal with listsinceblock's non-atomicity in bitcoin < 0.21, we need to record the
+        // tip before and make sure it didn't move during the listsinceblock rpc call.
+        let tip_sanity_check = if !self.fixed_listsinceblock {
+            let height = self.rpc.get_block_count()?;
+            Some(BlockId(height as u32, self.rpc.get_block_hash(height)?))
+        } else {
+            None
+        };
 
-        let result = self.rpc.list_since_block_(since_block)?;
+        let prev_indexed_tip = self.tip.as_ref().map(|tip| tip.hash());
+        let result = self.rpc.list_since_block_(prev_indexed_tip)?;
 
-        // Workaround for https://github.com/bitcoin/bitcoin/issues/19338,
-        // listsinceblock is not atomic and could provide inconsistent results.
-        if result.lastblock != tip_hash {
+        // Ensure consistent results for `listsinceblock` in < 0.21.
+        if tip_sanity_check.map_or(false, |tip| result.lastblock != *tip.hash()) {
             warn!("chain tip moved while reading listsinceblock, retrying...");
             return self.sync_transactions(refresh_outgoing, changelog);
         }
+
+        // When `listsinceblock` is atomic in >=0.21, use its returned 'lastblock' as the tip.
+        let tip = tip_sanity_check.map_or_else(
+            || -> Result<_> {
+                if prev_indexed_tip != Some(&result.lastblock) {
+                    let height = self.rpc.get_block_header_info(&result.lastblock)?.height;
+                    Ok(BlockId(height as u32, result.lastblock))
+                } else {
+                    Ok(self.tip.unwrap()) // the tip didn't move
+                }
+            },
+            Ok,
+        )?;
+
+        trace!(
+            "fetched {} transactions (+ {} removed entries) between blocks {} and {}",
+            result.transactions.len(),
+            result.removed.len(),
+            self.tip.map_or(0, |t| t.height()),
+            tip.height()
+        );
 
         for ltx in result.removed {
             // transactions that were re-added in the active chain will appear in `removed`
@@ -168,7 +199,7 @@ impl Indexer {
                     // incoming txouts are easy: bitcoind tells us the associated
                     // address and label, giving us all the information we need in
                     // order to save the txo to the index.
-                    self.process_incoming_txo(ltx, tip_height, changelog);
+                    self.process_incoming_txo(ltx, tip.height(), changelog);
                 }
                 TxCategory::Send => {
                     // indexing outgoing txs require fetching the list of spent prevouts and
@@ -184,13 +215,13 @@ impl Indexer {
         }
 
         for (txid, confirmations) in buffered_outgoing {
-            let status = TxStatus::from_confirmations(confirmations, tip_height);
+            let status = TxStatus::from_confirmations(confirmations, tip.height());
             self.process_outgoing_tx(txid, status, refresh_outgoing, changelog)
                 .map_err(|err| warn!("failed processing outgoing payment: {:?}", err))
                 .ok();
         }
 
-        Ok(BlockId(tip_height, tip_hash))
+        Ok(tip)
     }
 
     /// Check if the given wallet transaction is conflicted

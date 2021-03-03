@@ -48,7 +48,7 @@ impl App {
             config.bitcoind_url(),
             config.bitcoind_auth()?,
         )?);
-        let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)));
+        let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)?));
         let query = Arc::new(Query::new((&config).into(), rpc.clone(), indexer.clone()));
 
         // wait for bitcoind to load up and initialize the wallet
