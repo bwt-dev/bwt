@@ -90,7 +90,7 @@ pub struct AddressEntry {
     pub purpose: json::GetAddressInfoResultLabelPurpose,
 }
 
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize, Default)]
 pub struct GetBlockStatsResult {
     pub height: u64,
     pub time: u64,
@@ -102,6 +102,19 @@ pub struct GetBlockStatsResult {
     #[serde(rename = "avgfeerate")]
     pub avg_fee_rate: u64,
     pub feerate_percentiles: (u64, u64, u64, u64, u64),
+}
+
+// Used to make a GetBlockStatsResult representation of the genesis block
+// (getblockstats on it fails with "Can't read undo data from disk")
+impl From<json::GetBlockHeaderResult> for GetBlockStatsResult {
+    fn from(header: json::GetBlockHeaderResult) -> Self {
+        Self {
+            height: header.height as u64,
+            time: header.time as u64,
+            txs: header.n_tx as u64,
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]

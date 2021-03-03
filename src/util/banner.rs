@@ -1,7 +1,7 @@
 use std::time::{Duration, UNIX_EPOCH};
 
 use bitcoin::{blockdata::constants, Amount};
-use bitcoincore_rpc::RpcApi;
+use bitcoincore_rpc::{self as rpc, RpcApi};
 
 use crate::util::{fmt_duration, RpcApiExt};
 use crate::{Query, Result};
@@ -20,7 +20,10 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
     let net_totals = rpc.get_net_totals()?;
     let hash_rate_7d = rpc.get_network_hash_ps(Some(1008), None)?;
     let uptime = Duration::from_secs(rpc.uptime()?);
-    let tip = rpc.get_block_stats(&rpc.get_best_block_hash()?)?;
+    let tip_hash = rpc.get_best_block_hash()?;
+    let tip = rpc
+        .get_block_stats(&tip_hash) // fails for the genesis block, fallback to getblockheader
+        .or_else::<rpc::Error, _>(|_| Ok(rpc.get_block_header_info(&tip_hash)?.into()))?;
 
     // Bitcoin Core v0.21 has a `connections_in` field. For older version,
     // retreive the list of peers and check if there are any inbound ones.
@@ -116,7 +119,11 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
         retarget_dur = to_smallcaps(&fmt_duration(&retarget_dur).to_uppercase()),
         halving_dur = to_smallcaps(&fmt_duration(&halving_dur).to_uppercase()),
         block_reward = block_reward.as_btc(),
-        tip_height = tip.height,
+        tip_height = iif!(
+            tip.height == 0,
+            to_smallcaps("GENESIS"),
+            tip.height.to_string()
+        ),
         tip_ago = to_smallcaps(&tip_ago),
         //tip_size = to_smallcaps(&format_bytes(tip.total_size)),
         tip_weight = to_smallcaps(&format_metric(tip.total_weight as f64, " ", "WU")),
