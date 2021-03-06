@@ -7,6 +7,8 @@
 [![Crate package](https://img.shields.io/crates/d/bwt.svg?label=crate+installs)](https://crates.io/crates/bwt)
 [![MIT license](https://img.shields.io/github/license/bwt-dev/bwt.svg?color=yellow)](https://github.com/bwt-dev/bwt/blob/master/LICENSE)
 [![Pull Requests Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#developing)
+[![Chat on Telegram](https://img.shields.io/badge/chat-on%20telegram-blue)](https://t.me/bwt_dev)
+[![Chat on IRC](https://img.shields.io/badge/chat-on%20IRC-green.svg)](https://webchat.freenode.net/##bwt)
 
 `bwt` is a lightweight wallet descriptor/xpub tracker and query engine for Bitcoin, implemented in Rust.
 
@@ -187,9 +189,9 @@ Setting the environment variables directly is also supported.
 ### Electrum-only server
 
 If you're only interested in a standalone Electrum server, you may disable the HTTP API server
-by building bwt with `--no-default-features --features cli,electrum`,
-using the `shesek/bwt:electrum` docker image,
-or downloading the `electrum_only` pre-built binary.
+by downloading the `electrum_only` pre-built binary,
+using the `shesek/bwt:electrum` docker image
+or building bwt with `--no-default-features --features cli,electrum`.
 
 This removes several large dependencies and disables the `track-spends` database index
 (which is not needed for the electrum server).
@@ -198,20 +200,28 @@ This removes several large dependencies and disables the `track-spends` database
 
 ### Pruning
 
-You can use bwt with pruning, but:
+You can use bwt with pruning, but a pruned node is only able to scan the recent blocks it still has available for transactions related to your wallet. This means that the `--rescan-since` date has to be within the range of non-pruned blocks, or set to 'now'. This makes pruned nodes primarily suitable for tracking newly created wallets.
 
-1. The `--rescan-since` date has to be within the range of non-pruned blocks -
-   meaning that you won't see history that was already pruned when you first started tracking the wallet.
+There is, however, an opportunity to scan for your wallet's full history during the initial sync of your node, as the blocks will get scanned before getting pruned. You'll need to set `--no-wait-ibd` to import the addresses without waiting for bitcoind to finish syncing first and make sure bwt runs before the earliest block containing a wallet transaction gets processed.
 
-   This limitation makes this primarily suitable for newly created wallets (or wallets created recently, within the unpruned range).
-
-2. Electrum needs to be run with `--skipmerklecheck` to tolerate missing SPV proofs for transactions in pruned blocks.
+To connect Electrum, you will need to configure it with [`--skipmerklecheck`](https://github.com/spesmilo/electrum/pull/4957) to tolerate missing SPV proofs (they will be unavailable for transactions in pruned blocks).
 
 > If you're running Electrum with `--skipmerklecheck`, you may also configure bwt with `--electrum-skip-merkle` to save some resources by not generating SPV proofs even when it's possible.
->
 > Both of these settings are automatically enabled when using the Electrum plugin.
 
-### Real-time indexing
+### Bitcoin Core multi-wallet
+
+If you're using [multi-wallet](https://bitcoin.org/en/release/v0.15.0.1#multi-wallet-support),
+you can specify which wallet to use with `--bitcoind-wallet <name>` (or `-w <name>`).
+
+Using a separate wallet for bwt is recommended. You can set
+`-w bwt --create-wallet-if-missing` to have bwt create one for you.
+
+*Note that EPS and bwt should not be run on the same bitcoind wallet with the same xpub, they will conflict.*
+
+### Advanced options
+
+#### Real-time indexing
 
 By default, bwt will query bitcoind for new blocks/transactions every 5 seconds.
 This can be adjusted with `--poll-interval <seconds>`.
@@ -241,8 +251,6 @@ If `nc` is not available, you can also use `socat - UNIX-CONNECT:/home/satoshi/b
 If you're using docker, you can bind the socket on a directory mounted from the host to make it available outside the container.
 For example, `--unix-listener-path /bitcoin/bwt-socket`.
 
-### Advanced options
-
 ##### Gap limit
 
 You may configure the gap limit with `--gap--limit <N>` (defaults to 20).
@@ -250,16 +258,6 @@ The gap limit sets the maximum number of consecutive unused addresses to be impo
 
 You can import larger batches with a higher gap during the initial sync using `--initial-import-size <N>` (defaults to 350).
 Higher value means less rescans. Should be increased for large wallets.
-
-##### Bitcoin Core multi-wallet
-
-If you're using [multi-wallet](https://bitcoin.org/en/release/v0.15.0.1#multi-wallet-support),
-you can specify which wallet to use with `--bitcoind-wallet <name>`.
-
-Using a separate wallet for bwt is recommended. You can set
-`--bitcoind-wallet bwt --create-wallet-if-missing` to have bwt create one for you.
-
-*Note that EPS and bwt should not be run on the same bitcoind wallet with the same xpub, they will conflict.*
 
 ##### Scriptable transaction broadcast
 

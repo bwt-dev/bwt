@@ -2,10 +2,19 @@
 
 ## Unreleased
 
-- New `--import-while-syncing` option to import addresses without waiting for bitcoind to finish syncing first.
-  Useful for tracking a wallet during the IBD of a pruned node, so transactions could be indexed before the blocks get pruned.
+- New `--no-wait-ibd` option to allow importing addresses without waiting for bitcoind to finish syncing first
 
-- Allow setting `UNIX_LISTENER_MODE` to control permissions for the unix socket notification listener.
+  Useful for tracking wallets during the IBD of a pruned node, so transactions could be indexed before the blocks get pruned.
+
+- HTTP: Set the `WWW-Authenticate` header to make logging-in possible via web browsers
+
+- Implement an [fd-based daemon readiness notification mechanism](https://skarnet.org/software/s6/notifywhenup.html), enabled with `FD_NOTIFY=<fd>`
+
+- Fix whitepaper extractor
+
+- UX touchups for progress indicator, welcome banner and logs
+
+- Allow setting `UNIX_LISTENER_MODE` to control permissions for the unix socket notification listener
 
 - Allow setting `NO_REQUIRE_ADDRESSES` as an env variable
 
