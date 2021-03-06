@@ -320,9 +320,11 @@ impl Wallet {
             return self.max_imported_index.is_none();
         }
 
-        self.max_imported_index.map_or(true, |imported| {
-            self.max_funded_index
-                .map_or(false, |funded| imported - funded < self.gap_limit)
+        self.max_imported_index.map_or(true, |imported_index| {
+            self.max_funded_index.map_or_else(
+                || imported_index + 1 < self.gap_limit,
+                |funded_index| imported_index - funded_index < self.gap_limit,
+            )
         })
     }
 
