@@ -1,5 +1,5 @@
 use std::collections::hash_map::{Entry, HashMap};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{sync::mpsc, thread};
 
 use serde_json::Value;
@@ -101,36 +101,27 @@ pub fn fmt_duration(dur: &Duration) -> String {
     }
 }
 
-// debounce a Sender to only emit events sent when `duration` seconds has passed since
-// the previous event, or after `duration` seconds elapses without new events coming in.
-pub fn debounce_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sender<()> {
+// throttle a Sender to emit events at most once every `duration` seconds
+pub fn throttle_sender(forward_tx: mpsc::Sender<()>, duration: u64) -> mpsc::Sender<()> {
     let duration = Duration::from_secs(duration);
     let (debounce_tx, debounce_rx) = mpsc::channel();
 
     thread::spawn(move || {
-        'outer: loop {
-            let tick_start = Instant::now();
-            // always wait for the first sync message to arrive first
+        loop {
+            // wait to receive, then forward
             if debounce_rx.recv().is_err() {
-                break 'outer;
-            }
-            if tick_start.elapsed() < duration {
-                // if duration hasn't passed, debounce for another `duration` seconds
-                loop {
-                    trace!(target: "bwt::real-time", "debouncing sync for {:?}", duration);
-                    match debounce_rx.recv_timeout(duration) {
-                        // if we receive another message within the `duration`, debounce and start over again
-                        Ok(()) => continue,
-                        // if we timed-out, we're good!
-                        Err(mpsc::RecvTimeoutError::Timeout) => break,
-                        Err(mpsc::RecvTimeoutError::Disconnected) => break 'outer,
-                    }
-                }
+                break;
             }
             debug!(target: "bwt::real-time", "triggering real-time index sync");
             if forward_tx.send(()).is_err() {
-                break 'outer;
+                break;
             }
+
+            // drain
+            while debounce_rx.try_recv().is_ok() {}
+
+            // ignore events for `duration`
+            thread::sleep(duration);
         }
         trace!(target: "bwt::real-time", "debounce sync thread shutting down");
     });

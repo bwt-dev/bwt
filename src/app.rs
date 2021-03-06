@@ -5,7 +5,7 @@ use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::error::{BwtError, Result};
 use crate::util::progress::Progress;
-use crate::util::{banner, debounce_sender, fd_readiness_notification, on_oneshot_done};
+use crate::util::{banner, fd_readiness_notification, on_oneshot_done, throttle_sender};
 use crate::{Config, IndexChange, Indexer, Query, WalletWatcher};
 
 #[cfg(feature = "electrum")]
@@ -17,7 +17,7 @@ use crate::listener;
 #[cfg(feature = "webhooks")]
 use crate::webhooks::WebHookNotifier;
 
-const DEBOUNCE_SEC: u64 = 2;
+const THROTTLE_SEC: u64 = 2;
 const LT: &str = "bwt";
 
 pub struct App {
@@ -77,10 +77,10 @@ impl App {
         }
 
         // channel for triggering real-time index sync
-        // debounced to avoid excessive indexing when bitcoind catches up
+        // throttled to avoid excessive indexing when bitcoind catches up
         let (sync_tx, sync_rx) = mpsc::channel();
         #[cfg(any(feature = "http", unix))]
-        let debounced_sync_tx = debounce_sender(sync_tx.clone(), DEBOUNCE_SEC);
+        let throttled_sync_tx = throttle_sender(sync_tx.clone(), THROTTLE_SEC);
 
         #[cfg(feature = "electrum")]
         let electrum = config.electrum_addr().map(|addr| {
@@ -99,14 +99,14 @@ impl App {
                 access_token.clone(),
                 config.http_cors.clone(),
                 query.clone(),
-                debounced_sync_tx.clone(),
+                throttled_sync_tx.clone(),
             )
         });
 
         #[cfg(unix)]
         {
             if let Some(listener_path) = &config.unix_listener_path {
-                listener::start(listener_path.clone(), debounced_sync_tx);
+                listener::start(listener_path.clone(), throttled_sync_tx);
             }
         }
 
@@ -292,7 +292,7 @@ fn init_bitcoind(
     config: &Config,
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> Result<()> {
-    use crate::util::progress::{is_synced, wait_blockchain_sync, wait_wallet_scan};
+    use crate::util::progress::{is_synced, wait_bitcoind_ready, wait_wallet_scan};
     const INTERVAL_SLOW: time::Duration = time::Duration::from_secs(6);
     const INTERVAL_FAST: time::Duration = time::Duration::from_millis(1500);
     // Use the fast interval if we're reporting progress to a channel, or the slow one if its only for CLI
