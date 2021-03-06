@@ -132,7 +132,7 @@ $ docker run -it --net host -v ~/.bitcoin:/bitcoin:ro shesek/bwt --xpub <xpub> .
 
 `bwt --xpub <xpub>` should be sufficient to get you rolling.
 
-You can configure the `--network` (defaults to `mainnet`),
+You can configure the `--network` (defaults to `bitcoin`),
 your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 `--bitcoind-dir` (defaults to `~/.bitcoin`) and
 `--bitcoind-auth <user:pass>` (defaults to using the cookie file from `bitcoind-dir`).
