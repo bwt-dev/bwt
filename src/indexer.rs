@@ -167,7 +167,7 @@ impl Indexer {
         )?;
 
         trace!(
-            "fetched {} transactions (+ {} removed entries) between blocks {} and {}",
+            "fetched {} transactions (+ {} replaced) between blocks {} and {}",
             result.transactions.len(),
             result.removed.len(),
             self.tip.map_or(0, |t| t.height()),
