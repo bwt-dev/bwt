@@ -59,12 +59,20 @@ pub fn wait_blockchain_sync(
     })
 }
 
+/// Wait for the wallet to finish scanning and return wallet info.
+/// Returns [None] if wallet is disabled.
 pub fn wait_wallet_scan(
     rpc: &Client,
     progress_tx: Option<mpsc::Sender<Progress>>,
     shutdown_rx: Option<mpsc::Receiver<()>>,
     interval: time::Duration,
-) -> Result<json::GetWalletInfoResult> {
+) -> Result<Option<json::GetWalletInfoResult>> {
+    use rpc::jsonrpc::error::{Error as JsonRpcError, RpcError};
+
+    /// The error code returned when `getwalletinfo` is called on a bitcoind
+    /// that had the wallet disabled during compilation.
+    const ERR_METHOD_NOT_FOUND: i32 = -32601;
+
     // Stop if the shutdown signal was received or if the channel was disconnected
     let should_stop = || {
         shutdown_rx
@@ -73,7 +81,15 @@ pub fn wait_wallet_scan(
     };
 
     let info = loop {
-        let info = rpc.get_wallet_info()?;
+        let info = match rpc.get_wallet_info() {
+            Ok(info) => info,
+            Err(rpc::Error::JsonRpc(JsonRpcError::Rpc(RpcError { code, .. })))
+                if code == ERR_METHOD_NOT_FOUND =>
+            {
+                return Ok(None);
+            }
+            Err(e) => return Err(e.into()),
+        };
         if should_stop() {
             break info;
         }
@@ -126,5 +142,5 @@ pub fn wait_wallet_scan(
         ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
     }
 
-    Ok(info)
+    Ok(Some(info))
 }
