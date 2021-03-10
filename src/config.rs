@@ -108,8 +108,8 @@ pub struct Config {
     /// Add a descriptor to track
     #[cfg_attr(feature = "cli", structopt(
         short = "d",
-        long = "descriptor",
         parse(try_from_str = parse_desc),
+        long = "descriptor",
         env, hide_env_values(true),
         use_delimiter(true), value_delimiter(";"),
         display_order(20)
@@ -220,6 +220,13 @@ pub struct Config {
     #[serde(default = "default_true")]
     pub wait_ibd: bool,
 
+    /// Prune the chain until the given height, unix timestamp or YYYY-MM-DD formatted date
+    #[cfg_attr(feature = "cli", structopt(short = "p", long, parse(try_from_str = parse_prune_until),
+    env,
+    hide_env_values(true), display_order(1009)))]
+    #[serde(default)]
+    pub prune_until: Option<u64>,
+
     //
     // Auth settings
     //
@@ -321,7 +328,7 @@ pub struct Config {
     #[cfg_attr(feature = "cli", structopt(
         long = "no-startup-banner",
         parse(from_flag = std::ops::Not::not),
-        display_order(1007)
+        display_order(1008)
     ))]
     #[serde(default)]
     pub startup_banner: bool,
@@ -520,6 +527,11 @@ impl Config {
                 config.addresses.push(val.parse()?);
             }
         }
+
+        if config.prune_until.is_some() && config.wait_ibd {
+            warn!("prune-until was enabled without no-wait-ibd. This means that the chain won't get pruned until after its fully synced. Consider enabling no-wait-ibd.");
+        }
+
         Ok(config)
     }
 
@@ -629,7 +641,7 @@ fn parse_rescan(s: &str) -> Result<RescanSince> {
         "all" | "genesis" => RescanSince::Timestamp(0),
         "now" | "none" => RescanSince::Now,
         s => {
-            // try as a unix timestamp first, then as a datetime string
+            // try as a unix timestamp first, then as a date string
             RescanSince::Timestamp(
                 s.parse::<u64>()
                     .or_else(|_| parse_yyyymmdd(s))
@@ -637,6 +649,14 @@ fn parse_rescan(s: &str) -> Result<RescanSince> {
             )
         }
     })
+}
+
+#[cfg(feature = "cli")]
+fn parse_prune_until(s: &str) -> Result<u64> {
+    // try as a number (height or unix timestamp) first, then as a date string
+    s.parse::<u64>()
+        .or_else(|_| parse_yyyymmdd(s))
+        .context("invalid prune-until value")
 }
 
 #[cfg(feature = "cli")]
@@ -705,7 +725,7 @@ impl From<&Config> for QueryConfig {
 // Create a Default implementation
 defaultable!(Config,
   @default(
-    verbose, timestamp, broadcast_cmd, startup_banner,
+    verbose, timestamp, broadcast_cmd, startup_banner, prune_until,
     descriptors, xpubs, addresses, addresses_file, force_rescan,
     bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie, create_wallet_if_missing,
     auth_cookie, auth_token, auth_ephemeral, print_token,

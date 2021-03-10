@@ -204,6 +204,8 @@ You can use bwt with pruning, but a pruned node is only able to scan the recent 
 
 There is, however, an opportunity to scan for your wallet's full history during the initial sync of your node, as the blocks will get scanned before getting pruned. You'll need to set `--no-wait-ibd` to import the addresses without waiting for bitcoind to finish syncing first and make sure bwt runs before the earliest block containing a wallet transaction gets processed.
 
+You can use `--prune-until <target>` to automatically prune the chain up to the given target (height, unix timestamp or YYYY-MM-DD formatted date). This requires configuring bitcoind with `prune=1` to allow manual pruning via the RPC.
+
 To connect Electrum, you will need to configure it with [`--skipmerklecheck`](https://github.com/spesmilo/electrum/pull/4957) to tolerate missing SPV proofs (they will be unavailable for transactions in pruned blocks).
 
 > If you're running Electrum with `--skipmerklecheck`, you may also configure bwt with `--electrum-skip-merkle` to save some resources by not generating SPV proofs even when it's possible.

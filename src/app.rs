@@ -1,11 +1,12 @@
 use std::sync::{mpsc, Arc, RwLock};
-use std::{net, thread, time};
+use std::time::{Duration, Instant};
+use std::{cell::Cell, net, thread};
 
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::error::{BwtError, Result};
 use crate::util::progress::Progress;
-use crate::util::{banner, fd_readiness_notification, on_oneshot_done, throttle_sender};
+use crate::util::{banner, fd_readiness_notification, on_oneshot_done, throttle_sender, RpcApiExt};
 use crate::{Config, IndexChange, Indexer, Query, WalletWatcher};
 
 #[cfg(feature = "electrum")]
@@ -26,6 +27,7 @@ pub struct App {
     query: Arc<Query>,
     access_token: Option<String>,
     sync_chan: (mpsc::Sender<()>, mpsc::Receiver<()>),
+    next_prune: Cell<Option<Instant>>,
 
     #[cfg(feature = "electrum")]
     electrum: Option<ElectrumServer>,
@@ -113,6 +115,8 @@ impl App {
         #[cfg(feature = "webhooks")]
         let webhook = config.webhook_urls.clone().map(WebHookNotifier::start);
 
+        let next_prune = config.prune_until.map(|_| Instant::now());
+
         fd_readiness_notification();
 
         Ok(App {
@@ -121,6 +125,7 @@ impl App {
             query,
             access_token,
             sync_chan: (sync_tx, sync_rx),
+            next_prune: Cell::new(next_prune),
             #[cfg(feature = "electrum")]
             electrum,
             #[cfg(feature = "http")]
@@ -130,11 +135,13 @@ impl App {
         })
     }
 
-    /// Synchronize new blocks/transactions and emit updates to the running services
+    // Run a single sync 'tick'
     #[allow(clippy::option_map_unit_fn)]
     pub fn sync(&self) -> Result<Vec<IndexChange>> {
+        // Synchronize new blocks/transactions
         let updates = self.indexer.write().unwrap().sync()?;
 
+        // Emit updates
         if !updates.is_empty() {
             #[cfg(feature = "electrum")]
             self.electrum
@@ -149,6 +156,22 @@ impl App {
                 .as_ref()
                 .map(|webhook| webhook.send_updates(&updates));
         }
+
+        // Try running 'pruneblockchain' until it succeeds, then stop
+        /*
+        if let Some(prune_until) = self.config.prune_until {
+            // XXX run less?
+            if self.pruning_pending.get() {
+                if let Ok(pruned) = self.query.rpc().prune_blockchain(prune_until) {
+                    info!(target: LT, "Successfully pruned up to height {}", pruned);
+                    self.pruning_pending.set(false);
+                } // will fail if the current tip is earlier than `prune_until`
+            }
+        }*/
+
+        // Try pruning the chain (when 'prune-until' is set)
+        self.try_prune()?;
+
         Ok(updates)
     }
 
@@ -212,6 +235,43 @@ impl App {
     #[cfg(feature = "http")]
     pub fn http_addr(&self) -> Option<net::SocketAddr> {
         Some(self.http.as_ref()?.addr())
+    }
+
+    // Prune the chain according to the `prune-until` setting
+    fn try_prune(&self) -> Result<()> {
+        const PRUNE_INTERVAL: Duration = Duration::from_secs(5 * 60);
+
+        let prune_until = some_or_ret!(self.config.prune_until, Ok(()));
+        let next_prune = some_or_ret!(self.next_prune.get(), Ok(()));
+        if next_prune > Instant::now() {
+            return Ok(());
+        }
+        let tip = some_or_ret!(self.indexer.read().unwrap().tip(), Ok(()));
+
+        // Check if we're synced sufficiently to prune until `prune_until`
+        let reached_target = if prune_until > 1000000000 {
+            // values over 1 billion are treated as timestamps by bitcoind
+            let tip_time = self.query.rpc().get_block_header(tip.hash())?.time;
+            tip_time as u64 > prune_until
+        } else {
+            tip.height() as u64 > prune_until
+        };
+
+        // If `prune_until` was not reached, prune until near the current tip instead (the last
+        // 288 blocks will be kept) to prevent the chain from growing too much during IBD.
+        let prune_target = iif!(reached_target, prune_until, tip.height() as u64);
+        debug!(target: "bwt::prune", "pruning until {}", prune_target);
+        if let Ok(pruned_until) = self.query.rpc().prune_blockchain(prune_target) {
+            if reached_target {
+                info!(target: "bwt::prune", "pruning completed up to {}", pruned_until);
+                self.next_prune.set(None);
+                return Ok(());
+            }
+            debug!(target: "bwt::prune", "pruned up to {}", pruned_until);
+        }
+
+        self.next_prune.set(Some(Instant::now() + PRUNE_INTERVAL));
+        Ok(())
     }
 
     // Bind the shutdown receiver to also trigger `sync_tx`. This is needed to start the next
@@ -293,8 +353,8 @@ fn init_bitcoind(
     progress_tx: Option<mpsc::Sender<Progress>>,
 ) -> Result<()> {
     use crate::util::progress::{is_synced, wait_bitcoind_ready, wait_wallet_scan};
-    const INTERVAL_SLOW: time::Duration = time::Duration::from_secs(6);
-    const INTERVAL_FAST: time::Duration = time::Duration::from_millis(1500);
+    const INTERVAL_SLOW: Duration = Duration::from_secs(6);
+    const INTERVAL_FAST: Duration = Duration::from_millis(1500);
     // Use the fast interval if we're reporting progress to a channel, or the slow one if its only for CLI
     let interval = iif!(progress_tx.is_some(), INTERVAL_FAST, INTERVAL_SLOW);
 
@@ -311,6 +371,11 @@ fn init_bitcoind(
         load_wallet(&rpc, bitcoind_wallet, config.create_wallet_if_missing)?;
     }
     let walletinfo = wait_wallet_scan(&rpc, progress_tx, None, interval)?;
+
+    // Check that bitcoind is properly configured for use with the prune-until option
+    if config.prune_until.is_some() && !(bcinfo.pruned && bcinfo.automatic_pruning == Some(false)) {
+        bail!("To use the prune-until option, configure bitcoind with prune=1");
+    }
 
     let netinfo = rpc.get_network_info()?;
     info!(

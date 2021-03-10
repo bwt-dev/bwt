@@ -9,6 +9,7 @@ use bitcoincore_rpc::{self as rpc, Client, Result as RpcResult, RpcApi};
 // Extensions for rust-bitcoincore-rpc
 
 pub const RPC_MISC_ERROR: i32 = -1;
+pub const RPC_INVALID_PARAMETER: i32 = -8;
 pub const RPC_WALLET_ERROR: i32 = -4;
 pub const RPC_INVALID_ADDRESS_OR_KEY: i32 = -5;
 pub const RPC_WALLET_INVALID_LABEL_NAME: i32 = -11;
@@ -80,6 +81,10 @@ pub trait RpcApiExt: RpcApi {
             "listsinceblock",
             &[json!(blockhash), 1.into(), true.into(), true.into()],
         )
+    }
+
+    fn prune_blockchain(&self, until: u64) -> RpcResult<u64> {
+        self.call("pruneblockchain", &[json!(until)])
     }
 }
 

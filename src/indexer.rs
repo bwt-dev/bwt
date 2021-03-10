@@ -45,6 +45,10 @@ impl Indexer {
         &self.watcher
     }
 
+    pub fn tip(&self) -> Option<BlockId> {
+        self.tip
+    }
+
     // continue to sync transactions and import addresses (with rescan) until no more new addresses
     // need to be imported. the initial sync does not collect the Changelog and does not emit updates.
     pub fn initial_sync(&mut self, progress_tx: Option<mpsc::Sender<Progress>>) -> Result<()> {
