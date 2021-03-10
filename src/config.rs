@@ -47,7 +47,7 @@ pub struct Config {
     #[serde(default)]
     pub verbose: usize,
 
-    /// Show timestmaps in log messages
+    /// Show timestmaps in log messages [ENV: LOG_TIMESTAMP]
     #[cfg_attr(feature = "cli", structopt(short = "T", long, display_order(1001)))]
     #[serde(default)]
     pub timestamp: bool,
@@ -491,6 +491,9 @@ impl Config {
         }
         if bool_env("PRINT_TOKEN") {
             config.print_token = true;
+        }
+        if bool_env("LOG_TIMESTAMP") {
+            config.timestamp = true;
         }
         #[cfg(feature = "electrum")]
         if bool_env("ELECTRUM_SKIP_MERKLE") {
