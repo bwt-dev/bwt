@@ -202,7 +202,7 @@ This removes several large dependencies and disables the `track-spends` database
 
 You can use bwt with pruning, but a pruned node is only able to scan the recent blocks it still has available for transactions related to your wallet. This means that the `--rescan-since` date has to be within the range of non-pruned blocks, or set to 'now'. This makes pruned nodes primarily suitable for tracking newly created wallets.
 
-There is, however, an opportunity to scan for your wallet's full history during the initial sync of your node, as the blocks will get scanned before getting pruned. You'll need to set `--no-wait-ibd` to import the addresses without waiting for bitcoind to finish syncing first and make sure bwt runs before the earliest block containing a wallet transaction gets processed.
+There is, however, an opportunity to scan for your wallet's full history during the initial sync of your node, as the blocks will get scanned before getting pruned. You'll need to set `--no-wait-sync` to import the addresses without waiting for bitcoind to finish syncing first and make sure bwt runs before the earliest block containing a wallet transaction gets processed.
 
 You can use `--prune-until <target>` to automatically prune the chain up to the given target (height, unix timestamp or YYYY-MM-DD formatted date). This requires configuring bitcoind with `prune=1` to allow manual pruning via the RPC.
 

@@ -345,7 +345,7 @@ fn load_wallet(rpc: &RpcClient, name: &str, create_if_missing: bool) -> Result<(
     }
 }
 
-// Initialize bitcoind and wait for it to finish rescanning and syncing (unless --no-wait-ibd was set)
+// Initialize bitcoind and wait for it to finish rescanning and syncing (unless --no-wait-sync was set)
 // Aborted if the progress channel gets disconnected.
 fn init_bitcoind(
     rpc: Arc<RpcClient>,
@@ -358,10 +358,10 @@ fn init_bitcoind(
     // Use the fast interval if we're reporting progress to a channel, or the slow one if its only for CLI
     let interval = iif!(progress_tx.is_some(), INTERVAL_FAST, INTERVAL_SLOW);
 
-    // When `wait-ibd` is true (the default), block until bitcoind is fully synced up.
+    // When `wait-sync` is true (the default), block until bitcoind is fully synced up.
     // Otherwise, block until the RPC is 'warmed up', then report syncing progress in a non-blocking background thread.
-    let bcinfo = wait_bitcoind_ready(&rpc, progress_tx.clone(), interval, config.wait_ibd)?;
-    if !config.wait_ibd && !is_synced(&bcinfo) && cfg!(feature = "cli") {
+    let bcinfo = wait_bitcoind_ready(&rpc, progress_tx.clone(), interval, config.wait_sync)?;
+    if !config.wait_sync && !is_synced(&bcinfo) && cfg!(feature = "cli") {
         let rpc = rpc.clone();
         thread::spawn(move || wait_bitcoind_ready(&rpc, None, INTERVAL_SLOW, true).ok());
     }

@@ -6,7 +6,7 @@
 
   Require configuring bitcoind with `prune=1` to allow manual pruning via the RPC.
 
-- New `--no-wait-ibd` option to allow importing addresses without waiting for bitcoind to finish syncing first
+- New `--no-wait-sync` option to allow importing addresses without waiting for bitcoind to finish syncing first
 
   Useful for tracking wallets during the IBD of a pruned node, so transactions could be indexed before the blocks get pruned.
 

@@ -210,15 +210,15 @@ pub struct Config {
     pub initial_import_size: u32,
 
     /// Don't wait for bitcoind to finish syncing up before starting bwt (useful with pruning for
-    /// importing/scanning before blocks get pruned) [env: NO_WAIT_IBD]
+    /// importing/scanning before blocks get pruned) [env: NO_WAIT_SYNC]
     #[cfg_attr(feature = "cli", structopt(
-        long = "no-wait-ibd",
+        long = "no-wait-sync",
         short = "I",
         parse(from_flag = std::ops::Not::not),
         display_order(1004)
     ))]
     #[serde(default = "default_true")]
-    pub wait_ibd: bool,
+    pub wait_sync: bool,
 
     /// Prune the chain until the given height, unix timestamp or YYYY-MM-DD formatted date
     #[cfg_attr(feature = "cli", structopt(short = "p", long, parse(try_from_str = parse_prune_until),
@@ -487,8 +487,8 @@ impl Config {
         if bool_env("CREATE_WALLET_IF_MISSING") {
             config.create_wallet_if_missing = true;
         }
-        if bool_env("NO_WAIT_IBD") {
-            config.wait_ibd = false;
+        if bool_env("NO_WAIT_SYNC") {
+            config.wait_sync = false;
         }
         if bool_env("NO_STARTUP_BANNER") {
             config.startup_banner = false;
@@ -528,8 +528,8 @@ impl Config {
             }
         }
 
-        if config.prune_until.is_some() && config.wait_ibd {
-            warn!("prune-until was enabled without no-wait-ibd. This means that the chain won't get pruned until after its fully synced. Consider enabling no-wait-ibd.");
+        if config.prune_until.is_some() && config.wait_sync {
+            warn!("prune-until was enabled without no-wait-sync. This means that the chain won't get pruned until after its fully synced. Consider enabling no-wait-sync.");
         }
 
         Ok(config)
@@ -743,7 +743,7 @@ defaultable!(Config,
     gap_limit=20,
     initial_import_size=350,
     poll_interval=time::Duration::from_secs(5),
-    wait_ibd=true,
+    wait_sync=true,
     require_addresses=true,
     setup_logger=true,
   )
