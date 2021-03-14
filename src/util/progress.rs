@@ -16,7 +16,7 @@ pub enum Progress {
     Done,
 }
 
-/// Wait for the bitcoind rpc to warm up. When `wait_block_sync` is true, also wauts
+/// Wait for the bitcoind rpc to warm up. When `wait_block_sync` is true, also waits
 /// for bitcoind to finish syncing blocks.
 pub fn wait_bitcoind_ready(
     rpc: &Client,
@@ -25,6 +25,7 @@ pub fn wait_bitcoind_ready(
     wait_block_sync: bool,
 ) -> Result<json::GetBlockchainInfoResult> {
     let mut sync_start: Option<(time::Instant, u64)> = None;
+    let mut failures = 0;
     Ok(loop {
         match rpc.get_blockchain_info() {
             Ok(info) => {
@@ -81,13 +82,19 @@ pub fn wait_bitcoind_ready(
                 if sync_start.map_or(true, |(_, start_height)| info.blocks - start_height >= 2016) {
                     sync_start = Some((time::Instant::now(), info.blocks));
                 }
+
+                failures = 0;
             }
             Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
                 if e.code == RPC_IN_WARMUP =>
             {
                 info!(target: LT, "waiting for bitcoind to warm up: {}", e.message);
             }
-            Err(e) => bail!(e),
+            Err(err) => {
+                warn!(target: LT, "getblockchaininfo failed: {:?}", err);
+                failures = failures + 1;
+                ensure!(failures < 3, err);
+            }
         }
         thread::sleep(interval);
     })
