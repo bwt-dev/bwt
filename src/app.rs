@@ -315,33 +315,29 @@ impl App {
     }
 }
 
-// Load the specified wallet, ignore "wallet is already loaded" errors,
-// and create the wallet if the `create_wallet_if_missing` option was set
+// Check if the wallet is loaded, try loading it if not, and create the wallet
+// if the `create_wallet_if_missing` option was set
 fn load_wallet(rpc: &RpcClient, name: &str, create_if_missing: bool) -> Result<()> {
-    use crate::util::bitcoincore_ext::{RPC_WALLET_ERROR, RPC_WALLET_NOT_FOUND};
-    // Needs to be identified by the error message string because it uses a generic wallet error code.
-    // The error message changed in Bitcoin Core v0.21.
-    const MSG_ALREADY_LOADED_OLD: &str = "Duplicate -wallet filename specified.";
-    const MSG_ALREADY_LOADED_NEW: &str = "is already loaded.";
-
-    match rpc.load_wallet(name) {
+    use crate::util::bitcoincore_ext::RPC_WALLET_NOT_FOUND;
+    match rpc.get_wallet_info() {
         Ok(_) => Ok(()),
-        // Wallet already loaded
         Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
-            if e.code == RPC_WALLET_ERROR
-                && (e.message.ends_with(MSG_ALREADY_LOADED_OLD)
-                    || e.message.ends_with(MSG_ALREADY_LOADED_NEW)) =>
+            if e.code == RPC_WALLET_NOT_FOUND =>
         {
-            Ok(())
+            info!(target: "bwt::wallet", "loading wallet '{}'", name);
+            match rpc.load_wallet(name) {
+                Ok(_) => Ok(()),
+                Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
+                    if create_if_missing && e.code == RPC_WALLET_NOT_FOUND =>
+                {
+                    info!(target: "bwt::wallet", "wallet '{}' does not exists, creating it", name);
+                    rpc.create_wallet(name, Some(true), Some(true), None, None)?;
+                    Ok(())
+                }
+                Err(e) => Err(e.into()),
+            }
         }
-        // Wallet missing, create it if the `create_wallet_if_missing` option was set
-        Err(rpc::Error::JsonRpc(rpc::jsonrpc::Error::Rpc(ref e)))
-            if create_if_missing && e.code == RPC_WALLET_NOT_FOUND =>
-        {
-            rpc.create_wallet(name, Some(true), Some(true), None, None)?;
-            Ok(())
-        }
-        Err(e) => bail!(e),
+        Err(e) => Err(e.into()),
     }
 }
 

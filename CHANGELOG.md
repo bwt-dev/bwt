@@ -10,6 +10,8 @@
 
   Useful for tracking wallets during the IBD of a pruned node, so transactions could be indexed before the blocks get pruned.
 
+- Fix compatibility with the upcoming v0.22 Bitcoin Core release (https://github.com/sparrowwallet/sparrow/issues/67#issuecomment-791522237)
+
 - HTTP: Set the `WWW-Authenticate` header to make logging-in possible via web browsers
 
 - Implement an [fd-based daemon readiness notification mechanism](https://skarnet.org/software/s6/notifywhenup.html), enabled with `FD_NOTIFY=<fd>`
