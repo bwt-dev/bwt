@@ -83,20 +83,20 @@ and [this video presentation](https://youtu.be/SXJaN2T3M10?t=4) (bottom of slide
 
 ```bash
 # Download (change x86_64-linux to your platform)
-$ wget https://github.com/bwt-dev/bwt/releases/download/v0.2.2/bwt-0.2.2-x86_64-linux.tar.gz
+$ wget https://github.com/bwt-dev/bwt/releases/download/v0.2.3/bwt-0.2.3-x86_64-linux.tar.gz
 
 # Fetch public key
 $ gpg --keyserver keyserver.ubuntu.com --recv-keys FCF19B67866562F08A43AAD681F6104CD0F150FC
 
 # Verify signature
-$ wget -qO - https://github.com/bwt-dev/bwt/releases/download/v0.2.2/SHA256SUMS.asc \
-  | gpg --decrypt - | grep ' bwt-0.2.2-x86_64-linux.tar.gz$' | sha256sum -c -
+$ wget -qO - https://github.com/bwt-dev/bwt/releases/download/v0.2.3/SHA256SUMS.asc \
+  | gpg --decrypt - | grep ' bwt-0.2.3-x86_64-linux.tar.gz$' | sha256sum -c -
 
-$ tar zxvf bwt-0.2.2-x86_64-linux.tar.gz
+$ tar zxvf bwt-0.2.3-x86_64-linux.tar.gz
 $ ./bwt-0.1.5-x86_64-linux/bwt --xpub <xpub> ...
 ```
 
-The signature verification should show `Good signature from "Nadav Ivgi <nadav@shesek.info>" ... Primary key fingerprint: FCF1 9B67 ...` and `bwt-0.2.2-x86_64-linux.tar.gz: OK`.
+The signature verification should show `Good signature from "Nadav Ivgi <nadav@shesek.info>" ... Primary key fingerprint: FCF1 9B67 ...` and `bwt-0.2.3-x86_64-linux.tar.gz: OK`.
 
 The builds are reproducible and can be verified against Travis CI. See [more details here](#reproducible-builds).
 

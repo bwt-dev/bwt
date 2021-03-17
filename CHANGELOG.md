@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.3 - 2021-03-17
 
 - New `--prune-until <target>` option to automatically prune the chain up to the given target (height, unix timestamp or YYYY-MM-DD formatted date)
 
