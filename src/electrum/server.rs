@@ -120,7 +120,7 @@ impl Connection {
         // drop unknown heights (from the specs: "If the chain has not extended sufficiently far,
         // only the available headers will be returned. If more headers than max were requested at
         // most max will be returned.")
-        let max_height = cmp::min(start_height + count, self.query.get_tip_height()?);
+        let max_height = cmp::min(start_height + count - 1, self.query.get_tip_height()?);
 
         // TODO use batch rpc when available in rust-bitcoincore-rpc
         let headers: Vec<String> = (start_height..=max_height)
@@ -129,6 +129,7 @@ impl Connection {
                 self.query.get_header_hex(&blockhash)
             })
             .collect::<Result<Vec<_>>>()?;
+        assert!(headers.len() <= count as usize);
 
         let mut result = json!({
             "count": headers.len(),
