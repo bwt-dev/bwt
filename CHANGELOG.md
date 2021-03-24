@@ -4,6 +4,10 @@
 
 - Allow specifying an explicit script type for xpubs using `-x <xpub>:wpkh`, `-x <xpub>:shwpkh` or `-x <xpub>:pkh`.
 
+- Fix `blockchain.block.headers` sending wrong number of headers (#87, thanks @stevenroose!)
+
+- Dependency updates and various small enhancements
+
 ## 0.2.3 - 2021-03-17
 
 - New `--prune-until <target>` option to automatically prune the chain up to the given target (height, unix timestamp or YYYY-MM-DD formatted date)
