@@ -736,7 +736,7 @@ where
     match result {
         Ok(x) => x.into_response(),
         Err(e) => {
-            warn!("handler failed: {:#?}", e);
+            warn!("handler failed: {:?}", e);
             let status = get_error_status(&e);
             let body = fmt_error_chain(&e);
             reply::with_status(body, status).into_response()
