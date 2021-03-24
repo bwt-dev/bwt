@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.4 - 2021-03-25
 
 - Allow specifying an explicit script type for xpubs using `-x <xpub>:wpkh`, `-x <xpub>:shwpkh` or `-x <xpub>:pkh`.
 

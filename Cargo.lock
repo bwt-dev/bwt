@@ -193,7 +193,7 @@ checksum = "63396b8a4b9de3f4fdfb320ab6080762242f66a8ef174c49d8e19b674db4cdbe"
 
 [[package]]
 name = "bwt"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "android_logger",
  "anyhow",
