@@ -29,7 +29,7 @@ if [ -z "$NO_GUI" ]; then
   ele setconfig dont_show_testnet_warning true > /dev/null
   for opt in fee addresses_tab utxo_tab console_tab; do ele setconfig show_$opt true > /dev/null; done
 
-  ele daemon stop > /dev/null 2>&1
+  ele stop > /dev/null 2>&1
   ele1 --oneserver --server $BWT_ELECTRUM_ADDR:t > /dev/null &
   sleep 2
   ele2 --oneserver --server $BWT_ELECTRUM_ADDR:t > /dev/null &
