@@ -37,6 +37,9 @@ pub fn wait_bitcoind_ready(
                         };
                         ensure!(progress_tx.send(progress).is_ok(), BwtError::Canceled);
                     }
+                    if sync_start.is_some() {
+                        info!(target: LT, "bitcoind is fully synced 🎉");
+                    }
                     break info;
                 } else if !wait_block_sync {
                     break info;
@@ -61,8 +64,9 @@ pub fn wait_bitcoind_ready(
                     let mut est_info = String::new();
                     if let Some((start_time, start_height)) = sync_start {
                         let blocks_synced = info.blocks - start_height;
-                        if blocks_synced > 3 {
-                            let rate = blocks_synced as f32 / start_time.elapsed().as_secs_f32();
+                        let seconds_passed = start_time.elapsed().as_secs_f32();
+                        if blocks_synced > 3 && seconds_passed > 20.0 {
+                            let rate = blocks_synced as f32 / seconds_passed;
                             write!(est_info, ", {:.1} blocks/s", rate)?;
                             if info.verification_progress > 0.85 {
                                 let eta = time::Duration::from_secs_f32(blocks_left as f32 / rate);
