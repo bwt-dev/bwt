@@ -30,6 +30,9 @@ pub enum BwtError {
     #[error("Custom broadcast command failed with {0}")]
     BroadcastCmdFailed(std::process::ExitStatus),
 
+    #[error("Transaction rejected: {0}")]
+    TxUnacceptable(String),
+
     #[error("Error communicating with the Bitcoin RPC: {0}")]
     RpcProtocol(rpc::Error),
 

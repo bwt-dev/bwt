@@ -6,6 +6,8 @@
 
 - Fix `blockchain.block.headers` sending wrong number of headers (#87, thanks @stevenroose!)
 
+- Check testmempoolaccept prior to custom broadcast (#80)
+
 - Dependency updates and various small enhancements
 
 ## 0.2.3 - 2021-03-17

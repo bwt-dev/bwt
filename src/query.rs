@@ -207,6 +207,7 @@ impl Query {
         if let Some(broadcast_cmd) = &self.config.broadcast_cmd {
             // deserialize the tx to ensure validity (preventing potential code injection) and to determine the txid
             let tx: Transaction = bitcoin::consensus::deserialize(&Vec::from_hex(tx_hex)?)?;
+            self.check_tx(&tx)?;
             let cmd = broadcast_cmd.replacen("{tx_hex}", tx_hex, 1);
             debug!("broadcasting tx with cmd {}", broadcast_cmd);
             let status = Command::new("sh").arg("-c").arg(cmd).status()?;
@@ -215,6 +216,17 @@ impl Query {
         } else {
             Ok(self.rpc.send_raw_transaction(tx_hex)?)
         }
+    }
+
+    pub fn check_tx(&self, tx: &Transaction) -> Result<()> {
+        let mut res = self.rpc.test_mempool_accept(&[tx])?;
+        ensure!(res.len() == 1, "invalid response");
+        let res = res.remove(0);
+        ensure!(
+            res.allowed,
+            BwtError::TxUnacceptable(res.reject_reason.unwrap_or("unknown error".into()))
+        );
+        Ok(())
     }
 
     pub fn find_tx_blockhash(&self, txid: &Txid) -> Result<Option<BlockHash>> {
