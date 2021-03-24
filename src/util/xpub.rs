@@ -1,10 +1,9 @@
 use std::fmt;
-use std::result::Result as StdResult;
 use std::str::FromStr;
 
 use serde::de;
 
-use bitcoin::util::bip32::{self, ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint};
+use bitcoin::util::bip32::{ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint};
 use bitcoin::{util::base58, Network};
 use miniscript::descriptor::{Descriptor, DescriptorPublicKey, DescriptorXKey, Wildcard};
 
@@ -59,13 +58,14 @@ impl XyzPubKey {
 }
 
 impl FromStr for XyzPubKey {
-    type Err = bip32::Error;
+    type Err = crate::error::Error;
 
-    fn from_str(inp: &str) -> StdResult<XyzPubKey, bip32::Error> {
-        let mut data = base58::from_check(inp)?;
+    fn from_str(inp: &str) -> Result<XyzPubKey, Self::Err> {
+        let mut parts = inp.splitn(2, ":");
+        let mut data = base58::from_check(parts.next().unwrap())?;
 
         if data.len() != 78 {
-            return Err(base58::Error::InvalidLength(data.len()).into());
+            bail!(base58::Error::InvalidLength(data.len()));
         }
 
         // rust-bitcoin's bip32 implementation does not support ypubs/zpubs.
@@ -73,12 +73,16 @@ impl FromStr for XyzPubKey {
         // a modified key that uses the version bytes it expects.
 
         let version = &data[0..4];
-        let (network, script_type) = parse_xyz_version(version)?;
+        let (network, mut script_type) = parse_xyz_version(version)?;
         data.splice(0..4, get_xpub_p2pkh_version(network).iter().cloned());
 
         let xpub = ExtendedPubKey::decode(&data)?;
 
-        Ok(XyzPubKey { script_type, xpub })
+        if let Some(explicit_type_str) = parts.next() {
+            script_type = explicit_type_str.parse()?;
+        }
+
+        Ok(XyzPubKey { xpub, script_type })
     }
 }
 
@@ -126,7 +130,7 @@ impl fmt::Display for Bip32Origin {
     }
 }
 impl serde::Serialize for Bip32Origin {
-    fn serialize<S>(&self, serializer: S) -> StdResult<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -134,7 +138,7 @@ impl serde::Serialize for Bip32Origin {
     }
 }
 
-fn parse_xyz_version(version: &[u8]) -> StdResult<(Network, ScriptType), base58::Error> {
+fn parse_xyz_version(version: &[u8]) -> Result<(Network, ScriptType), base58::Error> {
     Ok(match version {
         [0x04u8, 0x88, 0xB2, 0x1E] => (Network::Bitcoin, ScriptType::P2pkh),
         [0x04u8, 0xB2, 0x47, 0x46] => (Network::Bitcoin, ScriptType::P2wpkh),

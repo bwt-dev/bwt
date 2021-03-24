@@ -140,6 +140,7 @@ your `--bitcoind-url` (defaults to `http://127.0.0.1:<default-rpc-port>`),
 `--bitcoind-auth <user:pass>` (defaults to using the cookie file from `bitcoind-dir`).
 
 You can set multiple `--xpub`s to track. This also supports ypubs and zpubs.
+To set an explicit script type, use `--xpub <xpub>:<type>`, where type is one of `wpkh`, `shwpkh` or `pkh`.
 
 You can also track output script descriptors using `--descriptor`. For example, `--descriptor 'wpkh(<xpub>/0/*)'`.
 

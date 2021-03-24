@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::str::FromStr;
 
 use serde::Serialize;
 
@@ -69,6 +70,19 @@ pub enum ScriptType {
     P2pkh,
     P2wpkh,
     P2shP2wpkh,
+}
+
+impl FromStr for ScriptType {
+    type Err = crate::error::Error;
+
+    fn from_str(inp: &str) -> Result<Self, Self::Err> {
+        Ok(match inp {
+            "p2pkh" | "pkh" => ScriptType::P2pkh,
+            "p2wpkh" | "wpkh" => ScriptType::P2wpkh,
+            "p2sh-p2wpkh" | "shwpkh" => ScriptType::P2shP2wpkh,
+            _ => bail!("Unknown script type {}", inp),
+        })
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Copy, Hash)]
