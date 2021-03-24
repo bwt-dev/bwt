@@ -177,6 +177,8 @@ impl App {
 
     /// Start a sync loop blocking the current thread
     pub fn sync_loop(&self, shutdown_rx: Option<mpsc::Receiver<()>>) {
+        const RETRY_DUR: Duration = Duration::from_secs(3);
+
         let shutdown_rx = shutdown_rx
             .map(|rx| self.bind_shutdown(rx))
             .or_else(|| self.default_shutdown_signal());
@@ -189,18 +191,18 @@ impl App {
                 }
             }
 
+            let mut wait_time = self.config.poll_interval;
+
             if let Err(e) = self.sync() {
-                warn!(target: LT, "failed syncing with bitcoind: {:?}", e);
                 // Report the error and try again on the next run, this might be
                 // a temporary connectivity issue.
+                warn!(target: LT, "failed syncing with bitcoind: {:?}", e);
+                wait_time = RETRY_DUR;
             }
 
             // wait for poll_interval seconds or until we receive a sync notification message
             // (which can also get triggered through the shutdown signal)
-            self.sync_chan
-                .1
-                .recv_timeout(self.config.poll_interval)
-                .ok();
+            self.sync_chan.1.recv_timeout(wait_time).ok();
         }
     }
 
