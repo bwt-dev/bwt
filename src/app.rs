@@ -47,7 +47,7 @@ impl App {
 
         let watcher = WalletWatcher::from_config(&config)?;
         let rpc = Arc::new(RpcClient::new(
-            config.bitcoind_url(),
+            &config.bitcoind_url(),
             config.bitcoind_auth()?,
         )?);
         let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)?));
@@ -311,7 +311,7 @@ impl App {
     }
 
     pub fn test_rpc(config: &Config) -> Result<()> {
-        let rpc = RpcClient::new(config.bitcoind_url(), config.bitcoind_auth()?)?;
+        let rpc = RpcClient::new(&config.bitcoind_url(), config.bitcoind_auth()?)?;
         rpc.get_wallet_info()?;
         Ok(())
     }

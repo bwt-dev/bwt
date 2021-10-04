@@ -1,3 +1,4 @@
+use std::convert::TryInto;
 use std::fmt;
 use std::str::FromStr;
 
@@ -148,7 +149,11 @@ fn parse_xyz_version(version: &[u8]) -> Result<(Network, ScriptType), base58::Er
         [0x04u8, 0x5F, 0x1C, 0xF6] => (Network::Testnet, ScriptType::P2wpkh),
         [0x04u8, 0x4A, 0x52, 0x62] => (Network::Testnet, ScriptType::P2shP2wpkh),
 
-        _ => return Err(base58::Error::InvalidVersion(version.to_vec())),
+        _ => {
+            return Err(base58::Error::InvalidExtendedKeyVersion(
+                version.try_into().unwrap(),
+            ))
+        }
     })
 }
 
