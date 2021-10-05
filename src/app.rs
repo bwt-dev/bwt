@@ -286,9 +286,10 @@ impl App {
 
     #[cfg(all(unix, feature = "signal-hook"))]
     fn default_shutdown_signal(&self) -> Option<mpsc::Receiver<()>> {
+        use signal_hook::consts::{SIGINT, SIGTERM};
         use signal_hook::iterator::Signals;
 
-        let signals = Signals::new(&[signal_hook::SIGINT, signal_hook::SIGTERM]).unwrap();
+        let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
         let (shutdown_tx, shutdown_rx) = mpsc::sync_channel(1);
         let sync_tx = self.sync_chan.0.clone();
 

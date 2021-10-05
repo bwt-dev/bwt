@@ -59,8 +59,7 @@ impl SimpleHttpTransport {
         let mut sock = match self.proxy_addr {
             Some(proxy_addr) => Socks5Stream::connect(proxy_addr, self.addr.clone())?.into_inner(),
             None => {
-                let addr = resolve_first_addr(&self.addr)
-                    .map_err(|_| Error::url(format!("{:?}", self.addr), "invalid hostname"))?;
+                let addr = resolve_first_addr(&self.addr)?;
                 TcpStream::connect_timeout(&addr, self.timeout)?
             }
         };
@@ -342,10 +341,9 @@ impl Builder {
 
     /// Set a SOCKS5H proxy.
     /// This may block the current thread if hostname resolution is needed.
-    pub fn proxy<S: ToSocketAddrs>(mut self, proxy_addr: S) -> Result<Self, Error> {
-        self.tp.proxy_addr =
-            Some(resolve_first_addr(&proxy_addr).map_err(|_| Error::InvalidProxyAddr)?);
-        Ok(self)
+    pub fn proxy(mut self, proxy_addr: net::SocketAddr) -> Self {
+        self.tp.proxy_addr = Some(proxy_addr);
+        self
     }
 
     /// Builds the final `SimpleHttpTransport`

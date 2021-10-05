@@ -103,8 +103,8 @@ pub fn create_rpc_client(config: &crate::Config) -> Result<Client, crate::Error>
     }
 
     #[cfg(feature = "proxy")]
-    if let Some(proxy_addr) = &config.bitcoind_proxy {
-        builder = builder.proxy(proxy_addr)?;
+    if let Some(proxy_addr) = config.bitcoind_proxy {
+        builder = builder.proxy(proxy_addr);
     }
 
     Ok(Client::from_jsonrpc(jsonrpc::Client::with_transport(
