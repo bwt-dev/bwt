@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Support connecting to the Bitcoin Core RPC through a proxy (#21)
+
 - Update to rust-bitcoin v0.27, rust-miniscript v6.0 and rust-bitcoincore-rpc v0.14
 
 ## 0.2.4 - 2021-03-25

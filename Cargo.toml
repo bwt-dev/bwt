@@ -12,11 +12,12 @@ edition = "2018"
 include = [ "/src", "/LICENSE" ]
 
 [features]
-default = [ "cli", "electrum", "http", "track-spends" ]
+default = [ "cli", "electrum", "http", "proxy", "track-spends" ]
 cli = [ "extra", "structopt", "dotenv" ]
 extra = [ "dirs", "pretty_env_logger", "signal-hook" ]
 electrum = []
 http = [ "warp", "tokio", "tokio-stream", "bitcoin/base64" ]
+proxy = [ "socks" ]
 webhooks = [ "reqwest" ]
 track-spends = []
 android = [ "android_logger" ]
@@ -47,6 +48,9 @@ rand = "0.8.2"
 tokio = { version = "1.1.0", features = ["macros", "rt", "rt-multi-thread"], optional = true }
 tokio-stream = { version = "0.1.2", default-features = false, optional = true }
 warp = { version = "0.3.0", optional = true }
+
+# socks proxy deps
+socks = { version = "0.3.3", optional = true }
 
 # webhooks deps
 reqwest = { version = "0.11.0", optional = true, features = ["json", "blocking"] }

@@ -17,6 +17,9 @@ pub mod progress;
 pub mod whitepaper;
 pub mod xpub;
 
+#[cfg(feature = "proxy")]
+pub mod jsonrpc_proxy;
+
 pub use bitcoincore_ext::RpcApiExt;
 
 const VSIZE_BIN_WIDTH: u32 = 50_000; // vbytes

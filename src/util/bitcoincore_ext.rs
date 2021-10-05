@@ -4,7 +4,12 @@ use std::fmt::{self, Formatter};
 
 use bitcoin::Address;
 use bitcoincore_rpc::json::{self, ImportMultiRescanSince};
-use bitcoincore_rpc::{self as rpc, Client, Result as RpcResult, RpcApi};
+use bitcoincore_rpc::{self as rpc, jsonrpc, Client, Result as RpcResult, RpcApi};
+
+#[cfg(feature = "proxy")]
+use super::jsonrpc_proxy::SimpleHttpTransport;
+#[cfg(not(feature = "proxy"))]
+use jsonrpc::simple_http::SimpleHttpTransport;
 
 // Extensions for rust-bitcoincore-rpc
 
@@ -89,6 +94,45 @@ pub trait RpcApiExt: RpcApi {
 }
 
 impl RpcApiExt for Client {}
+
+pub fn create_rpc_client(config: &crate::Config) -> Result<Client, crate::Error> {
+    let mut builder = SimpleHttpTransport::builder().url(&config.bitcoind_url())?;
+
+    if let (Some(user), pass) = get_user_pass(config.bitcoind_auth()?)? {
+        builder = builder.auth(user, pass);
+    }
+
+    #[cfg(feature = "proxy")]
+    if let Some(proxy_addr) = &config.bitcoind_proxy {
+        builder = builder.proxy(proxy_addr)?;
+    }
+
+    Ok(Client::from_jsonrpc(jsonrpc::Client::with_transport(
+        builder.build(),
+    )))
+}
+
+// Copied from rust-bitcoincore-rpc where it is private, pending
+// https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/205
+fn get_user_pass(auth: rpc::Auth) -> rpc::Result<(Option<String>, Option<String>)> {
+    use rpc::{Auth, Error};
+    use std::fs::File;
+    use std::io::Read;
+    match auth {
+        Auth::None => Ok((None, None)),
+        Auth::UserPass(u, p) => Ok((Some(u), Some(p))),
+        Auth::CookieFile(path) => {
+            let mut file = File::open(path)?;
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)?;
+            let mut split = contents.splitn(2, ":");
+            Ok((
+                Some(split.next().ok_or(Error::InvalidCookieFile)?.into()),
+                Some(split.next().ok_or(Error::InvalidCookieFile)?.into()),
+            ))
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 pub struct AddressEntry {

@@ -5,6 +5,7 @@ use std::{cell::Cell, net, thread};
 use bitcoincore_rpc::{self as rpc, Client as RpcClient, RpcApi};
 
 use crate::error::{BwtError, Result};
+use crate::util::bitcoincore_ext::create_rpc_client;
 use crate::util::progress::Progress;
 use crate::util::{banner, fd_readiness_notification, on_oneshot_done, throttle_sender, RpcApiExt};
 use crate::{Config, IndexChange, Indexer, Query, WalletWatcher};
@@ -46,10 +47,7 @@ impl App {
         debug!(target: LT, "{}", scrub_config(&config));
 
         let watcher = WalletWatcher::from_config(&config)?;
-        let rpc = Arc::new(RpcClient::new(
-            &config.bitcoind_url(),
-            config.bitcoind_auth()?,
-        )?);
+        let rpc = Arc::new(create_rpc_client(&config)?);
         let indexer = Arc::new(RwLock::new(Indexer::new(rpc.clone(), watcher)?));
         let query = Arc::new(Query::new((&config).into(), rpc.clone(), indexer.clone()));
 
