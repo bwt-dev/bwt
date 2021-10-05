@@ -97,6 +97,14 @@ pub struct Config {
     )]
     pub bitcoind_cookie: Option<path::PathBuf>,
 
+    /// Set a SOCKS5h proxy server for connecting to the Bitcoin Core RPC
+    #[cfg(feature = "proxy")]
+    #[cfg_attr(
+        feature = "cli",
+        structopt(short = "P", long, env, hide_env_values(true), display_order(35))
+    )]
+    pub bitcoind_proxy: Option<String>,
+
     /// Create the specified bitcoind wallet if it's missing [env: CREATE_WALLET_IF_MISSING]
     #[cfg_attr(feature = "cli", structopt(long, short = "W", display_order(1002)))]
     #[serde(default)]
@@ -735,6 +743,7 @@ defaultable!(Config,
     #[cfg(feature = "http")] http_addr,
     #[cfg(feature = "http")] http_cors,
     #[cfg(feature = "webhooks")] webhook_urls,
+    #[cfg(feature = "proxy")] bitcoind_proxy,
     #[cfg(unix)] unix_listener_path,
   )
   @custom(
