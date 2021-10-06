@@ -155,18 +155,6 @@ impl App {
                 .map(|webhook| webhook.send_updates(&updates));
         }
 
-        // Try running 'pruneblockchain' until it succeeds, then stop
-        /*
-        if let Some(prune_until) = self.config.prune_until {
-            // XXX run less?
-            if self.pruning_pending.get() {
-                if let Ok(pruned) = self.query.rpc().prune_blockchain(prune_until) {
-                    info!(target: LT, "Successfully pruned up to height {}", pruned);
-                    self.pruning_pending.set(false);
-                } // will fail if the current tip is earlier than `prune_until`
-            }
-        }*/
-
         // Try pruning the chain (when 'prune-until' is set)
         self.try_prune()?;
 
