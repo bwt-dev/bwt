@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Support connecting to the Bitcoin Core RPC through a proxy (#21)
+- New `--bitcoind-proxy <host:port>` option for connecting to the Bitcoin Core RPC through a proxy (#21)
+
+- New `--bitcoind-timeout <secs>` option to control the RPC socket timeout
 
 - Update to rust-bitcoin v0.27, rust-miniscript v6.0 and rust-bitcoincore-rpc v0.14
 

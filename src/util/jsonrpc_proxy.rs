@@ -64,6 +64,9 @@ impl SimpleHttpTransport {
             }
         };
 
+        sock.set_read_timeout(Some(self.timeout))?;
+        sock.set_write_timeout(Some(self.timeout))?;
+
         // Serialize the body first so we can set the Content-Length header.
         let body = serde_json::to_vec(&req)?;
 
@@ -247,8 +250,8 @@ impl Builder {
         }
     }
 
-    /// Sets the timeout after which requests will abort if they aren't finished
-    /// The timeout does not apply when a proxy is set.
+    /// Sets the connect/read/write timeout for the RPC socket
+    /// The connect timeout does not apply when a proxy is set.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.tp.timeout = timeout;
         self

@@ -105,6 +105,13 @@ pub struct Config {
     )]
     pub bitcoind_proxy: Option<net::SocketAddr>,
 
+    /// The connect/read/write timeout for the RPC connection (in seconds)
+    #[cfg_attr(
+        feature = "cli",
+        structopt(short = "m", long, env, hide_env_values(true), display_order(36), parse(try_from_str = parse_duration))
+    )]
+    pub bitcoind_timeout: Option<time::Duration>,
+
     /// Create the specified bitcoind wallet if it's missing [env: CREATE_WALLET_IF_MISSING]
     #[cfg_attr(feature = "cli", structopt(long, short = "W", display_order(1002)))]
     #[serde(default)]
@@ -735,7 +742,7 @@ defaultable!(Config,
   @default(
     verbose, timestamp, broadcast_cmd, startup_banner, prune_until,
     descriptors, xpubs, addresses, addresses_file, force_rescan,
-    bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie, create_wallet_if_missing,
+    bitcoind_wallet, bitcoind_dir, bitcoind_url, bitcoind_auth, bitcoind_cookie, bitcoind_timeout, create_wallet_if_missing,
     auth_cookie, auth_token, auth_ephemeral, print_token,
     #[cfg(feature = "electrum")] electrum_addr,
     #[cfg(feature = "electrum")] electrum_skip_merkle,
