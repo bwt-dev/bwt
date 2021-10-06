@@ -110,6 +110,7 @@ pub struct Config {
         feature = "cli",
         structopt(short = "m", long, env, hide_env_values(true), display_order(36), parse(try_from_str = parse_duration))
     )]
+    #[serde(default, deserialize_with = "parse_duration_serde_opt")]
     pub bitcoind_timeout: Option<time::Duration>,
 
     /// Create the specified bitcoind wallet if it's missing [env: CREATE_WALLET_IF_MISSING]
@@ -323,7 +324,10 @@ pub struct Config {
         env, hide_env_values(true),
         display_order(90)
     ))]
-    #[serde(default = "default_poll_interval")]
+    #[serde(
+        default = "default_poll_interval",
+        deserialize_with = "parse_duration_serde"
+    )]
     pub poll_interval: time::Duration,
 
     /// Custom command for broadcasting transactions. {tx_hex} is replaced with the transaction.
@@ -693,6 +697,24 @@ fn parse_yyyymmdd(s: &str) -> Result<u64> {
 #[cfg(feature = "cli")]
 fn parse_duration(s: &str) -> Result<time::Duration> {
     Ok(time::Duration::from_secs(s.parse()?))
+}
+
+fn parse_duration_serde<'de, D>(deserializer: D) -> std::result::Result<time::Duration, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize;
+    let secs = u64::deserialize(deserializer)?;
+    Ok(time::Duration::from_secs(secs))
+}
+
+fn parse_duration_serde_opt<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<time::Duration>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(Some(parse_duration_serde(deserializer)?))
 }
 
 fn get_cookie(config: &Config) -> Option<path::PathBuf> {
