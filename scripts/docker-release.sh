@@ -40,5 +40,5 @@ build() {
   docker push $docker_tag
 }
 
-build_variant $base_tag          $docker_name:latest   http,electrum,webhooks,track-spends ''
-build_variant $base_tag-electrum $docker_name:electrum electrum                            '-electrum_only'
+build_variant $base_tag          $docker_name:latest   http,electrum,webhooks,track-spends,proxy ''
+build_variant $base_tag-electrum $docker_name:electrum electrum,proxy                            '-electrum_only'

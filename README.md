@@ -1263,7 +1263,7 @@ If you have [`cargo watch`](https://github.com/passcod/cargo-watch) installed, i
 
 ### Features
 
-bwt has 7 optional features: `cli`, `http`, `electrum`, `webhooks`, `track-spends`, `ffi` and `extra`.
+bwt has 7 optional features: `cli`, `http`, `electrum`, `webhooks`, `track-spends`, `proxy`, `ffi` and `extra`.
 
 All are enabled by default except for `webhooks` and `ffi`.
 

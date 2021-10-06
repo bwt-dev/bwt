@@ -1,8 +1,10 @@
 #!/bin/bash
 set -xeo pipefail
 
-# `x86_64-osx` is also available, but requires osxcross installed (see builder-osx.Dockerfile)
+# `x86_64-osx` is also available, but requires osxcross to be installed (see builder-osx.Dockerfile)
 TARGETS=${TARGETS:-x86_64-linux,x86_64-windows,arm32v7-linux,arm64v8-linux}
+
+BASE_FEATURES=${BASE_FEATURES:-cli,proxy}
 
 if [[ -n "$SCCACHE_DIR" && -d "$SCCACHE_DIR" ]]; then
   export RUSTC_WRAPPER=$(which sccache)
@@ -15,7 +17,7 @@ build() {
 
   echo Building $name for $target with features $features
 
-  cargo build --release --target $target --no-default-features --features "cli,$features"
+  cargo build --release --target $target --no-default-features --features "$BASE_FEATURES,$features"
 
   filename=bwt$([[ $2 == *"-windows-"* ]] && echo .exe || echo '')
   mv target/$target/release/$filename $dest/
