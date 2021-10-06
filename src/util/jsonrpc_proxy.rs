@@ -344,9 +344,9 @@ impl Builder {
 
     /// Set a SOCKS5H proxy.
     /// This may block the current thread if hostname resolution is needed.
-    pub fn proxy(mut self, proxy_addr: net::SocketAddr) -> Self {
-        self.tp.proxy_addr = Some(proxy_addr);
-        self
+    pub fn proxy<S: ToSocketAddrs>(mut self, proxy_addr: S) -> Result<Self, Error> {
+        self.tp.proxy_addr = Some(resolve_first_addr(&proxy_addr)?);
+        Ok(self)
     }
 
     /// Builds the final `SimpleHttpTransport`

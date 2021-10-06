@@ -103,7 +103,7 @@ pub struct Config {
         feature = "cli",
         structopt(short = "P", long, env, hide_env_values(true), display_order(35))
     )]
-    pub bitcoind_proxy: Option<net::SocketAddr>,
+    pub bitcoind_proxy: Option<String>,
 
     /// The connect/read/write timeout for the RPC connection (in seconds)
     #[cfg_attr(
