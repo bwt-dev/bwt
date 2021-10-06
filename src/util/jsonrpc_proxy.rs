@@ -21,7 +21,7 @@ pub const DEFAULT_PORT: u16 = 8332;
 pub struct SimpleHttpTransport {
     addr: TargetAddr,
     path: String,
-    timeout: Duration,
+    timeout: Option<Duration>,
     /// The value of the `Authorization` HTTP header.
     basic_auth: Option<String>,
     proxy_addr: Option<net::SocketAddr>,
@@ -32,7 +32,7 @@ impl Default for SimpleHttpTransport {
         SimpleHttpTransport {
             addr: TargetAddr::Ip(([127, 0, 0, 1], DEFAULT_PORT).into()),
             path: "/".to_owned(),
-            timeout: Duration::from_secs(15),
+            timeout: None,
             basic_auth: None,
             proxy_addr: None,
         }
@@ -55,17 +55,20 @@ impl SimpleHttpTransport {
         R: for<'a> serde::de::Deserialize<'a>,
     {
         // Open connection
-        let request_deadline = Instant::now() + self.timeout;
+        let request_deadline = self.timeout.map(|timeout| Instant::now() + timeout);
         let mut sock = match self.proxy_addr {
             Some(proxy_addr) => Socks5Stream::connect(proxy_addr, self.addr.clone())?.into_inner(),
-            None => {
-                let addr = resolve_first_addr(&self.addr)?;
-                TcpStream::connect_timeout(&addr, self.timeout)?
-            }
+            None => match self.timeout {
+                Some(timeout) => {
+                    let addr = resolve_first_addr(&self.addr)?;
+                    TcpStream::connect_timeout(&addr, timeout)?
+                }
+                None => TcpStream::connect(&self.addr)?,
+            },
         };
 
-        sock.set_read_timeout(Some(self.timeout))?;
-        sock.set_write_timeout(Some(self.timeout))?;
+        sock.set_read_timeout(self.timeout)?;
+        sock.set_write_timeout(self.timeout)?;
 
         // Serialize the body first so we can set the Content-Length header.
         let body = serde_json::to_vec(&req)?;
@@ -198,9 +201,9 @@ impl From<Error> for jsonrpc::Error {
 
 /// Try to read a line from a buffered reader. If no line can be read till the deadline is reached
 /// return a timeout error.
-fn get_line<R: BufRead>(reader: &mut R, deadline: Instant) -> Result<String, Error> {
+fn get_line<R: BufRead>(reader: &mut R, deadline: Option<Instant>) -> Result<String, Error> {
     let mut line = String::new();
-    while deadline > Instant::now() {
+    while deadline.map_or(true, |d| d > Instant::now()) {
         match reader.read_line(&mut line) {
             // EOF reached for now, try again later
             Ok(0) => thread::sleep(Duration::from_millis(5)),
@@ -253,7 +256,7 @@ impl Builder {
     /// Sets the connect/read/write timeout for the RPC socket
     /// The connect timeout does not apply when a proxy is set.
     pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.tp.timeout = timeout;
+        self.tp.timeout = Some(timeout);
         self
     }
 
