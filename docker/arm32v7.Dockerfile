@@ -14,3 +14,6 @@ ARG FEATURES=electrum,http,webhooks,track-spends
 RUN echo $FEATURES | grep -v webhooks > /dev/null || (apt-get update && apt-get install -y libssl-dev)
 COPY --from=builder /usr/local/bin/bwt /usr/local/bin/
 ENTRYPOINT [ "bwt", "--bitcoind-dir", "/bitcoin" ]
+
+# The ARM32v7/ARM32v8 dockerfiles are automatically generated from the main Docker,
+# see scripts/docker-generate.sh
