@@ -88,6 +88,23 @@ pub trait RpcApiExt: RpcApi {
         )
     }
 
+    // Pending https://github.com/rust-bitcoin/rust-bitcoincore-rpc/pull/174
+    fn create_wallet_(&self, wallet_name: &str) -> RpcResult<json::LoadWalletResult> {
+        // Create with disable_private_keys=true, blank=true, descriptors=false
+        self.call(
+            "createwallet",
+            &[
+                json!(wallet_name),
+                true.into(),
+                true.into(),
+                json!(""),
+                false.into(),
+                false.into(),
+                json!(null),
+            ],
+        )
+    }
+
     fn prune_blockchain(&self, until: u64) -> RpcResult<u64> {
         self.call("pruneblockchain", &[json!(until)])
     }

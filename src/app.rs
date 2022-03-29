@@ -320,7 +320,7 @@ fn load_wallet(rpc: &RpcClient, name: &str, create_if_missing: bool) -> Result<(
                     if create_if_missing && e.code == RPC_WALLET_NOT_FOUND =>
                 {
                     info!(target: "bwt::wallet", "wallet '{}' does not exists, creating it", name);
-                    rpc.create_wallet(name, Some(true), Some(true), None, None)?;
+                    rpc.create_wallet_(name)?;
                     Ok(())
                 }
                 Err(e) => Err(e.into()),
