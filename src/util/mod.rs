@@ -32,8 +32,11 @@ pub fn make_fee_histogram(mempool_entries: HashMap<Txid, Value>) -> Vec<(f32, u3
             let vsize = entry["vsize"]
                 .as_u64()
                 .or_else(|| entry["size"].as_u64())
-                .unwrap(); // bitcoind is borked if this fails
-            let fee = entry["fee"].as_f64().unwrap();
+                .expect("invalid getrawmempool from bitcoind");
+            let fee = entry["fees"]["base"]
+                .as_f64()
+                .or_else(|| entry["fee"].as_f64())
+                .expect("invalid getrawmempool from bitcoind");
             let feerate = fee as f32 / vsize as f32 * 100_000_000f32;
             (vsize as u32, feerate)
         })
