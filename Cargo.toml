@@ -31,10 +31,10 @@ path = "src/main.rs"
 required-features = [ "cli" ]
 
 [dependencies]
-bitcoin = { version = "0.27.1", features = [ "use-serde" ] }
+bitcoin = { version = "0.28.1", features = [ "use-serde" ] }
 bitcoin_hashes = { version = "0.10.0", features = [ "serde" ] }
-bitcoincore-rpc = "0.14.0"
-miniscript = { version = "6.0.1", features = [ "serde" ] }
+bitcoincore-rpc = "0.15.0"
+miniscript = { version = "7.0.0", features = [ "serde" ] }
 chrono = { version = "0.4.19", default-features = false, features = ["alloc"] }
 serde = { version = "1.0.117", features = [ "derive" ] }
 serde_json = "1.0.59"

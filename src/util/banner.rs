@@ -21,8 +21,7 @@ pub fn get_welcome_banner(query: &Query, omit_donation: bool) -> Result<String> 
     let hash_rate_7d = rpc.get_network_hash_ps(Some(1008), None)?;
     let uptime = Duration::from_secs(rpc.uptime()?);
     let tip_hash = rpc.get_best_block_hash()?;
-    let tip = rpc
-        .get_block_stats(&tip_hash) // fails for the genesis block, fallback to getblockheader
+    let tip = RpcApiExt::get_block_stats(rpc, &tip_hash) // fails for the genesis block, fallback to getblockheader
         .or_else::<rpc::Error, _>(|_| Ok(rpc.get_block_header_info(&tip_hash)?.into()))?;
 
     // Bitcoin Core v0.21 has a `connections_in` field. For older version,
