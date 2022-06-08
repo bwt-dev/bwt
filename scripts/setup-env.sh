@@ -80,8 +80,8 @@ echo - Waiting for bitcoind to warm up...
 btc -rpcwait getblockchaininfo > /dev/null
 
 echo - Creating wallets...
-btc createwallet internal > /dev/null
-btc createwallet bwt true true > /dev/null
+btc createwallet internal false false "" false false > /dev/null
+btc createwallet bwt true true "" false false > /dev/null
 
 echo - Generating some blocks...
 btc generatetoaddress 110 `btc getnewaddress` > /dev/null
