@@ -36,7 +36,7 @@ if [[ $FEATURES == *"electrum"* ]]; then
   test `jq -r '.transactions | length' <<< "$hist"` == 2
   test `jq -r .transactions[0].confirmations <<< "$hist"` == 1
   test `jq -r .transactions[1].confirmations <<< "$hist"` == 0
-  test `jq -r .summary.end_balance <<< "$hist"` == 6.912
+  test `jq -r .summary.end.BTC_balance <<< "$hist"` == 6.912
   test `jq -r .transactions[0].bc_value <<< "$hist" | cut -d' ' -f1` == 1.234
 
   echo - Testing listunspent
