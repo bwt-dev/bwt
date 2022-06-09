@@ -16,6 +16,7 @@ source scripts/setup-env.sh
 
 # Send some funds
 addr=`ele1 getunusedaddress`
+btc generatetoaddress 1 $addr > /dev/null
 btc sendtoaddress $addr 1.234 > /dev/null
 btc generatetoaddress 1 `btc getnewaddress` > /dev/null
 btc sendtoaddress $addr 5.678 > /dev/null
@@ -33,17 +34,18 @@ if [[ $FEATURES == *"electrum"* ]]; then
 
   echo - Testing history
   hist=`ele1 onchain_history`
-  test `jq -r '.transactions | length' <<< "$hist"` == 2
-  test `jq -r .transactions[0].confirmations <<< "$hist"` == 1
-  test `jq -r .transactions[1].confirmations <<< "$hist"` == 0
-  test `jq -r .summary.end_balance <<< "$hist"` == 6.912
-  test `jq -r .transactions[0].bc_value <<< "$hist" | cut -d' ' -f1` == 1.234
+  test `jq -r '.transactions | length' <<< "$hist"` == 3
+  test `jq -r .transactions[0].confirmations <<< "$hist"` == 2
+  test `jq -r .transactions[1].confirmations <<< "$hist"` == 1
+  test `jq -r .transactions[2].confirmations <<< "$hist"` == 0
+  test `jq -r .summary.end.BTC_balance <<< "$hist"` == 56.912
+  test `jq -r .transactions[1].bc_value <<< "$hist" | cut -d' ' -f1` == 1.234
 
   echo - Testing listunspent
   utxos=`ele1 listunspent`
-  test `jq -r length <<< "$utxos"` == 2
+  test `jq -r length <<< "$utxos"` == 3
   test `jq -r .[0].address <<< "$utxos"` == $addr
-  test `jq -r '.[] | select(.height != 0) | .value' <<< "$utxos"` == 1.234
+  test `jq -r '.[] | select(.height == 112) | .value' <<< "$utxos"` == 1.234
 fi
 
 # Test HTTP API
@@ -55,13 +57,13 @@ if [[ $FEATURES == *"http"* ]]; then
   echo = Running HTTP tests =
   echo - Testing /txs/since/:height
   txs=`get /txs/since/0`
-  test `jq -r length <<< "$txs"` == 2
-  test `jq -r .[0].funding[0].address <<< "$txs"` == $addr
-  test `jq -r .[0].funding[0].amount <<< "$txs"` == 123400000
-  test `jq -r .[1].funding[0].amount <<< "$txs"` == 567800000
+  test `jq -r length <<< "$txs"` == 3
+  test `jq -r .[1].funding[0].address <<< "$txs"` == $addr
+  test `jq -r .[1].funding[0].amount <<< "$txs"` == 123400000
+  test `jq -r .[2].funding[0].amount <<< "$txs"` == 567800000
 
   echo - Testing /tx/:txid
-  txid=`jq -r .[0].txid <<< "$txs"`
+  txid=`jq -r .[1].txid <<< "$txs"`
   tx=`get /tx/$txid`
   test `jq -r .balance_change <<< "$tx"` == 123400000
   test `jq -r .txid <<< "$tx"` == $txid
