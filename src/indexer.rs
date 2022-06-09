@@ -195,10 +195,10 @@ impl Indexer {
             }
 
             // "listtransactions"/"listsinceblock" in fact lists transaction outputs and not transactions.
-            // for "receive" txs, it returns one entry per wallet-owned output in the tx.
+            // for "receive"/"generate"/"immature" txs, it returns one entry per wallet-owned output in the tx.
             // for "send" txs, it returns one entry for every output in the tx, owned or not.
             match ltx.detail.category {
-                TxCategory::Receive => {
+                TxCategory::Receive | TxCategory::Generate | TxCategory::Immature => {
                     // incoming txouts are easy: bitcoind tells us the associated
                     // address and label, giving us all the information we need in
                     // order to save the txo to the index.
@@ -212,8 +212,10 @@ impl Indexer {
                     // the prevouts are guarranted to be indexed.
                     buffered_outgoing.insert(ltx.info.txid, ltx.info.confirmations);
                 }
-                // ignore mining-related transactions
-                TxCategory::Generate | TxCategory::Immature | TxCategory::Orphan => (),
+                TxCategory::Orphan => {
+                    // remove orphan txs
+                    self.purge_tx(&ltx.info.txid, changelog);
+                }
             };
         }
 
