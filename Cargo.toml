@@ -47,7 +47,7 @@ rand = "0.8.2"
 # http deps
 tokio = { version = "1.1.0", features = ["macros", "rt", "rt-multi-thread"], optional = true }
 tokio-stream = { version = "0.1.2", default-features = false, optional = true }
-warp = { version = "0.3.0", optional = true }
+warp = { version = "0.3.3", optional = true }
 
 # socks proxy deps
 socks = { version = "0.3.3", optional = true }
